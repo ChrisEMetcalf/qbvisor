@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.__pycache__
+*.pyo
+*.pyd
+.env
+.env.*
+*.log
+*.csv
+*.json
+
+# Temp files
+tmp/
+temp/
+
+# Log directories
+logs/
+
+# OS/IDE specific files
+.DS_Store
+.vscode/
+.idea/
