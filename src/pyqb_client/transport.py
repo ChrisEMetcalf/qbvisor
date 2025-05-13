@@ -12,10 +12,14 @@ class QuickBaseTransport:
     """
     Handles all HTTP interactions with the QuickBase API, including retries and exponential backoff.
     """
-    def __init__(self):
+    def __init__(
+            self,
+            realm_hostname: Optional[str] = None,
+            auth_token: Optional[str] = None
+    ):
         # Load auth from environment
-        self.realm_hostname = os.getenv('QB_REALM_HOSTNAME')
-        self.auth_token = os.getenv('QB_REALM_API_KEY')
+        self.realm_hostname = realm_hostname or os.getenv('QB_REALM_HOSTNAME')
+        self.auth_token = auth_token or os.getenv('QB_REALM_API_KEY')
         if not self.realm_hostname or not self.auth_token:
             raise EnvironmentError(
                 "Both QB_REALM_HOSTNAME and QB_REALM_API_KEY must be set in the environment variables."

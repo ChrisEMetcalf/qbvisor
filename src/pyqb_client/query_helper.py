@@ -67,11 +67,11 @@ class QueryHelper:
         """
         return "OR".join(expressions)
 
-    def not_(self, *expressions: str) -> str:
+    def not_(self, expression: str) -> str:
         """
         Logical NOT.
         """
-        return "NOT".join(expressions)
+        return f"NOT {expression}"
     
     # -------------------------------
     # Convenience Methods

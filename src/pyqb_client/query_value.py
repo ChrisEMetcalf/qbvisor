@@ -1,10 +1,8 @@
-# modules: query_value.py
-
 from datetime import date, datetime
 
 # Private formatting constants
-_DATE_PATTERN = "%m-%d-%Y"
-_DATETIME_PATTERN = "%m-%d-%Y %I:%M%p"
+_DATE_PATTERN = "%Y-%m-%d"
+_DATETIME_PATTERN = "%Y-%m-%d %I:%M%p"
 
 def format_query_value(value) -> str:
     """

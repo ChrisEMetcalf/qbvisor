@@ -6,7 +6,7 @@ authors = ["Chris Metcalf <christopher.e.metcalf@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 
-[tool.poetry.packages]
+[[tool.poetry.packages]]
 include = "pyqb_client"
 from = "src"
 

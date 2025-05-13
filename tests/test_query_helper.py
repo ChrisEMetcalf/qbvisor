@@ -29,18 +29,18 @@ def test_and_or_not():
     ("EX", "eq"),
     ("XEX", "neq"),
     ("CT", "contains"),
-    ("NXT", "not_contains"),
+    ("XCT", "not_contains"),
     ("HAS", "has"),
     ("XHAS", "not_has"),
     ("SW", "starts_with"),
-    ("NSW", "not_starts_with"),
+    ("XSW", "not_starts_with"),
     ("LT", "less_than"),
     ("LTE", "less_than_or_equal"),
     ("GT", "greater_than"),
     ("GTE", "greater_than_or_equal"),
     ("BF", "before"),
     ("OBF", "on_or_before"),
-    ("AF", "after")
+    ("AF", "after"),
     ("OAF", "on_or_after"),
 ])
 def test_supported_operators(op, method):
