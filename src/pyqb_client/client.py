@@ -676,10 +676,22 @@ class QuickBaseClient:
             dict: Raw API response.
         """
         app_id, table_id = self._ids(app_name, table_name)
+        fmap = self.meta.get_field_map(app_id, table_id)
+
+        # Build the records array
+        api_records = []
+        for rec in records:
+            new_rec: Dict[str, Dict[str, Any]] = {}
+            for label, val in rec.items():
+                if label not in fmap:
+                    raise ValueError(f"Field '{label}' not found in table '{table_name}'.")
+                fid = fmap[label]['id']
+                new_rec[str(fid)] = {"value": val}
+            api_records.append(new_rec)
 
         body = {
             "to": table_id,
-            "data": records
+            "data": api_records
         }
 
         if merge_field_label:
