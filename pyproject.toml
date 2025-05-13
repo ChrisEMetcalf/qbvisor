@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "pyqb-client"
+version = "0.1.0"
+description = "Quickbase Python client with async transport, logging, and data processing utilities."
+authors = ["Chris Metcalf <christopher.e.metcalf@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.packages]
+include = "pyqb_client"
+from = "src"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+aiohttp = "^3.9"
+aiofiles = "^23.2"
+pandas = "^2.2"
+python-dotenv = "^1.0"
+requests = "^2.31"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.0"
+isort = "^5.13"
+pytest = "^8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,5 +1,5 @@
-# modules/query_helper.py
 from typing import Any
+
 from .query_value import format_query_value
 
 SUPPORTED_OPERATORS = {
@@ -67,7 +67,7 @@ class QueryHelper:
         """
         return "OR".join(expressions)
 
-    def not_(self, expressions: str) -> str:
+    def not_(self, *expressions: str) -> str:
         """
         Logical NOT.
         """

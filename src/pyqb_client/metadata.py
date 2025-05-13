@@ -1,9 +1,8 @@
-# modules/metadata.py
-
 import os
 import json
 from typing import Dict, Any, List
-from modules.log_runner import get_logger
+
+from .log_runner import get_logger
 from .transport import QuickBaseTransport
 
 logger = get_logger(__name__)

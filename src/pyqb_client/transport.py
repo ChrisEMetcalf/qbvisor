@@ -1,11 +1,10 @@
-# modules/transport.py
-
 import os
 import time
 import random
 import requests
 from typing import Callable, Optional, Any
-from modules.log_runner import get_logger
+
+from .log_runner import get_logger
 
 logger = get_logger(__name__)
 
