@@ -17,7 +17,7 @@ A Python Client for the Quickbase REST API, offering:
 
 ```
   git clone https://github.com/ChrisEMetcalf/pyqb-client
-  cd qbpy-client
+  cd pyqb-client
   poetry install
 ```
     
