@@ -4,6 +4,14 @@ src/pyqb_client/__init__.py
 Aggregate exports for the QuickBase archiver package.
 """
 
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+dotenv_path = Path(__file__).resolve().parents[1].parent / ".env"
+if dotenv_path.exists():
+    load_dotenv(dotenv_path=dotenv_path)
+
 from .client import QuickBaseClient
 from .query_helper import QueryHelper
 from .helpers import (

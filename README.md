@@ -16,11 +16,19 @@ A Python Client for the Quickbase REST API, offering:
 1. **Clone** and **Install**:
 
 ```
-  git clone https://github.com/ChrisEMetcalf/pyqb-client
-  cd pyqb-client
-  poetry install
+git clone https://github.com/ChrisEMetcalf/pyqb-client
+cd pyqb-client
+poetry install
 ```
-    
+
+2. Local Setup (**Windows**)
+   * Clone the repo
+   * Open PowerShell in the project root
+   * Run: 
+```powershell
+.\dev.ps1
+```
+
 ## Configure
 
 Create a `.env` in the repo root:
@@ -46,12 +54,12 @@ logger = get_logger(__name__)
 qb = QuickBaseClient()
 
 app = "My App"
-table = "My Table"
+tbl = "My Table"
 
 #1. Query into a DataFrame
 df = qb.query_dataframe(
     app_name=app,
-    table_name=table,
+    table_name=tbl,
     select_fields=["Name", "Status", "Date"],
     where="{6.EX.'Active'}"
 )
@@ -106,6 +114,7 @@ print("CSV saved to", out)
 
 ## Testing
 Run all tests with:
+
 ```
 poetry run pytest
 ```
