@@ -1,6 +1,6 @@
 import json
 import pytest
-from pyqb_client.metadata import QuickBaseMetaCache, QuickBaseInputError
+from qbvisor.metadata import QuickBaseMetaCache, QuickBaseInputError
 
 class FakeTransport:
     def __init__(self, tables, fields):

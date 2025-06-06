@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "pyqb-client"
+name = "qbvisor"
 version = "0.1.0"
 description = "Quickbase Python client with async transport, logging, and data processing utilities."
 authors = ["Chris Metcalf <christopher.e.metcalf@gmail.com>"]
@@ -7,7 +7,7 @@ license = "MIT"
 readme = "README.md"
 
 [[tool.poetry.packages]]
-include = "pyqb_client"
+include = "qbvisor"
 from = "src"
 
 [tool.poetry.dependencies]

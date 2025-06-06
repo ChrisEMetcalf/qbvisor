@@ -1,4 +1,4 @@
-# pyqb-client
+# qbvisor
 
 A Python Client for the Quickbase REST API, offering:
 
@@ -16,8 +16,8 @@ A Python Client for the Quickbase REST API, offering:
 1. **Clone** and **Install**:
 
 ```
-git clone https://github.com/ChrisEMetcalf/pyqb-client
-cd pyqb-client
+git clone https://github.com/ChrisEMetcalf/qbvisor
+cd qbvisor
 poetry install
 ```
 
@@ -43,8 +43,8 @@ QB_APP_IDS={"My App":"bp7xxxxxx","Sandbox":"bpnyyyyyy"}
 ## Quick Start
 
 ```python
-from pyqb_client import QuickBaseClient, QueryHelper
-from pyqb_client.log_runner import LoggingConfigurator, get_logger
+from qbvisor import QuickBaseClient, QueryHelper
+from qbvisor.log_runner import LoggingConfigurator, get_logger
 
 # (Optional) configure logging in your script:
 LoggingConfigurator.setup(log_dir="logs", log_level="INFO")

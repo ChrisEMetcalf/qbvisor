@@ -1,5 +1,5 @@
 import pytest
-from pyqb_client.query_helper import QueryHelper
+from qbvisor.query_helper import QueryHelper
 
 class DummyMeta:
     def get_field_map(self, a, t):

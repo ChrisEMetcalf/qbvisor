@@ -1,6 +1,6 @@
 import pytest
 from datetime import date, datetime
-from pyqb_client.query_value import format_query_value
+from qbvisor.query_value import format_query_value
 
 def test_format_string():
     assert format_query_value("hello") == "'hello'"

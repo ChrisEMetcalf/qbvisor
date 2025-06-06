@@ -1,5 +1,5 @@
 """
-src/pyqb_client/__init__.py
+src/qbvisor/__init__.py
 
 Aggregate exports for the QuickBase archiver package.
 """

@@ -11,7 +11,7 @@ except ImportError:
     COLOREDLOGS_INSTALLED = False
 
 
-def get_logger(name: str = "pyqb_client") -> logging.Logger:
+def get_logger(name: str = "qbvisor") -> logging.Logger:
     """
     Return a logger by name. Does not auto-configure.
     Call LoggingConfigurator.setup(...) in your script to configure output.
@@ -54,7 +54,7 @@ class LoggingConfigurator:
         fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         level = (log_level or os.getenv("LOG_LEVEL", "DEBUG")).upper()
 
-        logger = logging.getLogger(logger_name or "pyqb_client")
+        logger = logging.getLogger(logger_name or "qbvisor")
         logger.setLevel(getattr(logging, level, logging.DEBUG))
 
         # Rotating file handler

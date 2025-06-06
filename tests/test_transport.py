@@ -1,6 +1,6 @@
 import pytest
 import requests
-from pyqb_client.transport import QuickBaseTransport
+from qbvisor.transport import QuickBaseTransport
 
 class DummyResponse:
     def __init__(self, status, json_data=None):
