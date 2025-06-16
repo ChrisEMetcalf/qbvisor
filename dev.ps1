@@ -12,5 +12,5 @@ poetry install
 
 Write-Host "`n Python environment setup complete." -ForegroundColor Green
 Write-Host "`n Next steps:" -ForegroundColor Yellow
-Write-Host "   • To activate the environment:    poetry shell"
-Write-Host "   • To run your app directly:       poetry run python app.py`n"
+Write-Host "    To view information on the environment:    poetry env info"
+Write-Host "    To run your app directly:                  poetry run python app.py`n"
