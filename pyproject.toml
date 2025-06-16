@@ -5,10 +5,7 @@ description = "Quickbase Python client with async transport, logging, and data p
 authors = ["Chris Metcalf <christopher.e.metcalf@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-
-[[tool.poetry.packages]]
-include = "qbvisor"
-from = "src"
+packages = [{ include = "qbvisor", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"

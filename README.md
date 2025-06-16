@@ -13,6 +13,8 @@ A Python Client for the Quickbase REST API, offering:
 
 ## Installation
 
+[Poetry](https://python-poetry.org/) is used for dependency management.
+
 1. **Clone** and **Install**:
 
 ```
@@ -27,6 +29,11 @@ poetry install
    * Run: 
 ```powershell
 .\dev.ps1
+```
+
+3. Install from **GitHub**
+```bash
+pip install git+https://github.com/ChrisEMetcalf/qbvisor.git
 ```
 
 ## Configure
