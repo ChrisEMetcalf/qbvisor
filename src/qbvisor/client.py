@@ -673,46 +673,43 @@ class QuickBaseClient:
             fields_to_return (Optional[List[str]]): Field labels to return in response (optional).
 
         Returns:
-            dict: Raw API response.
+            dict: Structured API response with success flag and metadata.
         """
         app_id, table_id = self._ids(app_name, table_name)
-        fmap = self.meta.get_field_map(app_id, table_id)
 
-        # Build the records array
+        def get_id(label: str) -> int:
+            return self.meta.get_field_id(app_id, table_id, label)
+
+        # Build the records array using field IDs
         api_records = []
         for rec in records:
             new_rec: Dict[str, Dict[str, Any]] = {}
             for label, val in rec.items():
-                if label not in fmap:
-                    raise ValueError(f"Field '{label}' not found in table '{table_name}'.")
-                fid = fmap[label]['id']
-                new_rec[str(fid)] = {"value": val}
+                new_rec[str(get_id(label))] = {"value": val}
             api_records.append(new_rec)
 
+        # Build request body
         body = {
             "to": table_id,
             "data": api_records
         }
 
         if merge_field_label:
-            field_id = self.meta.get_field_id(app_id, table_id, merge_field_label)
-            body["mergeFieldId"] = field_id
+            body["mergeFieldId"] = get_id(merge_field_label)
 
         if fields_to_return:
-            fmap = self.meta.get_field_map(app_id, table_id)
-            body["fieldsToReturn"] = [fmap[label]["id"] for label in fields_to_return]
+            body["fieldsToReturn"] = [get_id(label) for label in fields_to_return]
 
+        # Make the request
         resp = self._request(
-            method='POST',
-            path='records',
+            method="POST",
+            path="records",
             json_body=body
         )
 
         metadata = resp.get("metadata", {})
-        status = metadata.get("statusCode", 200)
 
-        # Handle 207 partial success
-        if status == 207:
+        if "lineErrors" in metadata:
             return {
                 "success": False,
                 "partial": True,
@@ -720,21 +717,12 @@ class QuickBaseClient:
                 "createdRecordIds": metadata.get("createdRecordIds", []),
                 "totalProcessed": metadata.get("totalNumberOfRecordsProcessed", 0),
             }
-        
-        # Handle 200 success
-        elif status == 200:
-            return {
-                "success": True,
-                "createdRecordIds": metadata.get("createdRecordIds", []),
-                "totalProcessed": metadata.get("totalNumberOfRecordsProcessed", 0),
-            }
-        
-        # Handle other status codes
-        else:
-            return {
-                "success": False,
-                "error": resp.get("errors", resp)
-            }
+
+        return {
+            "success": True,
+            "createdRecordIds": metadata.get("createdRecordIds", []),
+            "totalProcessed": metadata.get("totalNumberOfRecordsProcessed", 0),
+        }
 
     def delete_records(
         self,
@@ -775,9 +763,12 @@ class QuickBaseClient:
         self, 
         app_name: str, 
         table_name: str,
-        select_fields: List[str],
+        select_fields: Optional[List[str]] = None,
         where: Optional[str] = None,
-        skip: int = 0, top: int = 1000
+        sort_by: Optional[List[Tuple[str, str]]] = None,  # e.g., [("Date", "ASC")]
+        group_by: Optional[List[str]] = None,             # e.g., ["Client"]
+        skip: int = 0, 
+        top: int = 1000
     ) -> Dict[str, Any]:
         """
         Query records: POST /v1/records/query
@@ -785,8 +776,10 @@ class QuickBaseClient:
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
-            select_fields (List[str]): List of field labels to select.
+            select_fields (Optional[List[str]]): Field labels to return. If not provided, default columns will be returned.
             where (Optional[str]): Quickbase formula query string (optional).
+            sort_by (Optional[List[Tuple[str, str]]]): Field labels and sort directions.
+            group_by (Optional[List[str]]): Field labels to group by.
             skip (int): Number of records to skip. Default is 0.
             top (int): Number of records to return. Default is 1000.
 
@@ -795,20 +788,44 @@ class QuickBaseClient:
         """
         app_id, table_id = self._ids(app_name, table_name)
 
-        if not select_fields:
-            raise ValueError("Must specify at least one field to select.")
-        
-        fmap     = self.meta.get_field_map(app_id, table_id)
-        fids     = [fmap[label]['id'] for label in select_fields]
-        body     = {
-            'from':   table_id,
-            'select': fids,
-            'where':  where,
-            'options': {'skip': skip, 'top': top}
+        def get_id(label: str) -> int:
+            return self.meta.get_field_id(app_id, table_id, label)
+
+        body = {
+            "from": table_id,
+            "options": {
+                "skip": skip,
+                "top": top
+            }
         }
+
+        if select_fields:
+            body["select"] = [get_id(label) for label in select_fields]
+
+        if where:
+            body["where"] = where
+
+        if sort_by:
+            body["sortBy"] = [
+                {
+                    "fieldId": get_id(label),
+                    "order": order.upper()
+                }
+                for label, order in sort_by
+            ]
+
+        if group_by:
+            body["groupBy"] = [
+                {
+                    "fieldId": get_id(label),
+                    "grouping": "equal-values"
+                }
+                for label in group_by
+            ]
+
         return self._request(
-            method='POST',
-            path='records/query',
+            method="POST",
+            path="records/query",
             json_body=body
         )
 
@@ -818,6 +835,8 @@ class QuickBaseClient:
         table_name: str,
         select_fields: List[str],
         where: Optional[str] = None,
+        sort_by: Optional[List[Tuple[str, str]]] = None, # e.g. [('Date', 'ASC'), ('Name', 'DESC')]
+        group_by: Optional[List[str]] = None, # e.g. ['Category']
         skip: int = 0, 
         top: int = 1000
     ) -> pd.DataFrame:
@@ -829,6 +848,8 @@ class QuickBaseClient:
             table_name (str): The name of the table.
             select_fields (List[str]): List of field labels to select.
             where (Optional[str]): Quickbase formula query string (optional).
+            sort_by (Optional[List[Tuple[str, str]]]): Field labels and sort directions.
+            group_by (Optional[List[str]]): Field labels to group by.
             skip (int): Number of records to skip. Default is 0.
             top (int): Number of records to return. Default is 1000.
             
@@ -837,12 +858,41 @@ class QuickBaseClient:
         """
         app_id, table_id = self._ids(app_name, table_name)
 
+        # Field metadata
+        def get_id(label: str) -> int:
+            return self.meta.get_field_id(app_id, table_id, label)
+
         body = {
             'from':   table_id,
-            'select': [self.meta.get_field_map(app_id, table_id)[label]['id'] for label in select_fields],
-            'where':  where,
-            'options': {'skip': skip, 'top': top}
+            'select': [get_id(label) for label in select_fields],
+            'options': {
+                'skip': skip, 
+                'top': top
+            }
         }
+
+        if where:
+            body['where'] = where
+
+        if sort_by:
+            body['sortBy'] = [
+                {
+                    'fieldId': get_id(label),
+                    'order': order.upper()
+                }
+                for label, order in sort_by
+            ]
+
+        if group_by:
+            body['groupBy'] = [
+                {
+                    'fieldId': get_id(label),
+                    'grouping': 'equal-values'
+                }
+                for label in group_by
+            ]
+
+        # Make the request
         resp = self._request(
             method='POST',
             path='records/query',
@@ -917,11 +967,11 @@ class QuickBaseClient:
         self, 
         app_name: str, 
         table_name: str, 
-        where: str,
         output_dir: str,
+        where: str = "{3.GT.'0'}",
         chunk_size: int = 1000,
         record_limit: Optional[int] = None,
-        max_concurrency: int = 8
+        max_concurrency: int = 4
     ) -> str:
         """
         Download all records matching a query into a CSV by fetching in parallel:
@@ -930,11 +980,11 @@ class QuickBaseClient:
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
-            where (str): Quickbase formula query string.
             output_dir (str): Directory to save the CSV file.
+            where (str): Quickbase formula query string. Default is "{3.GT.'0'}" (all records).
             chunk_size (int): Number of records to fetch in each chunk. Default is 1000.
             record_limit (Optional[int]): Maximum number of records to download. Default is None (all records).
-            max_concurrency (int): Max number of concurrent requests. Default is 8.
+            max_concurrency (int): Max number of concurrent requests. Default is 4. Recommended to keep low to avoid rate limits.
             
         Returns:
             str: Path to the saved CSV file, or an empty string if no records found.
@@ -1058,7 +1108,7 @@ class QuickBaseClient:
         file_field_label: str,
         target_dir: str,
         where: Optional[str] = None,
-        max_concurrency: int = 8
+        max_concurrency: int = 4
     ) -> List[Dict[str, Any]]:
         """
         Download all attachments in a given file field to disk asynchronously.
@@ -1069,7 +1119,7 @@ class QuickBaseClient:
             file_field_label (str): Name of the file attachment field.
             target_dir (str): Directory to save attachments.
             where (Optional[str]): Optional Quickbase formula query filter.
-            max_concurrency (int): Max number of concurrent downloads (default 8).
+            max_concurrency (int): Max number of concurrent downloads (default 4). Recommended to keep low to avoid rate limits.
 
         Returns:
             list: List of dicts with record_id, file_name, and saved_path.
