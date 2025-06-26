@@ -526,8 +526,7 @@ class QuickBaseClient:
         return pd.DataFrame(self._parse_report(resp))
 
     @staticmethod
-    def _parse_report(
-        self, 
+    def _parse_report( 
         resp: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """

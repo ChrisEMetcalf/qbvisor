@@ -46,7 +46,11 @@ class LoggingConfigurator:
             sys.stderr.reconfigure(encoding="utf-8")
 
         # Build log path
-        project_root = Path(__file__).resolve().parents[1]
+        try:
+            project_root = Path(__file__).resolve().parents[1]
+        except NameError:
+            # Fallback for environments where __file__ is not defined
+            project_root = Path.cwd()
         logfile = log_name or f"{project_root.name}.log"
         log_path = project_root / log_dir / logfile
         log_path.parent.mkdir(parents=True, exist_ok=True)

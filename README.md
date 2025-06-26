@@ -54,7 +54,7 @@ from qbvisor import QuickBaseClient, QueryHelper
 from qbvisor.log_runner import LoggingConfigurator, get_logger
 
 # (Optional) configure logging in your script:
-LoggingConfigurator.setup(log_dir="logs", log_level="INFO")
+LoggingConfigurator.setup(log_dir="logs", log_level="DEBUG", logger_name=__name__)
 logger = get_logger(__name__)
 
 # Instantiate client
