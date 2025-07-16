@@ -1174,6 +1174,71 @@ class QuickBaseClient:
         self.logger.info(f"Downloaded {len(output)} attachments.")
         return output
 
+    def download_attachment_base64(
+        self,
+        app_name: str,
+        table_name: str,
+        record_id: int,
+        file_field_label: str
+    ) -> Optional[str]:
+        """
+        Downloads an attachment from a Quickbase record and returns its base64-encoded content.
+
+        Args:
+            app_name (str): The name of the application.
+            table_name (str): The name of the table.
+            record_id (int): The ID of the record.
+            file_field_label (str): The label of the file attachment field.
+
+        Returns:
+            Optional[str]: The base64-encoded content of the attachment, or None if not found.
+        """
+        app_id, table_id = self._ids(app_name, table_name)
+        fmap = self.meta.get_field_map(app_id, table_id)
+        file_fid = fmap[file_field_label]['id']
+        record_fid = 3  # Default Quickbase Record ID field
+
+        # Build the query to get file metadata
+        query_body = {
+            "from": table_id,
+            "select": [record_fid, file_fid],
+            "where": f"{{3.EX.'{record_id}'}}"
+        }
+        resp = self._request(
+            method='POST',
+            path='records/query',
+            json_body=query_body
+        )
+        records = resp.get('data', [])
+
+        if not records:
+            self.logger.warning(f"No attachment found for record {record_id}.")
+            return None
+        
+        # Extract file metadata
+        record = records[0]
+        file_info = record.get(str(file_fid), {}).get('value')
+        url_path = file_info.get('url')
+
+        if not url_path:
+            self.logger.warning(f"No file URL found for record {record_id}.")
+            return None
+        
+        # Download the file content
+        download_url = f'https://api.quickbase.com/v1{url_path}'
+        headers = {**self.transport.headers, 'Accept-Encoding': 'gzip'}
+        response = self.transport.get(download_url, headers=headers)
+
+        if response.status_code != 200:
+            self.logger.error(f"Failed to download attachment for record {record_id}: {response.text}")
+            return None
+        
+        # Return base64-encoded content
+        base64_content = response.text
+
+        self.logger.info(f"Downloaded attachment for record {record_id} from field '{file_field_label}'.")
+        return base64_content
+
     # ----------------
     # Utility
     # ----------------
