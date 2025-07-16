@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random
+import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -1226,8 +1227,7 @@ class QuickBaseClient:
         
         # Download the file content
         download_url = f'https://api.quickbase.com/v1{url_path}'
-        headers = {**self.transport.headers, 'Accept-Encoding': 'gzip'}
-        response = self.transport.get(download_url, headers=headers)
+        response = requests.get(download_url, headers=self.transport.headers)
 
         if response.status_code != 200:
             self.logger.error(f"Failed to download attachment for record {record_id}: {response.text}")
