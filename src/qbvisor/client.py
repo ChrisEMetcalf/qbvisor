@@ -1058,17 +1058,38 @@ class QuickBaseClient:
         download_url: str,
         save_path: Path
     ):
+        """
+        Download a file attachment asynchronously.
+
+        Args:
+            session (aiohttp.ClientSession): The HTTP session to use for the request.
+            sem (asyncio.Semaphore): Semaphore to limit concurrent downloads.
+            download_url (str): The URL to download the file from.
+            save_path (Path): The local path to save the downloaded file.
+        """
         if save_path.exists():
             self.logger.warning(f"File already exists: {save_path.name}")
             return
 
         async with sem:
             try:
-                async with session.get(download_url) as resp:
+                # Lean headers for GET (avoid Content-Type on GET)
+                headers = {k: v for k, v in self.transport.headers.items()
+                        if k.lower() != 'content-type'}
+                headers.setdefault('Accept', 'application/octet-stream')
+
+                async with session.get(download_url, headers=headers) as resp:
                     resp.raise_for_status()
+                    raw = await resp.read()
+
+                    # API body is base64; decode to raw bytes. If not base64, write as-is.
+                    try:
+                        payload = base64.b64decode(raw, validate=True)
+                    except Exception:
+                        payload = raw
+
                     async with aiofiles.open(save_path, 'wb') as f:
-                        async for chunk in resp.content.iter_chunked(8192):
-                            await f.write(chunk)
+                        await f.write(payload)
                 self.logger.info(f"Downloaded: {save_path.name}")
             except Exception as e:
                 self.logger.error(f"Failed to download {download_url}: {e}")
@@ -1079,14 +1100,22 @@ class QuickBaseClient:
         target_dir: str,
         max_concurrency: int = 8
     ) -> List[Dict[str, Any]]:
+        """
+        Download multiple file attachments asynchronously.
+
+        Args:
+            download_jobs (List[Dict[str, Any]]): List of download jobs with record IDs and URLs.
+            target_dir (str): Directory to save downloaded files.
+            max_concurrency (int): Maximum number of concurrent downloads.
+
+        Returns:
+            List[Dict[str, Any]]: List of results for each download job.
+        """
         sem = asyncio.Semaphore(max_concurrency)
         output = []
 
         connector = aiohttp.TCPConnector(limit=None)
-        async with aiohttp.ClientSession(
-            connector=connector, 
-            headers=self.transport.headers
-        ) as session:
+        async with aiohttp.ClientSession(connector=connector) as session:
             tasks = []
             for job in download_jobs:
                 rid = job['record_id']
@@ -1112,65 +1141,54 @@ class QuickBaseClient:
         max_concurrency: int = 4
     ) -> List[Dict[str, Any]]:
         """
-        Download all attachments in a given file field to disk asynchronously.
+        Download all attachments from ONE file field in a table, honoring an optional 'where'.
 
         Args:
-            app_name (str): The name of the application.
-            table_name (str): The name of the table.
-            file_field_label (str): Name of the file attachment field.
-            target_dir (str): Directory to save attachments.
-            where (Optional[str]): Optional Quickbase formula query filter.
-            max_concurrency (int): Max number of concurrent downloads (default 4). Recommended to keep low to avoid rate limits.
+            app_name (str): The name of the Quickbase app.
+            table_name (str): The name of the table containing the attachments.
+            file_field_label (str): The label of the file field to download attachments from.
+            target_dir (str): The directory to save downloaded attachments.
+            where (Optional[str]): An optional 'where' clause to filter records.
+            max_concurrency (int): The maximum number of concurrent downloads.
 
         Returns:
-            list: List of dicts with record_id, file_name, and saved_path.
+            List[Dict[str, Any]]: A list of dictionaries containing information about the downloaded attachments.
         """
         app_id, table_id = self._ids(app_name, table_name)
 
         Path(target_dir).mkdir(parents=True, exist_ok=True)
-        fmap     = self.meta.get_field_map(app_id, table_id)
-        file_fid = fmap[file_field_label]['id']
-        record_fid = 3  # Default Quickbase Record ID field
+        fmap = self.meta.get_field_map(app_id, table_id)
+        file_fid = int(fmap[file_field_label]['id'])
+        record_fid = 3  # Record ID#
 
-        query_body = {
-            "from": table_id,
-            "select": [record_fid, file_fid],
-            "where": where
-        }
-        resp = self._request(
-            method='POST',
-            path='records/query',
-            json_body=query_body
-        )
+        query_body = {"from": table_id, "select": [record_fid, file_fid]}
+        if where:
+            query_body["where"] = where
+
+        resp = self._request(method='POST', path='records/query', json_body=query_body)
         records = resp.get('data', [])
 
-        # Build download jobs
         download_jobs = []
         for record in records:
             rid = record.get(str(record_fid), {}).get('value')
             file_info = record.get(str(file_fid), {}).get('value') or {}
-            url_path  = file_info.get('url')
-
-            # NEW: filename from versions
-            versions = file_info.get('versions') or []
-            filename = None
-            if versions:
-                latest = versions[-1] if versions[-1].get('fileName') else versions[0]
-                filename = latest.get('fileName')
-
-            # Fallback if versions missing: synthesize from URL
-            if not filename and url_path:
-                ver = url_path.rstrip('/').split('/')[-1]
-                filename = f"file_v{ver}"
-
-            if not (rid and filename and url_path):
+            if not rid or not file_info:
                 continue
 
-            # NEW: safe URL assembly (handles both '/files/...' and '/v1/files/...')
-            if url_path.startswith('/v1/'):
-                full_url = f'https://api.quickbase.com{url_path}'
+            versions = file_info.get('versions') or []
+            if versions:
+                v = max(versions, key=lambda x: x.get('versionNumber', 0))
+                version_num = int(v.get('versionNumber', 1))
+                filename = v.get('fileName') or file_info.get('fileName')
             else:
-                full_url = f'https://api.quickbase.com/v1{url_path}'
+                version_num = 1  # fallback if versions missing
+                filename = file_info.get('fileName')
+
+            if not filename:
+                filename = f"rid{rid}_fid{file_fid}_v{version_num}"
+
+            # transport.base_url already includes /v1
+            full_url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{file_fid}/{version_num}"
 
             download_jobs.append({
                 "record_id": rid,
@@ -1189,7 +1207,6 @@ class QuickBaseClient:
                 max_concurrency=max_concurrency
             )
         )
-
         self.logger.info(f"Downloaded {len(output)} attachments.")
         return output
 
@@ -1201,69 +1218,120 @@ class QuickBaseClient:
         file_field_label: str
     ) -> Optional[str]:
         """
-        Downloads an attachment from a Quickbase record and returns its base64-encoded content.
-
-        Args:
-            app_name (str): The name of the Quickbase app.
-            table_name (str): The name of the table containing the record.
-            record_id (int): The ID of the record to download the attachment from.
-            file_field_label (str): The label of the file field containing the attachment.
-        
-        Returns:
-            Optional[str]: The base64-encoded content of the attachment, or None if not found.
+        Return the attachment as BASE64 (string) from a single record/field.
         """
         app_id, table_id = self._ids(app_name, table_name)
         fmap = self.meta.get_field_map(app_id, table_id)
-        file_fid = fmap[file_field_label]['id']
-        record_fid = 3  # Default Quickbase Record ID field
+        file_fid = int(fmap[file_field_label]['id'])
+        record_fid = 3
 
-        # Build the query to get file metadata
-        query_body = {
-            "from": table_id,
-            "select": [record_fid, file_fid],
-            "where": f"{{3.EX.'{record_id}'}}"
-        }
-        resp = self._request(
-            method='POST',
-            path='records/query',
-            json_body=query_body
-        )
+        query_body = {"from": table_id, "select": [record_fid, file_fid], "where": f"{{3.EX.'{record_id}'}}"}
+        resp = self._request(method='POST', path='records/query', json_body=query_body)
         records = resp.get('data', [])
-
         if not records:
             self.logger.warning(f"No attachment found for record {record_id}.")
             return None
 
-        # Extract file metadata
-        record = records[0]
-        file_info = record.get(str(file_fid), {}).get('value') or {}
-        url_path = file_info.get('url')
+        file_info = records[0].get(str(file_fid), {}).get('value') or {}
+        versions = file_info.get('versions') or []
+        version_num = int(max(versions, key=lambda x: x.get('versionNumber', 0))['versionNumber']) if versions else 1
 
-        if not url_path:
-            self.logger.warning(f"No file URL found for record {record_id}.")
+        url = f"{self.transport.base_url}/files/{table_id}/{int(record_id)}/{file_fid}/{version_num}"
+
+        headers = {k: v for k, v in self.transport.headers.items() if k.lower() != 'content-type'}
+        headers.setdefault('Accept', 'application/octet-stream')
+
+        r = requests.get(url, headers=headers, timeout=60)
+        if r.status_code != 200:
+            self.logger.error(f"Failed to download attachment for record {record_id}: {r.text[:300]}")
             return None
 
-        # Safe URL build: handles both '/files/...' and '/v1/files/...'
-        if url_path.startswith('/v1/'):
-            download_url = f'https://api.quickbase.com{url_path}'
-        else:
-            download_url = f'https://api.quickbase.com/v1{url_path}'
+        # API returns base64 in the body; validate and return as-is
+        txt = r.text.strip()
+        try:
+            base64.b64decode(txt, validate=True)
+            return txt
+        except Exception:
+            return base64.b64encode(r.content).decode('ascii')
 
-        # Download the file content with normal transport headers
-        response = requests.get(download_url, headers=self.transport.headers, stream=True, timeout=60)
-        if response.status_code != 200:
-            self.logger.error(
-                f"Failed to download attachment for record {record_id}: {response.text[:300]}"
-            )
-            return None
+    def download_table_attachments_async(
+        self,
+        app_name: str,
+        table_name: str,
+        target_dir: str,
+        where: Optional[str] = None,
+        max_concurrency: int = 4,
+        page_size: int = 1000
+    ) -> List[Dict[str, Any]]:
+        """
+        Download attachments from ALL file fields in the table, honoring 'where'.
+        Paginates over records to avoid huge payloads.
 
-        # Base64 encode raw bytes
-        base64_content = base64.b64encode(response.content).decode('ascii')
+        Args:
+            app_name: The name of the application.
+            table_name: The name of the table.
+            target_dir: The directory to save downloaded attachments.
+            where: Optional filter for records.
+            max_concurrency: Maximum number of concurrent downloads.
+            page_size: Number of records per page.
 
-        self.logger.info(
-            f"Downloaded attachment for record {record_id} from field '{file_field_label}'."
+        Returns:
+            List of downloaded attachment metadata.
+        """
+        app_id, table_id = self._ids(app_name, table_name)
+        Path(target_dir).mkdir(parents=True, exist_ok=True)
+
+        fmap = self.meta.get_field_map(app_id, table_id)
+        file_fields = [(lbl, int(meta['id'])) for lbl, meta in fmap.items() if meta.get('type') == 'file']
+        if not file_fields:
+            self.logger.info("No file attachment fields on this table.")
+            return []
+
+        select_ids = [3] + [fid for _, fid in file_fields]  # 3 = Record ID#
+        skip = 0
+        download_jobs: List[Dict[str, Any]] = []
+
+        while True:
+            body = {"from": table_id, "select": select_ids, "options": {"skip": skip, "top": page_size}}
+            if where:
+                body["where"] = where
+
+            resp = self._request(method='POST', path='records/query', json_body=body)
+            rows = resp.get('data', [])
+            if not rows:
+                break
+
+            for rec in rows:
+                rid = rec.get('3', {}).get('value')
+                if not rid:
+                    continue
+                for _, fid in file_fields:
+                    val = rec.get(str(fid), {}).get('value') or {}
+                    if not val:
+                        continue
+                    versions = val.get('versions') or []
+                    if versions:
+                        v = max(versions, key=lambda x: x.get('versionNumber', 0))
+                        ver = int(v.get('versionNumber', 1))
+                        name = v.get('fileName') or val.get('fileName') or f"rid{rid}_fid{fid}_v{ver}"
+                    else:
+                        ver = 1
+                        name = val.get('fileName') or f"rid{rid}_fid{fid}_v{ver}"
+
+                    url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/{ver}"
+                    download_jobs.append({"record_id": rid, "file_name": name, "url": url})
+
+            if len(rows) < page_size:
+                break
+            skip += page_size
+
+        if not download_jobs:
+            self.logger.warning("No attachments found to download.")
+            return []
+
+        return asyncio.run(
+            self._async_download_attachments(download_jobs, target_dir, max_concurrency=max_concurrency)
         )
-        return base64_content
 
     # ----------------
     # Utility
