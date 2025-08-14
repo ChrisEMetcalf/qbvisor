@@ -1138,21 +1138,24 @@ class QuickBaseClient:
         file_field_label: str,
         target_dir: str,
         where: Optional[str] = None,
-        max_concurrency: int = 4
+        max_concurrency: int = 4,
+        page_size: int = 1000,
     ) -> List[Dict[str, Any]]:
         """
-        Download all attachments from ONE file field in a table, honoring an optional 'where'.
+        Download all attachments from ONE file field in a table, honoring 'where',
+        paging through all matching records, and skipping rows without an attachment.
 
         Args:
-            app_name (str): The name of the Quickbase app.
-            table_name (str): The name of the table containing the attachments.
-            file_field_label (str): The label of the file field to download attachments from.
-            target_dir (str): The directory to save downloaded attachments.
-            where (Optional[str]): An optional 'where' clause to filter records.
-            max_concurrency (int): The maximum number of concurrent downloads.
+            app_name (str): The name of the app.
+            table_name (str): The name of the table.
+            file_field_label (str): The label of the file field.
+            target_dir (str): The directory to save downloaded files.
+            where (Optional[str]): Optional filter for the records.
+            max_concurrency (int): Maximum number of concurrent downloads.
+            page_size (int): Number of records to fetch per request.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries containing information about the downloaded attachments.
+            List[Dict[str, Any]]: List of results for each download job.
         """
         app_id, table_id = self._ids(app_name, table_name)
 
@@ -1161,51 +1164,77 @@ class QuickBaseClient:
         file_fid = int(fmap[file_field_label]['id'])
         record_fid = 3  # Record ID#
 
-        query_body = {"from": table_id, "select": [record_fid, file_fid]}
-        if where:
-            query_body["where"] = where
+        select_ids = [record_fid, file_fid]
+        skip = 0
+        download_jobs: List[Dict[str, Any]] = []
 
-        resp = self._request(method='POST', path='records/query', json_body=query_body)
-        records = resp.get('data', [])
+        seen = with_file = skipped_no_value = skipped_no_version = 0
 
-        download_jobs = []
-        for record in records:
-            rid = record.get(str(record_fid), {}).get('value')
-            file_info = record.get(str(file_fid), {}).get('value') or {}
-            if not rid or not file_info:
-                continue
+        while True:
+            body = {"from": table_id, "select": select_ids, "options": {"skip": skip, "top": page_size}}
+            if where:
+                body["where"] = where
 
-            versions = file_info.get('versions') or []
-            if versions:
-                v = max(versions, key=lambda x: x.get('versionNumber', 0))
-                version_num = int(v.get('versionNumber', 1))
-                filename = v.get('fileName') or file_info.get('fileName')
-            else:
-                version_num = 1  # fallback if versions missing
-                filename = file_info.get('fileName')
+            resp = self._request(method='POST', path='records/query', json_body=body)
+            rows = resp.get('data', [])
+            if not rows:
+                break
 
-            if not filename:
-                filename = f"rid{rid}_fid{file_fid}_v{version_num}"
+            for rec in rows:
+                seen += 1
+                rid = rec.get(str(record_fid), {}).get('value')
+                cell = rec.get(str(file_fid), {}) or {}
+                file_val = cell.get('value') or {}
+                if not rid or not file_val:
+                    skipped_no_value += 1
+                    continue
 
-            # transport.base_url already includes /v1
-            full_url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{file_fid}/{version_num}"
+                versions = file_val.get('versions') or []
+                filename: Optional[str] = None
+                version_num: Optional[int] = None
 
-            download_jobs.append({
-                "record_id": rid,
-                "file_name": filename,
-                "url": full_url
-            })
+                if versions:
+                    v = max(versions, key=lambda x: x.get('versionNumber', 0))
+                    version_num = int(v.get('versionNumber', 1))
+                    filename = v.get('fileName') or file_val.get('fileName')
+                else:
+                    # Inline parse of version from URL: /files/{tableId}/{rid}/{fid}/{version}
+                    url_path = (file_val.get('url') or "").strip("/")
+                    parts = url_path.split("/")
+                    if len(parts) >= 5 and parts[0].lower() == "files":
+                        try:
+                            version_num = int(parts[4])
+                        except Exception:
+                            version_num = None
+                    if not filename:
+                        filename = file_val.get('fileName')
+
+                if version_num is None:
+                    skipped_no_version += 1
+                    continue
+
+                if not filename:
+                    filename = f"fid{file_fid}_v{version_num}.bin"
+
+                full_url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{file_fid}/{version_num}"
+                download_jobs.append({"record_id": rid, "file_name": filename, "url": full_url})
+                with_file += 1
+
+            if len(rows) < page_size:
+                break
+            skip += page_size
+
+        self.logger.info(
+            f"Scanned {seen} records; queued {with_file} downloads "
+            f"(skipped {skipped_no_value} empty, {skipped_no_version} missing version)."
+        )
 
         if not download_jobs:
             self.logger.warning("No attachments found to download.")
             return []
 
         output = asyncio.run(
-            self._async_download_attachments(
-                download_jobs,
-                target_dir,
-                max_concurrency=max_concurrency
-            )
+            self._async_download_attachments(download_jobs, target_dir, max_concurrency=max_concurrency)
         )
         self.logger.info(f"Downloaded {len(output)} attachments.")
         return output
@@ -1265,18 +1294,7 @@ class QuickBaseClient:
     ) -> List[Dict[str, Any]]:
         """
         Download attachments from ALL file fields in the table, honoring 'where'.
-        Paginates over records to avoid huge payloads.
-
-        Args:
-            app_name: The name of the application.
-            table_name: The name of the table.
-            target_dir: The directory to save downloaded attachments.
-            where: Optional filter for records.
-            max_concurrency: Maximum number of concurrent downloads.
-            page_size: Number of records per page.
-
-        Returns:
-            List of downloaded attachment metadata.
+        Pages through records and skips cells without an attachment.
         """
         app_id, table_id = self._ids(app_name, table_name)
         Path(target_dir).mkdir(parents=True, exist_ok=True)
@@ -1290,6 +1308,8 @@ class QuickBaseClient:
         select_ids = [3] + [fid for _, fid in file_fields]  # 3 = Record ID#
         skip = 0
         download_jobs: List[Dict[str, Any]] = []
+
+        seen_cells = with_file = skipped_no_value = skipped_no_version = 0
 
         while True:
             body = {"from": table_id, "select": select_ids, "options": {"skip": skip, "top": page_size}}
@@ -1305,25 +1325,54 @@ class QuickBaseClient:
                 rid = rec.get('3', {}).get('value')
                 if not rid:
                     continue
+
                 for _, fid in file_fields:
-                    val = rec.get(str(fid), {}).get('value') or {}
-                    if not val:
+                    seen_cells += 1
+                    cell = rec.get(str(fid), {}) or {}
+                    file_val = cell.get('value') or {}
+                    if not file_val:
+                        skipped_no_value += 1
                         continue
-                    versions = val.get('versions') or []
+
+                    versions = file_val.get('versions') or []
+                    filename: Optional[str] = None
+                    version_num: Optional[int] = None
+
                     if versions:
                         v = max(versions, key=lambda x: x.get('versionNumber', 0))
-                        ver = int(v.get('versionNumber', 1))
-                        name = v.get('fileName') or val.get('fileName') or f"rid{rid}_fid{fid}_v{ver}"
+                        version_num = int(v.get('versionNumber', 1))
+                        filename = v.get('fileName') or file_val.get('fileName')
                     else:
-                        ver = 1
-                        name = val.get('fileName') or f"rid{rid}_fid{fid}_v{ver}"
+                        # Inline parse of version from URL: /files/{tableId}/{rid}/{fid}/{version}
+                        url_path = (file_val.get('url') or "").strip("/")
+                        parts = url_path.split("/")
+                        if len(parts) >= 5 and parts[0].lower() == "files":
+                            try:
+                                version_num = int(parts[4])
+                            except Exception:
+                                version_num = None
+                        if not filename:
+                            filename = file_val.get('fileName')
 
-                    url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/{ver}"
-                    download_jobs.append({"record_id": rid, "file_name": name, "url": url})
+                    if version_num is None:
+                        skipped_no_version += 1
+                        continue
+
+                    if not filename:
+                        filename = f"fid{fid}_v{version_num}.bin"
+
+                    url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/{version_num}"
+                    download_jobs.append({"record_id": rid, "file_name": filename, "url": url})
+                    with_file += 1
 
             if len(rows) < page_size:
                 break
             skip += page_size
+
+        self.logger.info(
+            f"Scanned {seen_cells} file cells; queued {with_file} downloads "
+            f"(skipped {skipped_no_value} empty, {skipped_no_version} missing version)."
+        )
 
         if not download_jobs:
             self.logger.warning("No attachments found to download.")
