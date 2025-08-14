@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import random
 import requests
@@ -1148,16 +1149,33 @@ class QuickBaseClient:
         for record in records:
             rid = record.get(str(record_fid), {}).get('value')
             file_info = record.get(str(file_fid), {}).get('value') or {}
-            filename = file_info.get('fileName')
-            url_path = file_info.get('url')
+            url_path  = file_info.get('url')
+
+            # NEW: filename from versions
+            versions = file_info.get('versions') or []
+            filename = None
+            if versions:
+                latest = versions[-1] if versions[-1].get('fileName') else versions[0]
+                filename = latest.get('fileName')
+
+            # Fallback if versions missing: synthesize from URL
+            if not filename and url_path:
+                ver = url_path.rstrip('/').split('/')[-1]
+                filename = f"file_v{ver}"
 
             if not (rid and filename and url_path):
                 continue
 
+            # NEW: safe URL assembly (handles both '/files/...' and '/v1/files/...')
+            if url_path.startswith('/v1/'):
+                full_url = f'https://api.quickbase.com{url_path}'
+            else:
+                full_url = f'https://api.quickbase.com/v1{url_path}'
+
             download_jobs.append({
                 "record_id": rid,
                 "file_name": filename,
-                "url": f'https://api.quickbase.com/v1{url_path}'
+                "url": full_url
             })
 
         if not download_jobs:
@@ -1186,11 +1204,11 @@ class QuickBaseClient:
         Downloads an attachment from a Quickbase record and returns its base64-encoded content.
 
         Args:
-            app_name (str): The name of the application.
-            table_name (str): The name of the table.
-            record_id (int): The ID of the record.
-            file_field_label (str): The label of the file attachment field.
-
+            app_name (str): The name of the Quickbase app.
+            table_name (str): The name of the table containing the record.
+            record_id (int): The ID of the record to download the attachment from.
+            file_field_label (str): The label of the file field containing the attachment.
+        
         Returns:
             Optional[str]: The base64-encoded content of the attachment, or None if not found.
         """
@@ -1215,28 +1233,36 @@ class QuickBaseClient:
         if not records:
             self.logger.warning(f"No attachment found for record {record_id}.")
             return None
-        
+
         # Extract file metadata
         record = records[0]
-        file_info = record.get(str(file_fid), {}).get('value')
+        file_info = record.get(str(file_fid), {}).get('value') or {}
         url_path = file_info.get('url')
 
         if not url_path:
             self.logger.warning(f"No file URL found for record {record_id}.")
             return None
-        
-        # Download the file content
-        download_url = f'https://api.quickbase.com/v1{url_path}'
-        response = requests.get(download_url, headers=self.transport.headers)
 
+        # Safe URL build: handles both '/files/...' and '/v1/files/...'
+        if url_path.startswith('/v1/'):
+            download_url = f'https://api.quickbase.com{url_path}'
+        else:
+            download_url = f'https://api.quickbase.com/v1{url_path}'
+
+        # Download the file content with normal transport headers
+        response = requests.get(download_url, headers=self.transport.headers, stream=True, timeout=60)
         if response.status_code != 200:
-            self.logger.error(f"Failed to download attachment for record {record_id}: {response.text}")
+            self.logger.error(
+                f"Failed to download attachment for record {record_id}: {response.text[:300]}"
+            )
             return None
-        
-        # Return base64-encoded content
-        base64_content = response.text
 
-        self.logger.info(f"Downloaded attachment for record {record_id} from field '{file_field_label}'.")
+        # Base64 encode raw bytes
+        base64_content = base64.b64encode(response.content).decode('ascii')
+
+        self.logger.info(
+            f"Downloaded attachment for record {record_id} from field '{file_field_label}'."
+        )
         return base64_content
 
     # ----------------
