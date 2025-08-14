@@ -1158,8 +1158,8 @@ class QuickBaseClient:
             List[Dict[str, Any]]: List of results for each download job.
         """
         app_id, table_id = self._ids(app_name, table_name)
-
         Path(target_dir).mkdir(parents=True, exist_ok=True)
+
         fmap = self.meta.get_field_map(app_id, table_id)
         file_fid = int(fmap[file_field_label]['id'])
         record_fid = 3  # Record ID#
@@ -1168,7 +1168,7 @@ class QuickBaseClient:
         skip = 0
         download_jobs: List[Dict[str, Any]] = []
 
-        seen = with_file = skipped_no_value = skipped_no_version = 0
+        seen = with_file = skipped_empty = 0
 
         while True:
             body = {"from": table_id, "select": select_ids, "options": {"skip": skip, "top": page_size}}
@@ -1185,36 +1185,17 @@ class QuickBaseClient:
                 rid = rec.get(str(record_fid), {}).get('value')
                 cell = rec.get(str(file_fid), {}) or {}
                 file_val = cell.get('value') or {}
-                if not rid or not file_val:
-                    skipped_no_value += 1
-                    continue
 
+                # Authoritative presence check: require at least one version
                 versions = file_val.get('versions') or []
-                filename: Optional[str] = None
-                version_num: Optional[int] = None
-
-                if versions:
-                    v = max(versions, key=lambda x: x.get('versionNumber', 0))
-                    version_num = int(v.get('versionNumber', 1))
-                    filename = v.get('fileName') or file_val.get('fileName')
-                else:
-                    # Inline parse of version from URL: /files/{tableId}/{rid}/{fid}/{version}
-                    url_path = (file_val.get('url') or "").strip("/")
-                    parts = url_path.split("/")
-                    if len(parts) >= 5 and parts[0].lower() == "files":
-                        try:
-                            version_num = int(parts[4])
-                        except Exception:
-                            version_num = None
-                    if not filename:
-                        filename = file_val.get('fileName')
-
-                if version_num is None:
-                    skipped_no_version += 1
+                if not rid or not versions:
+                    skipped_empty += 1
                     continue
 
-                if not filename:
-                    filename = f"fid{file_fid}_v{version_num}.bin"
+                # Choose the highest version
+                v = max(versions, key=lambda x: x.get('versionNumber', 0))
+                version_num = int(v.get('versionNumber', 1))
+                filename = v.get('fileName') or file_val.get('fileName') or f"fid{file_fid}_v{version_num}.bin"
 
                 full_url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{file_fid}/{version_num}"
                 download_jobs.append({"record_id": rid, "file_name": filename, "url": full_url})
@@ -1225,8 +1206,7 @@ class QuickBaseClient:
             skip += page_size
 
         self.logger.info(
-            f"Scanned {seen} records; queued {with_file} downloads "
-            f"(skipped {skipped_no_value} empty, {skipped_no_version} missing version)."
+            f"Scanned {seen} records; queued {with_file} downloads (skipped {skipped_empty} with no attachment)."
         )
 
         if not download_jobs:
@@ -1248,6 +1228,15 @@ class QuickBaseClient:
     ) -> Optional[str]:
         """
         Return the attachment as BASE64 (string) from a single record/field.
+
+        Args:
+            app_name: The name of the application.
+            table_name: The name of the table.
+            record_id: The ID of the record to download the attachment from.
+            file_field_label: The label of the file field to download.
+
+        Returns:
+            Optional[str]: The attachment as BASE64 string, or None if not found.
         """
         app_id, table_id = self._ids(app_name, table_name)
         fmap = self.meta.get_field_map(app_id, table_id)
@@ -1295,6 +1284,17 @@ class QuickBaseClient:
         """
         Download attachments from ALL file fields in the table, honoring 'where'.
         Pages through records and skips cells without an attachment.
+
+        Args:
+            app_name: The name of the application.
+            table_name: The name of the table.
+            target_dir: The directory to save downloaded attachments.
+            where: Optional filter for the records to download attachments from.
+            max_concurrency: Maximum number of concurrent downloads.
+            page_size: Number of records to process per page.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing information about the downloaded attachments.
         """
         app_id, table_id = self._ids(app_name, table_name)
         Path(target_dir).mkdir(parents=True, exist_ok=True)
@@ -1309,7 +1309,7 @@ class QuickBaseClient:
         skip = 0
         download_jobs: List[Dict[str, Any]] = []
 
-        seen_cells = with_file = skipped_no_value = skipped_no_version = 0
+        seen_cells = with_file = skipped_empty = 0
 
         while True:
             body = {"from": table_id, "select": select_ids, "options": {"skip": skip, "top": page_size}}
@@ -1330,36 +1330,14 @@ class QuickBaseClient:
                     seen_cells += 1
                     cell = rec.get(str(fid), {}) or {}
                     file_val = cell.get('value') or {}
-                    if not file_val:
-                        skipped_no_value += 1
-                        continue
-
                     versions = file_val.get('versions') or []
-                    filename: Optional[str] = None
-                    version_num: Optional[int] = None
-
-                    if versions:
-                        v = max(versions, key=lambda x: x.get('versionNumber', 0))
-                        version_num = int(v.get('versionNumber', 1))
-                        filename = v.get('fileName') or file_val.get('fileName')
-                    else:
-                        # Inline parse of version from URL: /files/{tableId}/{rid}/{fid}/{version}
-                        url_path = (file_val.get('url') or "").strip("/")
-                        parts = url_path.split("/")
-                        if len(parts) >= 5 and parts[0].lower() == "files":
-                            try:
-                                version_num = int(parts[4])
-                            except Exception:
-                                version_num = None
-                        if not filename:
-                            filename = file_val.get('fileName')
-
-                    if version_num is None:
-                        skipped_no_version += 1
+                    if not versions:
+                        skipped_empty += 1
                         continue
 
-                    if not filename:
-                        filename = f"fid{fid}_v{version_num}.bin"
+                    v = max(versions, key=lambda x: x.get('versionNumber', 0))
+                    version_num = int(v.get('versionNumber', 1))
+                    filename = v.get('fileName') or file_val.get('fileName') or f"fid{fid}_v{version_num}.bin"
 
                     url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/{version_num}"
                     download_jobs.append({"record_id": rid, "file_name": filename, "url": url})
@@ -1370,8 +1348,7 @@ class QuickBaseClient:
             skip += page_size
 
         self.logger.info(
-            f"Scanned {seen_cells} file cells; queued {with_file} downloads "
-            f"(skipped {skipped_no_value} empty, {skipped_no_version} missing version)."
+            f"Scanned {seen_cells} file cells; queued {with_file} downloads (skipped {skipped_empty} empty)."
         )
 
         if not download_jobs:
