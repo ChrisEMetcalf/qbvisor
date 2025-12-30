@@ -51,11 +51,15 @@ QB_APP_IDS={"My App":"bp7xxxxxx","Sandbox":"bpnyyyyyy"}
 
 ```python
 from qbvisor import QuickBaseClient, QueryHelper
-from qbvisor.log_runner import LoggingConfigurator, get_logger
+from qbvisor.log_runner import start_logging, get_logger
 
 # (Optional) configure logging in your script:
-LoggingConfigurator.setup(log_dir="logs", log_level="DEBUG", logger_name=__name__)
-logger = get_logger(__name__)
+start_logging(
+    log_dir="logs",
+    log_level="DEBUG"
+)
+
+log = get_logger(__name__)
 
 # Instantiate client
 qb = QuickBaseClient()
