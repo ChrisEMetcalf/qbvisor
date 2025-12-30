@@ -104,7 +104,7 @@ class LoggingConfigurator:
             sys.stderr.reconfigure(encoding="utf-8")
 
         # Repo root (QBVisor/)
-        project_root = Path(__file__).parent.parent.resolve()
+        project_root = Path(os.getenv("QBVISOR_ROOT", Path.cwd().resolve()))
 
         logfile = log_name or f'{project_root.name}.log'
         log_path = project_root / log_dir / logfile
