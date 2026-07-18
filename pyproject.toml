@@ -73,6 +73,7 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
+data_file = ".coverage.nosync"
 source = ["qbvisor"]
 
 [tool.coverage.report]
