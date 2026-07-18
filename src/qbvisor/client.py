@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import json
-import random
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeVar, cast, overload
@@ -12,6 +11,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from .async_transport import AsyncQuickBaseTransport
 from .exceptions import QuickbaseResponseError
 from .log_runner import get_logger
 from .metadata import QuickBaseMetaCache
@@ -826,56 +826,44 @@ class QuickBaseClient:
     # ----------------
     async def _fetch_chunk(
         self,
-        session,
-        url: str,
-        headers: dict[str, Any],
+        transport: AsyncQuickBaseTransport,
         body: dict[str, Any],
         offset: int,
-        max_retries: int = 5,
-        base_delay: float = 0.5,
-        max_delay: float = 10.0,
     ) -> list[dict[str, Any]]:
-        attempt = 0
-        while True:
-            async with session.post(url, headers=headers, json=body) as resp:
-                if resp.status in (429, 502, 503) and attempt < max_retries:
-                    retry = resp.headers.get("Retry-After")
-                    wait = (
-                        float(retry)
-                        if retry
-                        else min(max_delay, base_delay * 2**attempt) * random.uniform(0.8, 1.2)
-                    )
-                    self.logger.warning(
-                        f"429 at offset {offset}; retry #{attempt + 1} in {wait:.1f}s"
-                    )
-                    await asyncio.sleep(wait)
-                    attempt += 1
-                    continue
-                resp.raise_for_status()
-                payload = await resp.json()
-            rows = [
-                {
-                    f["label"]: r.get(str(f["id"]), {}).get("value")
-                    for f in payload.get("fields", [])
-                }
-                for r in payload.get("data", [])
-            ]
-            self.logger.info(f"Chunk at offset {offset}: {len(rows)} rows")
-            return rows
+        payload = await transport.post_json(
+            "records/query",
+            json_body=body,
+            headers={"Accept-Encoding": "gzip"},
+            retry_policy=RetryPolicy.SAFE,
+        )
+        if not isinstance(payload, dict):
+            raise QuickbaseResponseError(
+                "POST",
+                "records/query",
+                expected="JSON object",
+                actual=type(payload).__name__,
+            )
+        payload_object = cast(dict[str, Any], payload)
+        rows = [
+            {
+                f["label"]: record.get(str(f["id"]), {}).get("value")
+                for f in payload_object.get("fields", [])
+            }
+            for record in payload_object.get("data", [])
+        ]
+        self.logger.info(f"Chunk at offset {offset}: {len(rows)} rows")
+        return rows
 
     async def _gather_chunks(
         self,
-        url: str,
-        headers: dict,
         table_id: str,
         field_ids: list[int],
         where: str,
-        batch_params: list[tuple],
+        batch_params: list[tuple[int, int]],
         max_concurrency: int,
     ) -> list[list[dict[str, Any]]]:
         sem = asyncio.Semaphore(max_concurrency)
-        conn = aiohttp.TCPConnector(limit=0)
-        async with aiohttp.ClientSession(connector=conn) as session:
+        async with AsyncQuickBaseTransport(self.transport) as transport:
             tasks = []
             for offset, top in batch_params:
                 body = {
@@ -887,7 +875,7 @@ class QuickBaseClient:
 
                 async def task(off, b=body):
                     async with sem:
-                        return await self._fetch_chunk(session, url, headers, b, off)
+                        return await self._fetch_chunk(transport, b, off)
 
                 tasks.append(task(offset))
             self.logger.info(f"Dispatching {len(tasks)} chunk tasks")
@@ -919,6 +907,13 @@ class QuickBaseClient:
         Returns:
             str: Path to the saved CSV file, or an empty string if no records found.
         """
+        if chunk_size < 1:
+            raise ValueError("chunk_size must be at least 1")
+        if max_concurrency < 1:
+            raise ValueError("max_concurrency must be at least 1")
+        if record_limit is not None and record_limit < 0:
+            raise ValueError("record_limit cannot be negative")
+
         app_id, table_id = self._ids(app_name, table_name)
 
         # Build field list and figure out total rows
@@ -938,14 +933,15 @@ class QuickBaseClient:
         total = min(size, record_limit) if record_limit else size
 
         # Prepare batches
-        batches = [(o, min(chunk_size, 1000)) for o in range(0, total, chunk_size)]
-        headers = {**self.transport.headers, "Accept-Encoding": "gzip"}
-        url = f"{self.transport.base_url}/records/query"
+        request_size = min(chunk_size, 1000)
+        batches = [
+            (offset, min(request_size, total - offset)) for offset in range(0, total, request_size)
+        ]
 
         # Run the async fetch
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         all_chunks = asyncio.run(
-            self._gather_chunks(url, headers, table_id, fids, where, batches, max_concurrency)
+            self._gather_chunks(table_id, fids, where, batches, max_concurrency)
         )
 
         # Flatten the list of chunks and write to CSV
