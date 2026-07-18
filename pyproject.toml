@@ -66,6 +66,9 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-fail-under=40",
 ]
+markers = [
+    "integration: read-only tests against the configured persistent Quickbase sandbox",
+]
 testpaths = ["tests"]
 
 [tool.coverage.run]

@@ -1,9 +1,9 @@
 # qbvisor
 
-A Python Client for the Quickbase REST API, offering:
+A Python client for the Quickbase REST API, offering:
 
-
-- Async HTTP transport with retries (via `aiohttp`)
+- Synchronous HTTP transport with pooled connections, timeouts, and operation-aware retries
+- Async data and attachment workflows via `aiohttp`
 - In‑memory metadata caching for apps, tables & fields
 - High‑level client methods for apps, tables, records, reports, files
 - A DSL for building Quickbase formula queries (`QueryHelper`)
@@ -23,24 +23,25 @@ Existing public method names remain stable when practical. Clearly broken behavi
 
 [uv](https://docs.astral.sh/uv/) is used for dependency management and local development.
 
-1. **Clone** and **Install**:
+Clone the repository and install the locked development environment:
 
-```
+```bash
 git clone https://github.com/ChrisEMetcalf/qbvisor
 cd qbvisor
 uv sync --all-groups
 ```
 
-2. Install from **GitHub**
+Install the current package directly from GitHub:
+
 ```bash
 pip install git+https://github.com/ChrisEMetcalf/qbvisor.git
 ```
 
 ## Configure
 
-Create a `.env` in the repo root:
+Copy `.env.example` to `.env` and set the runtime values:
 
-```
+```dotenv
 QB_REALM_HOSTNAME=yourrealm.quickbase.com
 QB_REALM_API_KEY=QB-USER-TOKEN xxxxxx_xxxx_x_xxxxxxxxxxxxxxxxxxxxxxxxxxx
 QB_APP_IDS={"My App":"bp7xxxxxx","Sandbox":"bpnyyyyyy"}
@@ -51,88 +52,95 @@ QB_APP_IDS={"My App":"bp7xxxxxx","Sandbox":"bpnyyyyyy"}
 
 ```python
 from qbvisor import QuickBaseClient, QueryHelper
-from qbvisor.log_runner import start_logging, get_logger
+from qbvisor.log_runner import start_logging
 
-# (Optional) configure logging in your script:
-start_logging(
-    log_dir="logs",
-    log_level="DEBUG"
-)
-
-log = get_logger(__name__)
-
-# Instantiate client
-qb = QuickBaseClient()
+start_logging(log_dir="logs", log_level="INFO")
 
 app = "My App"
 tbl = "My Table"
 
-#1. Query into a DataFrame
-df = qb.query_dataframe(
-    app_name=app,
-    table_name=tbl,
-    select_fields=["Name", "Status", "Date"],
-    where="{6.EX.'Active'}"
-)
+with QuickBaseClient() as qb:
+    df = qb.query_dataframe(
+        app_name=app,
+        table_name=tbl,
+        select_fields=["Name", "Status", "Date"],
+        where="{6.EX.'Active'}",
+    )
+
+    query = QueryHelper(qb, app, tbl)
+    where = query.and_(
+        query.eq("Status", "Active"),
+        query.after("Date", "2025-05-13"),
+    )
+    active_records = qb.query_dataframe(app, tbl, ["Name", "Status"], where)
+
 print(df.head())
-
-# 2. Build a formula with QueryHelper
-q = QueryHelper(qb, app, tbl)
-where = q.and_(
-    q.eq("Status", "Active"),
-    q.after("Date", "2025-05-13")
-)
-query_df = qb.query_dataframe(app, tbl, ["Name", "Status"], where)
-print(query_df)
-
-# 3. Upsert one record
-res = qb.upsert_records(
-    app_name=app,
-    table_name=tbl,
-    records=[{"Name": "John Doe", "Status": "Active"}],
-    merge_field_label="Name"
-)
-print(res)
-
-# 4. Export all records to CSV
-out = qb.download_records_to_csv(
-    app_name=app,
-    table_name=tbl,
-    where=where,
-    output_dir="data/exports"
-)
-print("CSV saved to", out)
+print(active_records.head())
 ```
 
-## Module Overview
+## Transport reliability
 
-* `QuickBaseClient`
+`QuickBaseTransport` reuses one `requests.Session` and applies a 10-second connect timeout and a 120-second read timeout by default. GET requests and read-like POST operations retry connection failures, timeouts, and temporary gateway responses. Mutations are not replayed after an uncertain failure. A `429` response follows Quickbase's `Retry-After` guidance for every operation.
+
+Customize the transport and pass it to the high-level client:
+
+```python
+from qbvisor import QuickBaseClient, QuickBaseTransport
+
+with QuickBaseTransport(timeout=(5.0, 60.0), max_attempts=4) as transport:
+    qb = QuickBaseClient(transport=transport)
+    app = qb.get_app("My App")
+```
+
+Failed requests raise qbvisor exceptions instead of raw `requests` errors. HTTP errors expose the status, Quickbase message and description, `Retry-After`, and `qb-api-ray` diagnostic ID when present:
+
+```python
+from qbvisor import QuickBaseClient, QuickbaseHTTPError
+
+try:
+    with QuickBaseClient() as qb:
+        qb.get_app("My App")
+except QuickbaseHTTPError as error:
+    print(error.status_code, error.qb_api_ray)
+```
+
+Request credentials and bodies are not included in transport logs or exception messages.
+
+## Module overview
+
+- `QuickBaseClient`
 
     All high-level methods for apps, tables, fields, reports, records, attachments.
 
-* `QueryHelper`
+- `QuickBaseTransport`
+
+    Synchronous session, timeout, retry, response parsing, and error handling.
+
+- `QueryHelper`
 
     Build Quickbase formula queries by field label  → `{fid.OP.val}` strings.
 
-* `LoggingConfigurator` + `get_logger`
+- `LoggingConfigurator` + `get_logger`
 
     Lightweight logging API, opt-in file & console handlers with rotation.
 
-* `helpers`
+- `helpers`
 
     Utility routines (e.g. `sanitize_filenames`, `ensure_temp_dir`, etc.).
 
 
 ## Testing
+
 Run all tests with:
 
-```
+```bash
 uv run pytest
 ```
-Coverage is located in `tests/` and includes:
 
-* Value serialization
-* QueryHelper expressions
-* (Mocked) transport/metadata behaviors
+Read-only integration tests use a dedicated persistent sandbox and skip when its variables are absent. Set `QBVISOR_TEST_REALM`, `QBVISOR_TEST_TOKEN`, and `QBVISOR_TEST_APP_ID`, then run:
+
+```bash
+uv run pytest -m integration --no-cov
+```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete development and compatibility policy.
