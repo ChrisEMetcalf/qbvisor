@@ -21,6 +21,15 @@ for dotenv_path in possible_paths:
         break
 
 from .client import QuickBaseClient
+from .exceptions import (
+    QuickbaseConfigurationError,
+    QuickbaseConnectionError,
+    QuickbaseError,
+    QuickbaseHTTPError,
+    QuickbaseRateLimitError,
+    QuickbaseResponseError,
+    QuickbaseTimeoutError,
+)
 from .helpers import (
     ensure_temp_dir,
     generate_timestamped_folder,
@@ -29,11 +38,21 @@ from .helpers import (
 )
 from .log_runner import LoggingConfigurator, get_logger
 from .query_helper import QueryHelper
+from .transport import QuickBaseTransport, RetryPolicy
 
 # Expose file download utilities directly on the client
 
 __all__ = [
     "QuickBaseClient",
+    "QuickBaseTransport",
+    "RetryPolicy",
+    "QuickbaseError",
+    "QuickbaseConfigurationError",
+    "QuickbaseConnectionError",
+    "QuickbaseTimeoutError",
+    "QuickbaseHTTPError",
+    "QuickbaseRateLimitError",
+    "QuickbaseResponseError",
     "QueryHelper",
     "sanitize_filenames",
     "ensure_temp_dir",

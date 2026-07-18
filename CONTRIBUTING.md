@@ -27,7 +27,7 @@ uv build
 
 Existing public method names and call signatures should remain stable when practical. Clearly broken behavior may be corrected when the change includes regression tests and release notes.
 
-Use `QuickbaseClient` for new code. `QuickBaseClient` remains supported as a compatibility name until a documented major release removes it.
+`QuickBaseClient` is the supported high-level client. Preserve its public method names and call signatures unless a documented major release provides a migration path.
 
 ## Pull requests
 
@@ -44,4 +44,35 @@ Changes require passing automated checks and an approving review before merge.
 
 Unit tests and HTTP contract tests must not require Quickbase credentials.
 
-Integration tests use a dedicated persistent sandbox application. Destructive tests must verify the configured realm and application ID, use uniquely named resources, and require an explicit opt-in environment variable. Never run integration tests against a production application.
+Integration tests use a dedicated persistent sandbox application. Configure `QBVISOR_TEST_REALM`, `QBVISOR_TEST_TOKEN`, and `QBVISOR_TEST_APP_ID` locally; these values must never be committed.
+
+Run the established sandbox contract without allowing fixture changes:
+
+```bash
+QBVISOR_RUN_INTEGRATION=1 uv run pytest -m integration --no-cov
+```
+
+Bootstrap missing persistent fixtures and run mutation contracts only with explicit approval:
+
+```bash
+QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=1 \
+  uv run pytest -m integration --no-cov
+```
+
+Mutation tests are outside the default suite. They must verify the configured realm and application ID, use uniquely named temporary resources, and clean up after themselves. Never run integration tests against a production application.
+
+## Quickbase API contract audit
+
+The official Quickbase OAS is cached locally and excluded from version control. Refresh it and update the tracked response manifest with:
+
+```bash
+uv run python scripts/audit_quickbase_oas.py --refresh --write
+```
+
+Audit the existing cached document without network access with:
+
+```bash
+uv run python scripts/audit_quickbase_oas.py
+```
+
+Review changes to `docs/api/quickbase-oas-manifest.json` as API contract changes, not generated noise.

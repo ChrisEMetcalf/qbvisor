@@ -1,11 +1,28 @@
 import json
 import os
-from typing import Any
+from typing import Any, cast
 
+from .exceptions import QuickbaseResponseError
 from .log_runner import get_logger
-from .transport import QuickBaseTransport
+from .transport import JSONValue, QuickBaseTransport
 
 logger = get_logger(__name__)
+
+
+def _expect_object(payload: JSONValue, path: str) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise QuickbaseResponseError(
+            "GET", path, expected="JSON object", actual=type(payload).__name__
+        )
+    return cast(dict[str, Any], payload)
+
+
+def _expect_object_array(payload: JSONValue, path: str) -> list[dict[str, Any]]:
+    if not isinstance(payload, list) or not all(isinstance(item, dict) for item in payload):
+        raise QuickbaseResponseError(
+            "GET", path, expected="JSON array of objects", actual=type(payload).__name__
+        )
+    return cast(list[dict[str, Any]], payload)
 
 
 class QuickBaseInputError(Exception):
@@ -55,12 +72,8 @@ class QuickBaseMetaCache:
         """
         name = self.normalize_app(app)
         app_id = self.app_ids[name]
-        resp = self.transport.get("tables", params={"appId": app_id})
-        if isinstance(resp, dict):
-            return resp.get("tables", [])
-        if isinstance(resp, list):
-            return resp
-        raise QuickBaseInputError(f"Unexpected response type for tables: {type(resp)}")
+        payload = self.transport.get("tables", params={"appId": app_id})
+        return _expect_object_array(payload, "tables")
 
     def get_table(self, app: str, table: str) -> dict[str, Any]:
         """
@@ -87,7 +100,8 @@ class QuickBaseMetaCache:
 
         # Cache if missing
         if tbl_name not in self.cache[name]["tables"]:
-            resp = self.transport.get(f"tables/{tbl_id}", params={"appId": self.app_ids[name]})
+            payload = self.transport.get(f"tables/{tbl_id}", params={"appId": self.app_ids[name]})
+            resp = _expect_object(payload, f"tables/{tbl_id}")
             size = resp.get("nextRecordId", 1) - 1
             self.cache[name]["tables"][tbl_name] = {"id": tbl_id, "size": size, "fields": {}}
         return self.cache[name]["tables"][tbl_name]
@@ -106,14 +120,10 @@ class QuickBaseMetaCache:
         table_info = self.get_table(name, table)
         tbl_id = table_info["id"]
 
-        resp = self.transport.get("fields", params={"tableId": tbl_id, "includeFieldPerms": "true"})
-        # Extract list of fields
-        if isinstance(resp, dict):
-            fields = resp.get("fields", [])
-        elif isinstance(resp, list):
-            fields = resp
-        else:
-            raise QuickBaseInputError(f"Unexpected fields response: {type(resp)}")
+        payload = self.transport.get(
+            "fields", params={"tableId": tbl_id, "includeFieldPerms": "true"}
+        )
+        fields = _expect_object_array(payload, "fields")
 
         fmap = {f["label"]: {"id": f["id"], "type": f.get("fieldType")} for f in fields}
 
@@ -144,9 +154,16 @@ class QuickBaseMetaCache:
         List relationships: GET /v1/tables/{tableId}/relationships
         """
         tbl_id = self.get_table_id(app, table)
-        resp = self.transport.get(f"tables/{tbl_id}/relationships")
-        if isinstance(resp, dict):
-            return resp.get("relationships", [])
-        if isinstance(resp, list):
-            return resp
-        raise QuickBaseInputError(f"Unexpected relationships response: {type(resp)}")
+        path = f"tables/{tbl_id}/relationships"
+        resp = _expect_object(self.transport.get(path), path)
+        relationships = resp.get("relationships", [])
+        if not isinstance(relationships, list) or not all(
+            isinstance(item, dict) for item in relationships
+        ):
+            raise QuickbaseResponseError(
+                "GET",
+                path,
+                expected="relationships array of objects",
+                actual=type(relationships).__name__,
+            )
+        return cast(list[dict[str, Any]], relationships)

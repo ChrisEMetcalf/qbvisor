@@ -66,10 +66,15 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-fail-under=40",
 ]
+markers = [
+    "integration: live contract tests against the configured persistent Quickbase sandbox",
+    "sandbox_mutation: explicitly opted-in tests that mutate only the dedicated sandbox",
+]
 testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
+data_file = ".coverage.nosync"
 source = ["qbvisor"]
 
 [tool.coverage.report]

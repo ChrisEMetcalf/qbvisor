@@ -1,0 +1,23 @@
+# Quickbase API contract
+
+qbvisor audits its supported operations against Quickbase's official [OpenAPI document](https://developer.quickbase.com/quickbase.json). The tracked [response manifest](quickbase-oas-manifest.json) records the source URL, retrieval time, SHA-256 checksum, and every documented response for the operations the client currently calls.
+
+The raw specification is stored at `.cache/quickbase/quickbase.json` and is intentionally excluded from version control. Refresh and audit it with:
+
+```bash
+uv run python scripts/audit_quickbase_oas.py --refresh --write
+```
+
+## Response rules
+
+- The transport returns any valid JSON value without wrapping it.
+- High-level methods enforce the documented top-level response shape. Apps, individual resources, relationships, record operations, formulas, and report runs return objects. Table, report, and field collection operations return arrays.
+- Empty successful responses preserve the existing `{}` compatibility behavior.
+- A `207` upsert response remains a successful object. Callers can inspect `metadata.lineErrors` alongside successfully processed records.
+- Quickbase error objects preserve `message` and `description`. Exceptions also preserve the HTTP status, `Retry-After`, and `qb-api-ray` header when present.
+
+## Rate limiting
+
+Quickbase's [rate-limit guidance](https://developer.quickbase.com/rateLimit) instructs clients to wait for `Retry-After` before retrying. qbvisor applies a valid delay to both reads and mutations because the server has explicitly told the client when to replay the request. If the header is missing or invalid, qbvisor raises `QuickbaseRateLimitError` immediately. It does not invent a mutation retry delay.
+
+Connection failures, timeouts, and temporary gateway failures remain different: only operations classified as safe are replayed after those uncertain failures.
