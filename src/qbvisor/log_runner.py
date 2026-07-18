@@ -3,12 +3,14 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Callable
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 try:
     import coloredlogs
+
     COLOREDLOGS_INSTALLED = True
 except ImportError:
     COLOREDLOGS_INSTALLED = False
@@ -16,8 +18,9 @@ except ImportError:
 # Tiny hook system for custom log handlers
 Hook = Callable[..., None]
 
+
 class LogHooks:
-    _hooks: Dict[str, List[Hook]] = {
+    _hooks: dict[str, list[Hook]] = {
         "before_setup": [],
         "after_setup": [],
         "on_get_logger": [],
@@ -34,8 +37,10 @@ class LogHooks:
         for fn in cls._hooks.get(hook_name, []):
             fn(**kwargs)
 
+
 # Public API
 _DEFAULT_LOGGER_NAME = "qbvisor"
+
 
 def get_logger(name: str = _DEFAULT_LOGGER_NAME) -> logging.Logger:
     """
@@ -45,6 +50,7 @@ def get_logger(name: str = _DEFAULT_LOGGER_NAME) -> logging.Logger:
     logger = logging.getLogger(name)
     LogHooks.run("on_get_logger", logger=logger)
     return logger
+
 
 class LoggingConfigurator:
     """
@@ -60,8 +66,8 @@ class LoggingConfigurator:
         *,
         logger_name: str = _DEFAULT_LOGGER_NAME,
         log_dir: str = "logs",
-        log_name: Optional[str] = None,
-        log_level: Optional[str] = None,
+        log_name: str | None = None,
+        log_level: str | None = None,
         enable_colored: bool = True,
         fmt: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         max_bytes: int = 5 * 1024 * 1024,
@@ -90,12 +96,12 @@ class LoggingConfigurator:
             return logging.getLogger(logger_name)
 
         LogHooks.run(
-            "before_setup", 
+            "before_setup",
             logger_name=logger_name,
             log_dir=log_dir,
             log_name=log_name,
-            log_level=log_level
-            )
+            log_level=log_level,
+        )
 
         # UTF-8 safety for log files
         if hasattr(sys.stdout, "reconfigure"):
@@ -106,11 +112,11 @@ class LoggingConfigurator:
         # Repo root (QBVisor/)
         project_root = Path(os.getenv("QBVISOR_ROOT", Path.cwd().resolve()))
 
-        logfile = log_name or f'{project_root.name}.log'
+        logfile = log_name or f"{project_root.name}.log"
         log_path = project_root / log_dir / logfile
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        level_str = (log_level or os.getenv("LOG_LEVEL", "DEBUG")).upper()
+        level_str = (log_level or os.getenv("LOG_LEVEL") or "DEBUG").upper()
         level = getattr(logging, level_str, logging.DEBUG)
 
         logger = logging.getLogger(logger_name)
@@ -131,8 +137,7 @@ class LoggingConfigurator:
             logger.addHandler(fh)
 
         if not any(
-            isinstance(h, logging.StreamHandler)
-            and not isinstance(h, RotatingFileHandler)
+            isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler)
             for h in logger.handlers
         ):
             ch = logging.StreamHandler()
@@ -145,7 +150,7 @@ class LoggingConfigurator:
                 logger=logger,
                 fmt=fmt,
             )
-            
+
         cls._configured = True
         LogHooks.run(
             "after_setup",
@@ -153,7 +158,8 @@ class LoggingConfigurator:
             log_path=log_path,
         )
         return logger
-    
+
+
 def start_logging(**kwargs: Any) -> logging.Logger:
     """
     Convenience function to set up logging with default parameters.

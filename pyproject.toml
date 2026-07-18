@@ -1,25 +1,80 @@
-[tool.poetry]
+[project]
 name = "qbvisor"
 version = "0.2.0"
 description = "Quickbase Python client with async transport, logging, and data processing utilities."
-authors = ["Chris Metcalf <christopher.e.metcalf@gmail.com>"]
-license = "MIT"
 readme = "README.md"
-packages = [{ include = "qbvisor", from = "src" }]
+requires-python = ">=3.12"
+license = { file = "LICENSE.md" }
+authors = [
+    { name = "Chris Metcalf", email = "christopher.e.metcalf@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "aiofiles>=23.2",
+    "aiohttp>=3.9",
+    "pandas>=2.2",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-aiohttp = "^3.9"
-aiofiles = "^23.2"
-pandas = "^2.2"
-python-dotenv = "^1.0"
-requests = "^2.31"
-
-[tool.poetry.group.dev.dependencies]
-black = "^24.0"
-isort = "^5.13"
-pytest = "^8.0"
+[dependency-groups]
+dev = [
+    "mypy>=1.14",
+    "pandas-stubs>=2.2",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "types-aiofiles>=24.1",
+    "types-requests>=2.31",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qbvisor"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/qbvisor/__init__.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+check_untyped_defs = true
+ignore_missing_imports = true
+pretty = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+    "--cov=qbvisor",
+    "--cov-report=term-missing",
+    "--cov-fail-under=40",
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["qbvisor"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+show_missing = true

@@ -10,28 +10,28 @@ A Python Client for the Quickbase REST API, offering:
 - Safe value serialization (`format_query_value`)
 - Optional, non‑intrusive logging configuration
 
+qbvisor is developed as public infrastructure for building, querying, moving, and backing up Quickbase applications. The project prioritizes reliability, performance, idempotency, and a direct developer experience.
+
+
+## Python support
+
+qbvisor supports Python 3.12 and 3.13.
+
+Existing public method names remain stable when practical. Clearly broken behavior may be corrected when the fix is tested and documented.
 
 ## Installation
 
-[Poetry](https://python-poetry.org/) is used for dependency management.
+[uv](https://docs.astral.sh/uv/) is used for dependency management and local development.
 
 1. **Clone** and **Install**:
 
 ```
 git clone https://github.com/ChrisEMetcalf/qbvisor
 cd qbvisor
-poetry install
+uv sync --all-groups
 ```
 
-2. Local Setup (**Windows**)
-   * Clone the repo
-   * Open PowerShell in the project root
-   * Run: 
-```powershell
-.\dev.ps1
-```
-
-3. Install from **GitHub**
+2. Install from **GitHub**
 ```bash
 pip install git+https://github.com/ChrisEMetcalf/qbvisor.git
 ```
@@ -127,10 +127,12 @@ print("CSV saved to", out)
 Run all tests with:
 
 ```
-poetry run pytest
+uv run pytest
 ```
 Coverage is located in `tests/` and includes:
 
 * Value serialization
 * QueryHelper expressions
 * (Mocked) transport/metadata behaviors
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete development and compatibility policy.

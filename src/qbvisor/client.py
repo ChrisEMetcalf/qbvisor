@@ -2,40 +2,48 @@ import asyncio
 import base64
 import json
 import random
-import requests
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, overload
 
-import aiohttp
 import aiofiles
+import aiohttp
 import pandas as pd
+import requests
 from dotenv import load_dotenv
 
 from .log_runner import get_logger
-from .transport import QuickBaseTransport
 from .metadata import QuickBaseMetaCache
+from .transport import QuickBaseTransport
 
 logger = get_logger(__name__)
+
 
 class QuickBaseClient:
     """
     High-level QuickBase client that composes transport, metadata, and file utilities.
     """
+
     def __init__(self):
         load_dotenv()
         self.transport = QuickBaseTransport()
-        self.meta      = QuickBaseMetaCache(self.transport)
-        self.logger    = get_logger(__name__)
+        self.meta = QuickBaseMetaCache(self.transport)
+        self.logger = get_logger(__name__)
 
     # ----------------
     # Private: Map friendly names to IDs
     # ----------------
+    @overload
+    def _ids(self, app_name: str, table_name: None = None) -> tuple[str, None]: ...
+
+    @overload
+    def _ids(self, app_name: str, table_name: str) -> tuple[str, str]: ...
+
     def _ids(
-            self,
-            app_name: str,
-            table_name: str | None = None,
-    ) -> Tuple[str, str | None]:
+        self,
+        app_name: str,
+        table_name: str | None = None,
+    ) -> tuple[str, str | None]:
         """
         Map friendly names to IDs.
         """
@@ -46,16 +54,15 @@ class QuickBaseClient:
         return app_id, table_id
 
     def _request(
-            self,
-            method: str,
-            path: str,
-            params: Optional[Dict[str, Any]] = None,
-            json_body: Optional[Any] = None,
-    ) -> Dict[str, Any]:
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        json_body: Any | None = None,
+    ) -> dict[str, Any]:
         """
         Centralized request handling with logging.
         """
-        url = f'{self.transport.base_url}/{path}'
         try:
             func = getattr(self.transport, method.lower())
             return func(path, params=params, json_body=json_body)
@@ -69,21 +76,21 @@ class QuickBaseClient:
     def create_app(
         self,
         name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
         assign_token: bool = False,
-        variables: Optional[List[Dict[str, str]]] = None,
-        security_properties: Optional[Dict[str, bool]] = None
-    ) -> Dict[str, Any]:
+        variables: list[dict[str, str]] | None = None,
+        security_properties: dict[str, bool] | None = None,
+    ) -> dict[str, Any]:
         """
         Create a new Quickbase application: POST /v1/apps
-        
+
         Args:
             name (str): The name of the new application. (required)
             description (str, optional): A description for the new application.
             assign_token (bool, optional): Whether to assign a token to the new app.
             variables (list, optional): A list of application variables to set.
             security_properties (dict, optional): Security settings for the new app.
-            
+
 
         Returns:
             dict: The created app's metadata.
@@ -96,28 +103,24 @@ class QuickBaseClient:
         if security_properties:
             body["securityProperties"] = security_properties
 
-        return self._request(method='POST', path="apps", json_body=body)
+        return self._request(method="POST", path="apps", json_body=body)
 
-    def get_app(self, app_name: str) -> Dict[str, Any]:
+    def get_app(self, app_name: str) -> dict[str, Any]:
         """
         Get app metadata: GET /v1/apps/{appId}
         """
         app_id, _ = self._ids(app_name)
 
-        return self._request(
-            method='GET',
-            path=f"apps/{app_id}",
-            params={'appId': app_id}
-        )
+        return self._request(method="GET", path=f"apps/{app_id}", params={"appId": app_id})
 
     def update_app(
-            self,
-            app_name: str,
-            new_name: Optional[str] = None,
-            description: Optional[str] = None,
-            variables: Optional[List[Dict[str, str]]] = None,
-            security_properties: Optional[Dict[str, bool]] = None
-    ) -> Dict[str, Any]:
+        self,
+        app_name: str,
+        new_name: str | None = None,
+        description: str | None = None,
+        variables: list[dict[str, str]] | None = None,
+        security_properties: dict[str, bool] | None = None,
+    ) -> dict[str, Any]:
         """
         Update an existing Quickbase application: POST /v1/apps/{appId}
 
@@ -133,7 +136,7 @@ class QuickBaseClient:
         """
         app_id, _ = self._ids(app_name)
 
-        body: Dict[str, Any] = {}
+        body: dict[str, Any] = {}
         if new_name:
             body["name"] = new_name
         if description:
@@ -145,43 +148,32 @@ class QuickBaseClient:
 
         if not body:
             raise ValueError("No update parameters provided.")
-        return self._request(
-            method='POST',
-            path=f"apps/{app_id}",
-            json_body=body
-        )
+        return self._request(method="POST", path=f"apps/{app_id}", json_body=body)
 
-    def delete_app(
-            self,
-            app_name: str
-    ) -> Dict[str, Any]:
+    def delete_app(self, app_name: str) -> dict[str, Any]:
         """
         Delete an existing Quickbase application: DELETE /v1/apps/{appId}
-        
+
         Args:
             app_name (str): The name of the application to delete. (required)
-            
+
         Returns:
             dict: The deleted app's App ID.
         """
         app_id, _ = self._ids(app_name)
 
-        return self._request(
-            method='DELETE',
-            path=f"apps/{app_id}",
-            params={'appId': app_id}
-        )
+        return self._request(method="DELETE", path=f"apps/{app_id}", params={"appId": app_id})
 
     def copy_app(
-        self, 
-        app_name: str, 
+        self,
+        app_name: str,
         new_app_name: str,
-        description: Optional[str] = None, 
-        properties: Optional[Dict[str, Any]] = None,
-        ) -> Dict[str, Any]:
+        description: str | None = None,
+        properties: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Copy an existing Quickbase application: POST /v1/apps/{appId}/copy
-        
+
         Args:
             app_name (str): The name of the application to copy. (required)
             new_app_name (str): The name for the new application. (required)
@@ -190,31 +182,23 @@ class QuickBaseClient:
         """
         app_id, _ = self._ids(app_name)
 
-        body = {
-            "name": new_app_name,
-            "description": description,
-            "properties": properties
-        }
-        return self._request(
-            method='POST',
-            path=f"apps/{app_id}/copy",
-            json_body=body
-        )
+        body = {"name": new_app_name, "description": description, "properties": properties}
+        return self._request(method="POST", path=f"apps/{app_id}/copy", json_body=body)
 
     # ----------------
     # Table Methods
     # ----------------
     def create_table(
-            self,
-            app_name: str,
-            table_name: str,
-            description: Optional[str] = None,
-            singular_record_name: Optional[str] = None,
-            plural_record_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        self,
+        app_name: str,
+        table_name: str,
+        description: str | None = None,
+        singular_record_name: str | None = None,
+        plural_record_name: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a new Quickbase table: POST /v1/tables?appId={appId}
-        
+
         Args:
             app_id (str): The name of the application to create the table in. (required)
             table_name (str): The name of the new table. (required)
@@ -231,19 +215,11 @@ class QuickBaseClient:
             "name": table_name,
             "description": description,
             "singularRecordName": singular_record_name,
-            "pluralRecordName": plural_record_name
+            "pluralRecordName": plural_record_name,
         }
-        return self._request(
-            method='POST',
-            path='tables',
-            params={'appId': app_id},
-            json_body=body
-        )
+        return self._request(method="POST", path="tables", params={"appId": app_id}, json_body=body)
 
-    def get_tables_for_app(
-            self, 
-            app_name: str
-    ) -> List[Dict[str, Any]]:
+    def get_tables_for_app(self, app_name: str) -> dict[str, Any]:
         """
         List tables for a given app: GET /v1/tables?appId={appId}
 
@@ -255,17 +231,13 @@ class QuickBaseClient:
         """
         app_id, _ = self._ids(app_name)
 
-        return self._request(
-            method='GET',
-            path='tables',
-            params={'appId': app_id}
-        )
+        return self._request(method="GET", path="tables", params={"appId": app_id})
 
     def get_table(
-            self,
-            app_name: str,
-            table_name: str,
-    ) -> Dict[str, Any]:
+        self,
+        app_name: str,
+        table_name: str,
+    ) -> dict[str, Any]:
         """
         Get table metadata: GET /v1/tables/{tableId}?appId={appId}
 
@@ -278,20 +250,16 @@ class QuickBaseClient:
         """
         app_id, table_id = self._ids(app_name, table_name)
 
-        return self._request(
-            method='GET',
-            path=f"tables/{table_id}",
-            params={'appId': app_id}
-        )
+        return self._request(method="GET", path=f"tables/{table_id}", params={"appId": app_id})
 
     def update_table(
-            self,
-            app_name: str,
-            table_name: str,
-            new_table_name: Optional[str] = None,
-            singular_record_name: Optional[str] = None,
-            plural_record_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        self,
+        app_name: str,
+        table_name: str,
+        new_table_name: str | None = None,
+        singular_record_name: str | None = None,
+        plural_record_name: str | None = None,
+    ) -> dict[str, Any]:
         """
         Update table metadata: POST /v1/tables/{tableId}?appId={appId}
 
@@ -307,29 +275,24 @@ class QuickBaseClient:
         """
         app_id, table_id = self._ids(app_name, table_name)
 
-        body: Dict[str, Any] = {}
+        body: dict[str, Any] = {}
         if new_table_name:
             body["name"] = new_table_name
         if singular_record_name:
             body["singularRecordName"] = singular_record_name
         if plural_record_name:
             body["pluralRecordName"] = plural_record_name
-        
+
         if not body:
-            raise ValueError("Must specify at least one field to update (new_table_name, singular_record_name, or plural_record_name).")
+            raise ValueError(
+                "Must specify at least one field to update (new_table_name, singular_record_name, or plural_record_name)."
+            )
 
         return self._request(
-            method='POST',
-            path=f"tables/{table_id}",
-            params={'appId': app_id},
-            json_body=body
+            method="POST", path=f"tables/{table_id}", params={"appId": app_id}, json_body=body
         )
 
-    def delete_table(
-            self, 
-            app_name: str, 
-            table_name: str
-    ) -> Dict[str, Any]:
+    def delete_table(self, app_name: str, table_name: str) -> dict[str, Any]:
         """
         Delete a table: DELETE /v1/tables/{tableId}?appId={appId}
 
@@ -342,17 +305,9 @@ class QuickBaseClient:
         """
         app_id, table_id = self._ids(app_name, table_name)
 
-        return self._request(
-            method='DELETE',
-            path=f"tables/{table_id}",
-            params={'appId': app_id}
-        )
+        return self._request(method="DELETE", path=f"tables/{table_id}", params={"appId": app_id})
 
-    def get_all_relationships(
-            self, 
-            app_name: str, 
-            table_name: str
-    ) -> List[Dict[str, Any]]:
+    def get_all_relationships(self, app_name: str, table_name: str) -> list[dict[str, Any]]:
         """
         List relationships: GET /v1/tables/{tableId}/relationships
 
@@ -366,21 +321,19 @@ class QuickBaseClient:
         app_id, table_id = self._ids(app_name, table_name)
 
         resp = self._request(
-            method='GET',
-            path=f"tables/{table_id}/relationships",
-            params={'appId': app_id}
+            method="GET", path=f"tables/{table_id}/relationships", params={"appId": app_id}
         )
-        return resp.get('relationships', [])
+        return resp.get("relationships", [])
 
     def create_relationship(
         self,
         app_name: str,
         table_name: str,
         parent_table_name: str,
-        foreign_key_label: Optional[str] = None,
-        lookup_field_ids: Optional[List[int]] = None,
-        summary_fields: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+        foreign_key_label: str | None = None,
+        lookup_field_ids: list[int] | None = None,
+        summary_fields: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """
         Create a relationship between two tables: POST /v1/tables/{tableId}/relationship
 
@@ -398,21 +351,18 @@ class QuickBaseClient:
         app_id, table_id = self._ids(app_name, table_name)
 
         parent_id = self.meta.get_table_id(app_id, parent_table_name)
-        body: Dict[str, Any] = {
-            'parentTableId': parent_id,
-            'childTableId': table_id
-        }
+        body: dict[str, Any] = {"parentTableId": parent_id, "childTableId": table_id}
         if foreign_key_label:
-            body['foreignKeyField'] = {'label': foreign_key_label}
+            body["foreignKeyField"] = {"label": foreign_key_label}
         if lookup_field_ids:
-            body['lookupFieldIds'] = lookup_field_ids
+            body["lookupFieldIds"] = lookup_field_ids
         if summary_fields:
-            body['summaryFields'] = summary_fields
+            body["summaryFields"] = summary_fields
         return self._request(
-            method='POST',
+            method="POST",
             path=f"tables/{table_id}/relationship",
-            params={'appId': app_id},
-            json_body=body
+            params={"appId": app_id},
+            json_body=body,
         )
 
     def delete_relationship(
@@ -420,7 +370,7 @@ class QuickBaseClient:
         app_name: str,
         table_name: str,
         related_field: str,
-    ) -> dict:
+    ) -> Any | None:
         """
         Delete a relationship between two tables.
 
@@ -436,21 +386,15 @@ class QuickBaseClient:
 
         rel_id = self.meta.get_field_id(app_id, table_id, related_field)
         resp = self._request(
-            method='DELETE',
-            path=f"relationship/{rel_id}",
-            params={'appId': app_id}
+            method="DELETE", path=f"relationship/{rel_id}", params={"appId": app_id}
         )
 
-        return resp.get('relationshipId', None)
+        return resp.get("relationshipId", None)
 
     # ----------------
     # Report Methods
     # ----------------
-    def get_reports_for_table(
-        self, 
-        app_name: str, 
-        table_name: str
-    ) -> List[Dict[str, Any]]:
+    def get_reports_for_table(self, app_name: str, table_name: str) -> list[dict[str, Any]]:
         """
         List reports for a table: GET /v1/reports?tableId={tableId}
 
@@ -463,19 +407,10 @@ class QuickBaseClient:
         """
         _, table_id = self._ids(app_name, table_name)
 
-        resp =  self._request(
-            method='GET',
-            path='reports',
-            params={'tableId': table_id}
-        )
-        return resp.get('reports', [])
+        resp = self._request(method="GET", path="reports", params={"tableId": table_id})
+        return resp.get("reports", [])
 
-    def get_report(
-        self,
-        app_name: str,
-        table_name: str,
-        report_id: int
-    ) -> Dict[str, Any]:
+    def get_report(self, app_name: str, table_name: str, report_id: int) -> dict[str, Any]:
         """
         Get report metadata for an individual report: GET /v1/reports/{reportId}
 
@@ -487,76 +422,54 @@ class QuickBaseClient:
         _, table_id = self._ids(app_name, table_name)
 
         return self._request(
-            method='GET',
-            path=f"reports/{report_id}",
-            params={'tableId': table_id}
+            method="GET", path=f"reports/{report_id}", params={"tableId": table_id}
         )
 
     def run_report(
-        self, 
-        app_name: str, 
-        table_name: str, 
-        report_id: int,
-        skip: int = 0, 
-        top: int = 1000
+        self, app_name: str, table_name: str, report_id: int, skip: int = 0, top: int = 1000
     ) -> pd.DataFrame:
         """
         Run a report: POST /v1/reports/{reportId}/run
-        
+
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
             report_id (int): Report ID.
             skip (int): Number of records to skip. Default is 0.
             top (int): Number of records to return. Default is 1000.
-            
+
         Returns:
             pd.DataFrame: DataFrame containing the report data.
         """
         _, table_id = self._ids(app_name, table_name)
 
-        params = {
-            'tableId': table_id,
-            'skip': skip,
-            'top': top
-        }
-        resp = self._request(
-            method='POST',
-            path=f"reports/{report_id}/run",
-            params=params
-        )
+        params = {"tableId": table_id, "skip": skip, "top": top}
+        resp = self._request(method="POST", path=f"reports/{report_id}/run", params=params)
         return pd.DataFrame(self._parse_report(resp))
 
     @staticmethod
-    def _parse_report( 
-        resp: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    def _parse_report(resp: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse the report response to extract field labels and values.
-        
+
         Args:
             resp (dict): The response from the report run.
-            
+
         Returns:
             list: A list of dictionaries containing field labels and their corresponding values.
         """
         fields = resp.get("fields", [])
-        data   = resp.get("data", [])
+        data = resp.get("data", [])
         return [
-            {f['label']: rec.get(str(f['id']), {}).get('value') for f in fields}
-            for rec in data
+            {f["label"]: rec.get(str(f["id"]), {}).get("value") for f in fields} for rec in data
         ]
 
     # ----------------
     # Field Methods
     # ----------------
     def create_field(
-        self,
-        app_name: str,
-        table_name: str,
-        label: str,
-        field_type: str
-    ) -> Dict[str, Any]:
+        self, app_name: str, table_name: str, label: str, field_type: str
+    ) -> dict[str, Any]:
         """
         Create a new field in a table: POST /v1/fields
 
@@ -571,23 +484,12 @@ class QuickBaseClient:
         """
         _, table_id = self._ids(app_name, table_name)
 
-        body = {
-            "tableId": table_id,
-            "label": label,
-            "fieldType": field_type
-        }
-        return self._request(
-            method='POST',
-            path='fields',
-            json_body=body
-        )
+        body = {"tableId": table_id, "label": label, "fieldType": field_type}
+        return self._request(method="POST", path="fields", json_body=body)
 
     def delete_fields(
-        self,
-        app_name: str,
-        table_name: str,
-        field_labels: List[str]
-    ) -> Dict[str, Any]:
+        self, app_name: str, table_name: str, field_labels: list[str]
+    ) -> dict[str, Any]:
         """
         Delete one or more fields from a table: DELETE /v1/fields
 
@@ -604,26 +506,15 @@ class QuickBaseClient:
         fmap = self.meta.get_field_map(app_id, table_id)
 
         # Lookup field IDs based on the provided labels
-        field_ids = [fmap[label]['id'] for label in field_labels]
-        body = {
-            "tableId": table_id,
-            "fieldIds": field_ids
-        }
-        return self._request(
-            method='DELETE',
-            path='fields',
-            json_body=body
-        )
+        field_ids = [fmap[label]["id"] for label in field_labels]
+        body = {"tableId": table_id, "fieldIds": field_ids}
+        return self._request(method="DELETE", path="fields", json_body=body)
 
     # ----------------
     # Formula Methods
     # ----------------
     def run_formula(
-        self,
-        app_name: str,
-        table_name: str,
-        formula: str,
-        record_id: Optional[int] = None
+        self, app_name: str, table_name: str, formula: str, record_id: int | None = None
     ) -> Any:
         """
         Run a formula: POST /v1/formula/run
@@ -639,18 +530,11 @@ class QuickBaseClient:
         """
         _, table_id = self._ids(app_name, table_name)
 
-        body = {
-            "from": table_id,
-            "formula": formula
-        }
+        body: dict[str, Any] = {"from": table_id, "formula": formula}
         if record_id is not None:
             body["rid"] = record_id
 
-        return self._request(
-            method='POST',
-            path='formula/run',
-            json_body=body
-        )
+        return self._request(method="POST", path="formula/run", json_body=body)
 
     # ----------------
     # Record Methods
@@ -659,10 +543,10 @@ class QuickBaseClient:
         self,
         app_name: str,
         table_name: str,
-        records: List[Dict[str, Any]],
-        merge_field_label: Optional[str] = None,
-        fields_to_return: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        records: list[dict[str, Any]],
+        merge_field_label: str | None = None,
+        fields_to_return: list[str] | None = None,
+    ) -> dict[str, Any]:
         """
         Upsert (insert or update) records: POST /v1/records
 
@@ -684,16 +568,13 @@ class QuickBaseClient:
         # Build the records array using field IDs
         api_records = []
         for rec in records:
-            new_rec: Dict[str, Dict[str, Any]] = {}
+            new_rec: dict[str, dict[str, Any]] = {}
             for label, val in rec.items():
                 new_rec[str(get_id(label))] = {"value": val}
             api_records.append(new_rec)
 
         # Build request body
-        body = {
-            "to": table_id,
-            "data": api_records
-        }
+        body: dict[str, Any] = {"to": table_id, "data": api_records}
 
         if merge_field_label:
             body["mergeFieldId"] = get_id(merge_field_label)
@@ -702,11 +583,7 @@ class QuickBaseClient:
             body["fieldsToReturn"] = [get_id(label) for label in fields_to_return]
 
         # Make the request
-        resp = self._request(
-            method="POST",
-            path="records",
-            json_body=body
-        )
+        resp = self._request(method="POST", path="records", json_body=body)
 
         metadata = resp.get("metadata", {})
 
@@ -725,12 +602,7 @@ class QuickBaseClient:
             "totalProcessed": metadata.get("totalNumberOfRecordsProcessed", 0),
         }
 
-    def delete_records(
-        self,
-        app_name: str,
-        table_name: str,
-        where: Union[str, List[int]]
-    ) -> int:
+    def delete_records(self, app_name: str, table_name: str, where: str | list[int]) -> int:
         """
         Delete records from a table: DELETE /v1/records
 
@@ -745,32 +617,27 @@ class QuickBaseClient:
         _, table_id = self._ids(app_name, table_name)
 
         if not isinstance(where, (str, list)):
-            raise ValueError("'where' must be either a Quickbase query string or a list of record IDs.")
+            raise ValueError(
+                "'where' must be either a Quickbase query string or a list of record IDs."
+            )
 
-        body = {
-            "from": table_id,
-            "where": where
-        }
+        body = {"from": table_id, "where": where}
 
-        resp = self._request(
-            method='DELETE',
-            path='records',
-            json_body=body
-        )
+        resp = self._request(method="DELETE", path="records", json_body=body)
 
-        return resp.get('numberDeleted', 0)
+        return resp.get("numberDeleted", 0)
 
     def query_records(
-        self, 
-        app_name: str, 
+        self,
+        app_name: str,
         table_name: str,
-        select_fields: Optional[List[str]] = None,
-        where: Optional[str] = None,
-        sort_by: Optional[List[Tuple[str, str]]] = None,  # e.g., [("Date", "ASC")]
-        group_by: Optional[List[str]] = None,             # e.g., ["Client"]
-        skip: int = 0, 
-        top: int = 1000
-    ) -> Dict[str, Any]:
+        select_fields: list[str] | None = None,
+        where: str | None = None,
+        sort_by: list[tuple[str, str]] | None = None,  # e.g., [("Date", "ASC")]
+        group_by: list[str] | None = None,  # e.g., ["Client"]
+        skip: int = 0,
+        top: int = 1000,
+    ) -> dict[str, Any]:
         """
         Query records: POST /v1/records/query
 
@@ -792,13 +659,7 @@ class QuickBaseClient:
         def get_id(label: str) -> int:
             return self.meta.get_field_id(app_id, table_id, label)
 
-        body = {
-            "from": table_id,
-            "options": {
-                "skip": skip,
-                "top": top
-            }
-        }
+        body: dict[str, Any] = {"from": table_id, "options": {"skip": skip, "top": top}}
 
         if select_fields:
             body["select"] = [get_id(label) for label in select_fields]
@@ -808,42 +669,30 @@ class QuickBaseClient:
 
         if sort_by:
             body["sortBy"] = [
-                {
-                    "fieldId": get_id(label),
-                    "order": order.upper()
-                }
-                for label, order in sort_by
+                {"fieldId": get_id(label), "order": order.upper()} for label, order in sort_by
             ]
 
         if group_by:
             body["groupBy"] = [
-                {
-                    "fieldId": get_id(label),
-                    "grouping": "equal-values"
-                }
-                for label in group_by
+                {"fieldId": get_id(label), "grouping": "equal-values"} for label in group_by
             ]
 
-        return self._request(
-            method="POST",
-            path="records/query",
-            json_body=body
-        )
+        return self._request(method="POST", path="records/query", json_body=body)
 
     def query_dataframe(
-        self, 
-        app_name: str, 
+        self,
+        app_name: str,
         table_name: str,
-        select_fields: List[str],
-        where: Optional[str] = None,
-        sort_by: Optional[List[Tuple[str, str]]] = None, # e.g. [('Date', 'ASC'), ('Name', 'DESC')]
-        group_by: Optional[List[str]] = None, # e.g. ['Category']
-        skip: int = 0, 
-        top: int = 1000
+        select_fields: list[str],
+        where: str | None = None,
+        sort_by: list[tuple[str, str]] | None = None,  # e.g. [('Date', 'ASC'), ('Name', 'DESC')]
+        group_by: list[str] | None = None,  # e.g. ['Category']
+        skip: int = 0,
+        top: int = 1000,
     ) -> pd.DataFrame:
         """
         Query records and return as a DataFrame: POST /v1/records/query
-        
+
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
@@ -853,7 +702,7 @@ class QuickBaseClient:
             group_by (Optional[List[str]]): Field labels to group by.
             skip (int): Number of records to skip. Default is 0.
             top (int): Number of records to return. Default is 1000.
-            
+
         Returns:
             pd.DataFrame: DataFrame containing the queried records.
         """
@@ -863,48 +712,32 @@ class QuickBaseClient:
         def get_id(label: str) -> int:
             return self.meta.get_field_id(app_id, table_id, label)
 
-        body = {
-            'from':   table_id,
-            'select': [get_id(label) for label in select_fields],
-            'options': {
-                'skip': skip, 
-                'top': top
-            }
+        body: dict[str, Any] = {
+            "from": table_id,
+            "select": [get_id(label) for label in select_fields],
+            "options": {"skip": skip, "top": top},
         }
 
         if where:
-            body['where'] = where
+            body["where"] = where
 
         if sort_by:
-            body['sortBy'] = [
-                {
-                    'fieldId': get_id(label),
-                    'order': order.upper()
-                }
-                for label, order in sort_by
+            body["sortBy"] = [
+                {"fieldId": get_id(label), "order": order.upper()} for label, order in sort_by
             ]
 
         if group_by:
-            body['groupBy'] = [
-                {
-                    'fieldId': get_id(label),
-                    'grouping': 'equal-values'
-                }
-                for label in group_by
+            body["groupBy"] = [
+                {"fieldId": get_id(label), "grouping": "equal-values"} for label in group_by
             ]
 
         # Make the request
-        resp = self._request(
-            method='POST',
-            path='records/query',
-            json_body=body
-        )
-        data   = resp.get('data', [])
-        fields = resp.get('fields', [])
-        cols   = [f['label'] for f in fields]
-        rows   = [
-            {f['label']: rec.get(str(f['id']), {}).get('value') for f in fields}
-            for rec in data
+        resp = self._request(method="POST", path="records/query", json_body=body)
+        data = resp.get("data", [])
+        fields = resp.get("fields", [])
+        cols = [f["label"] for f in fields]
+        rows = [
+            {f["label"]: rec.get(str(f["id"]), {}).get("value") for f in fields} for rec in data
         ]
         return pd.DataFrame(rows, columns=cols)
 
@@ -912,72 +745,88 @@ class QuickBaseClient:
     # Async CSV Download
     # ----------------
     async def _fetch_chunk(
-        self, 
-        session, 
-        url: str, 
-        headers: Dict[str, Any], 
-        body: Dict[str, Any],
+        self,
+        session,
+        url: str,
+        headers: dict[str, Any],
+        body: dict[str, Any],
         offset: int,
         max_retries: int = 5,
         base_delay: float = 0.5,
-        max_delay: float = 10.0
-    ) -> List[Dict[str, Any]]:
+        max_delay: float = 10.0,
+    ) -> list[dict[str, Any]]:
         attempt = 0
         while True:
             async with session.post(url, headers=headers, json=body) as resp:
                 if resp.status in (429, 502, 503) and attempt < max_retries:
-                    retry = resp.headers.get('Retry-After')
-                    wait = float(retry) if retry else min(max_delay, base_delay * 2 ** attempt) * random.uniform(0.8, 1.2)
-                    self.logger.warning(f"429 at offset {offset}; retry #{attempt+1} in {wait:.1f}s")
+                    retry = resp.headers.get("Retry-After")
+                    wait = (
+                        float(retry)
+                        if retry
+                        else min(max_delay, base_delay * 2**attempt) * random.uniform(0.8, 1.2)
+                    )
+                    self.logger.warning(
+                        f"429 at offset {offset}; retry #{attempt + 1} in {wait:.1f}s"
+                    )
                     await asyncio.sleep(wait)
                     attempt += 1
                     continue
                 resp.raise_for_status()
                 payload = await resp.json()
             rows = [
-                {f['label']: r.get(str(f['id']), {}).get('value') for f in payload.get('fields', [])}
-                for r in payload.get('data', [])
+                {
+                    f["label"]: r.get(str(f["id"]), {}).get("value")
+                    for f in payload.get("fields", [])
+                }
+                for r in payload.get("data", [])
             ]
             self.logger.info(f"Chunk at offset {offset}: {len(rows)} rows")
             return rows
 
     async def _gather_chunks(
-        self, url: str, headers: dict, table_id: str,
-        field_ids: List[int], where: str,
-        batch_params: List[tuple], max_concurrency: int
-    ) -> List[List[Dict[str, Any]]]:
+        self,
+        url: str,
+        headers: dict,
+        table_id: str,
+        field_ids: list[int],
+        where: str,
+        batch_params: list[tuple],
+        max_concurrency: int,
+    ) -> list[list[dict[str, Any]]]:
         sem = asyncio.Semaphore(max_concurrency)
         conn = aiohttp.TCPConnector(limit=0)
         async with aiohttp.ClientSession(connector=conn) as session:
             tasks = []
             for offset, top in batch_params:
                 body = {
-                    'from': table_id,
-                    'select': field_ids,
-                    'where': where,
-                    'options': {'skip': offset, 'top': top}
+                    "from": table_id,
+                    "select": field_ids,
+                    "where": where,
+                    "options": {"skip": offset, "top": top},
                 }
+
                 async def task(off, b=body):
                     async with sem:
                         return await self._fetch_chunk(session, url, headers, b, off)
+
                 tasks.append(task(offset))
             self.logger.info(f"Dispatching {len(tasks)} chunk tasks")
             return await asyncio.gather(*tasks)
 
     def download_records_to_csv(
-        self, 
-        app_name: str, 
-        table_name: str, 
+        self,
+        app_name: str,
+        table_name: str,
         output_dir: str,
         where: str = "{3.GT.'0'}",
         chunk_size: int = 1000,
-        record_limit: Optional[int] = None,
-        max_concurrency: int = 4
+        record_limit: int | None = None,
+        max_concurrency: int = 4,
     ) -> str:
         """
         Download all records matching a query into a CSV by fetching in parallel:
         POST /v1/records/query in chunks.
-        
+
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
@@ -986,28 +835,32 @@ class QuickBaseClient:
             chunk_size (int): Number of records to fetch in each chunk. Default is 1000.
             record_limit (Optional[int]): Maximum number of records to download. Default is None (all records).
             max_concurrency (int): Max number of concurrent requests. Default is 4. Recommended to keep low to avoid rate limits.
-            
+
         Returns:
             str: Path to the saved CSV file, or an empty string if no records found.
         """
         app_id, table_id = self._ids(app_name, table_name)
 
         # Build field list and figure out total rows
-        fmap     = self.meta.get_field_map(app_id, table_id)
-        fids     = [info['id'] for info in fmap.values()]
-        size     = self.meta.get_table(app_id, table_id)['size']
+        fmap = self.meta.get_field_map(app_id, table_id)
+        fids = [info["id"] for info in fmap.values()]
+        size = self.meta.get_table(app_id, table_id)["size"]
         tbl_info = self.meta.get_table(app_id, table_id)
         app_key = self.meta.normalize_app(app_id)
         friendly_name = next(
-            (tn for tn, inf in self.meta.cache[app_key]['tables'].items() if inf['id'] == tbl_info['id']),
-            table_id
+            (
+                tn
+                for tn, inf in self.meta.cache[app_key]["tables"].items()
+                if inf["id"] == tbl_info["id"]
+            ),
+            table_id,
         )
-        total    = min(size, record_limit) if record_limit else size
+        total = min(size, record_limit) if record_limit else size
 
         # Prepare batches
         batches = [(o, min(chunk_size, 1000)) for o in range(0, total, chunk_size)]
-        headers = {**self.transport.headers, 'Accept-Encoding': 'gzip'}
-        url     = f"{self.transport.base_url}/records/query"
+        headers = {**self.transport.headers, "Accept-Encoding": "gzip"}
+        url = f"{self.transport.base_url}/records/query"
 
         # Run the async fetch
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -1019,10 +872,10 @@ class QuickBaseClient:
         records = [r for chunk in all_chunks for r in chunk]
         if not records:
             self.logger.warning("No records for filter.")
-            return ''
+            return ""
 
-        df      = pd.DataFrame(records)
-        ts      = datetime.now().strftime("%Y-%m-%d")
+        df = pd.DataFrame(records)
+        ts = datetime.now().strftime("%Y-%m-%d")
         out_csv = Path(output_dir) / f"{friendly_name}_{ts}.csv"
         df.to_csv(out_csv, index=False)
         self.logger.info(f"Wrote {len(df)} records to {out_csv}")
@@ -1031,32 +884,28 @@ class QuickBaseClient:
     # ----------------
     # File-attachment Methods
     # ----------------
-    def get_file_attachment_fields(
-        self, 
-        app_name: str, 
-        table_name: str
-    ) -> List[str]:
+    def get_file_attachment_fields(self, app_name: str, table_name: str) -> list[str]:
         """
         Get all file attachment field labels for a given table.
-        
+
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
-        
+
         Returns:
             list: List of field labels for file attachment fields.
         """
         app_id, table_id = self._ids(app_name, table_name)
 
         fmap = self.meta.get_field_map(app_id, table_id)
-        return [label for label, meta in fmap.items() if meta.get('type') == 'file']
+        return [label for label, meta in fmap.items() if meta.get("type") == "file"]
 
     async def _async_download_attachment(
         self,
         session: aiohttp.ClientSession,
         sem: asyncio.Semaphore,
         download_url: str,
-        save_path: Path
+        save_path: Path,
     ):
         """
         Download a file attachment asynchronously.
@@ -1074,9 +923,10 @@ class QuickBaseClient:
         async with sem:
             try:
                 # Lean headers for GET (avoid Content-Type on GET)
-                headers = {k: v for k, v in self.transport.headers.items()
-                        if k.lower() != 'content-type'}
-                headers.setdefault('Accept', 'application/octet-stream')
+                headers = {
+                    k: v for k, v in self.transport.headers.items() if k.lower() != "content-type"
+                }
+                headers.setdefault("Accept", "application/octet-stream")
 
                 async with session.get(download_url, headers=headers) as resp:
                     resp.raise_for_status()
@@ -1088,18 +938,15 @@ class QuickBaseClient:
                     except Exception:
                         payload = raw
 
-                    async with aiofiles.open(save_path, 'wb') as f:
+                    async with aiofiles.open(save_path, "wb") as f:
                         await f.write(payload)
                 self.logger.info(f"Downloaded: {save_path.name}")
             except Exception as e:
                 self.logger.error(f"Failed to download {download_url}: {e}")
 
     async def _async_download_attachments(
-        self,
-        download_jobs: List[Dict[str, Any]],
-        target_dir: str,
-        max_concurrency: int = 8
-    ) -> List[Dict[str, Any]]:
+        self, download_jobs: list[dict[str, Any]], target_dir: str, max_concurrency: int = 8
+    ) -> list[dict[str, Any]]:
         """
         Download multiple file attachments asynchronously.
 
@@ -1114,19 +961,17 @@ class QuickBaseClient:
         sem = asyncio.Semaphore(max_concurrency)
         output = []
 
-        connector = aiohttp.TCPConnector(limit=None)
+        connector = aiohttp.TCPConnector(limit=None)  # type: ignore[arg-type]
         async with aiohttp.ClientSession(connector=connector) as session:
             tasks = []
             for job in download_jobs:
-                rid = job['record_id']
-                filename = job['file_name']
-                url = job['url']
+                rid = job["record_id"]
+                filename = job["file_name"]
+                url = job["url"]
                 save_path = Path(target_dir) / f"{rid}_{filename}"
-                output.append({
-                    "record_id": rid,
-                    "file_name": filename,
-                    "saved_path": str(save_path)
-                })
+                output.append(
+                    {"record_id": rid, "file_name": filename, "saved_path": str(save_path)}
+                )
                 tasks.append(self._async_download_attachment(session, sem, url, save_path))
             await asyncio.gather(*tasks)
         return output
@@ -1137,10 +982,10 @@ class QuickBaseClient:
         table_name: str,
         file_field_label: str,
         target_dir: str,
-        where: Optional[str] = None,
+        where: str | None = None,
         max_concurrency: int = 4,
         page_size: int = 1000,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Download all attachments from ONE file field in a table, honoring 'where',
         paging through all matching records, and skipping rows without an attachment.
@@ -1161,41 +1006,49 @@ class QuickBaseClient:
         Path(target_dir).mkdir(parents=True, exist_ok=True)
 
         fmap = self.meta.get_field_map(app_id, table_id)
-        file_fid = int(fmap[file_field_label]['id'])
+        file_fid = int(fmap[file_field_label]["id"])
         record_fid = 3  # Record ID#
 
         select_ids = [record_fid, file_fid]
         skip = 0
-        download_jobs: List[Dict[str, Any]] = []
+        download_jobs: list[dict[str, Any]] = []
 
         seen = with_file = skipped_empty = 0
 
         while True:
-            body = {"from": table_id, "select": select_ids, "options": {"skip": skip, "top": page_size}}
+            body = {
+                "from": table_id,
+                "select": select_ids,
+                "options": {"skip": skip, "top": page_size},
+            }
             if where:
                 body["where"] = where
 
-            resp = self._request(method='POST', path='records/query', json_body=body)
-            rows = resp.get('data', [])
+            resp = self._request(method="POST", path="records/query", json_body=body)
+            rows = resp.get("data", [])
             if not rows:
                 break
 
             for rec in rows:
                 seen += 1
-                rid = rec.get(str(record_fid), {}).get('value')
+                rid = rec.get(str(record_fid), {}).get("value")
                 cell = rec.get(str(file_fid), {}) or {}
-                file_val = cell.get('value') or {}
+                file_val = cell.get("value") or {}
 
                 # Authoritative presence check: require at least one version
-                versions = file_val.get('versions') or []
+                versions = file_val.get("versions") or []
                 if not rid or not versions:
                     skipped_empty += 1
                     continue
 
                 # Choose the highest version
-                v = max(versions, key=lambda x: x.get('versionNumber', 0))
-                version_num = int(v.get('versionNumber', 1))
-                filename = v.get('fileName') or file_val.get('fileName') or f"fid{file_fid}_v{version_num}.bin"
+                v = max(versions, key=lambda x: x.get("versionNumber", 0))
+                version_num = int(v.get("versionNumber", 1))
+                filename = (
+                    v.get("fileName")
+                    or file_val.get("fileName")
+                    or f"fid{file_fid}_v{version_num}.bin"
+                )
 
                 full_url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{file_fid}/{version_num}"
                 download_jobs.append({"record_id": rid, "file_name": filename, "url": full_url})
@@ -1214,18 +1067,16 @@ class QuickBaseClient:
             return []
 
         output = asyncio.run(
-            self._async_download_attachments(download_jobs, target_dir, max_concurrency=max_concurrency)
+            self._async_download_attachments(
+                download_jobs, target_dir, max_concurrency=max_concurrency
+            )
         )
         self.logger.info(f"Downloaded {len(output)} attachments.")
         return output
 
     def download_attachment_base64(
-        self,
-        app_name: str,
-        table_name: str,
-        record_id: int,
-        file_field_label: str
-    ) -> Optional[str]:
+        self, app_name: str, table_name: str, record_id: int, file_field_label: str
+    ) -> str | None:
         """
         Return the attachment as BASE64 (string) from a single record/field.
 
@@ -1240,28 +1091,40 @@ class QuickBaseClient:
         """
         app_id, table_id = self._ids(app_name, table_name)
         fmap = self.meta.get_field_map(app_id, table_id)
-        file_fid = int(fmap[file_field_label]['id'])
+        file_fid = int(fmap[file_field_label]["id"])
         record_fid = 3
 
-        query_body = {"from": table_id, "select": [record_fid, file_fid], "where": f"{{3.EX.'{record_id}'}}"}
-        resp = self._request(method='POST', path='records/query', json_body=query_body)
-        records = resp.get('data', [])
+        query_body = {
+            "from": table_id,
+            "select": [record_fid, file_fid],
+            "where": f"{{3.EX.'{record_id}'}}",
+        }
+        resp = self._request(method="POST", path="records/query", json_body=query_body)
+        records = resp.get("data", [])
         if not records:
             self.logger.warning(f"No attachment found for record {record_id}.")
             return None
 
-        file_info = records[0].get(str(file_fid), {}).get('value') or {}
-        versions = file_info.get('versions') or []
-        version_num = int(max(versions, key=lambda x: x.get('versionNumber', 0))['versionNumber']) if versions else 1
+        file_info = records[0].get(str(file_fid), {}).get("value") or {}
+        versions = file_info.get("versions") or []
+        version_num = (
+            int(max(versions, key=lambda x: x.get("versionNumber", 0))["versionNumber"])
+            if versions
+            else 1
+        )
 
-        url = f"{self.transport.base_url}/files/{table_id}/{int(record_id)}/{file_fid}/{version_num}"
+        url = (
+            f"{self.transport.base_url}/files/{table_id}/{int(record_id)}/{file_fid}/{version_num}"
+        )
 
-        headers = {k: v for k, v in self.transport.headers.items() if k.lower() != 'content-type'}
-        headers.setdefault('Accept', 'application/octet-stream')
+        headers = {k: v for k, v in self.transport.headers.items() if k.lower() != "content-type"}
+        headers.setdefault("Accept", "application/octet-stream")
 
         r = requests.get(url, headers=headers, timeout=60)
         if r.status_code != 200:
-            self.logger.error(f"Failed to download attachment for record {record_id}: {r.text[:300]}")
+            self.logger.error(
+                f"Failed to download attachment for record {record_id}: {r.text[:300]}"
+            )
             return None
 
         # API returns base64 in the body; validate and return as-is
@@ -1270,17 +1133,17 @@ class QuickBaseClient:
             base64.b64decode(txt, validate=True)
             return txt
         except Exception:
-            return base64.b64encode(r.content).decode('ascii')
+            return base64.b64encode(r.content).decode("ascii")
 
     def download_table_attachments_async(
         self,
         app_name: str,
         table_name: str,
         target_dir: str,
-        where: Optional[str] = None,
+        where: str | None = None,
         max_concurrency: int = 4,
-        page_size: int = 1000
-    ) -> List[Dict[str, Any]]:
+        page_size: int = 1000,
+    ) -> list[dict[str, Any]]:
         """
         Download attachments from ALL file fields in the table, honoring 'where'.
         Pages through records and skips cells without an attachment.
@@ -1300,46 +1163,58 @@ class QuickBaseClient:
         Path(target_dir).mkdir(parents=True, exist_ok=True)
 
         fmap = self.meta.get_field_map(app_id, table_id)
-        file_fields = [(lbl, int(meta['id'])) for lbl, meta in fmap.items() if meta.get('type') == 'file']
+        file_fields = [
+            (lbl, int(meta["id"])) for lbl, meta in fmap.items() if meta.get("type") == "file"
+        ]
         if not file_fields:
             self.logger.info("No file attachment fields on this table.")
             return []
 
         select_ids = [3] + [fid for _, fid in file_fields]  # 3 = Record ID#
         skip = 0
-        download_jobs: List[Dict[str, Any]] = []
+        download_jobs: list[dict[str, Any]] = []
 
         seen_cells = with_file = skipped_empty = 0
 
         while True:
-            body = {"from": table_id, "select": select_ids, "options": {"skip": skip, "top": page_size}}
+            body = {
+                "from": table_id,
+                "select": select_ids,
+                "options": {"skip": skip, "top": page_size},
+            }
             if where:
                 body["where"] = where
 
-            resp = self._request(method='POST', path='records/query', json_body=body)
-            rows = resp.get('data', [])
+            resp = self._request(method="POST", path="records/query", json_body=body)
+            rows = resp.get("data", [])
             if not rows:
                 break
 
             for rec in rows:
-                rid = rec.get('3', {}).get('value')
+                rid = rec.get("3", {}).get("value")
                 if not rid:
                     continue
 
                 for _, fid in file_fields:
                     seen_cells += 1
                     cell = rec.get(str(fid), {}) or {}
-                    file_val = cell.get('value') or {}
-                    versions = file_val.get('versions') or []
+                    file_val = cell.get("value") or {}
+                    versions = file_val.get("versions") or []
                     if not versions:
                         skipped_empty += 1
                         continue
 
-                    v = max(versions, key=lambda x: x.get('versionNumber', 0))
-                    version_num = int(v.get('versionNumber', 1))
-                    filename = v.get('fileName') or file_val.get('fileName') or f"fid{fid}_v{version_num}.bin"
+                    v = max(versions, key=lambda x: x.get("versionNumber", 0))
+                    version_num = int(v.get("versionNumber", 1))
+                    filename = (
+                        v.get("fileName")
+                        or file_val.get("fileName")
+                        or f"fid{fid}_v{version_num}.bin"
+                    )
 
-                    url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/{version_num}"
+                    url = (
+                        f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/{version_num}"
+                    )
                     download_jobs.append({"record_id": rid, "file_name": filename, "url": url})
                     with_file += 1
 
@@ -1356,7 +1231,9 @@ class QuickBaseClient:
             return []
 
         return asyncio.run(
-            self._async_download_attachments(download_jobs, target_dir, max_concurrency=max_concurrency)
+            self._async_download_attachments(
+                download_jobs, target_dir, max_concurrency=max_concurrency
+            )
         )
 
     # ----------------
@@ -1370,9 +1247,8 @@ class QuickBaseClient:
 
     def get_field(self, app_id, table_id, field_id):
         return self.transport.get(
-            f"fields/{field_id}",
-            params={"tableId": self.meta.get_table_id(app_id, table_id)}
-    )
+            f"fields/{field_id}", params={"tableId": self.meta.get_table_id(app_id, table_id)}
+        )
 
     # ----------------
     # Config Debugging
@@ -1391,13 +1267,13 @@ class QuickBaseClient:
         for app_name, app_data in self.meta.cache.items():
             self.logger.info(f"{app_name}")
             for table_name, table_data in app_data.get("tables", {}).items():
-                tid = table_data.get('id')
-                size = table_data.get('size', 'N/A')
+                tid = table_data.get("id")
+                size = table_data.get("size", "N/A")
                 self.logger.info(f"  └── 🔹 {table_name}  [ID: {tid}, Size: {size} records]")
                 if show_fields:
                     for field_label, meta in table_data.get("fields", {}).items():
-                        fid = meta.get('id')
-                        ftype = meta.get('type')
+                        fid = meta.get("id")
+                        ftype = meta.get("type")
                         self.logger.info(f"      └── 🔹 {field_label} (ID: {fid}, Type: {ftype})")
 
     def dump_full_config(self):
@@ -1407,6 +1283,6 @@ class QuickBaseClient:
         """
         try:
             config_str = json.dumps(self.meta.cache, indent=2)
-            self.logger.info(f"Full QuickBase Config Dump:" + config_str)
+            self.logger.info("Full QuickBase Config Dump:" + config_str)
         except Exception as e:
             self.logger.error(f"Failed to serialize config: {e}")
