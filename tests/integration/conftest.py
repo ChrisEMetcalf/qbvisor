@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 from dataclasses import dataclass, field
@@ -15,6 +16,8 @@ APP_NAME = "Sandbox"
 RECORDS_TABLE_NAME = "qbvisor_sdk_contract_records"
 DETAILS_TABLE_NAME = "qbvisor_sdk_contract_details"
 MUTATION_ENV = "QBVISOR_ALLOW_SANDBOX_MUTATIONS"
+ATTACHMENT_FILE_NAME = "qbvisor-contract.txt"
+ATTACHMENT_CONTENT = b"Persistent qbvisor attachment contract.\n"
 
 
 @dataclass(frozen=True)
@@ -299,6 +302,96 @@ def _ensure_details(
         pytest.fail(f"Detail fixture upsert returned line errors: {metadata['lineErrors']}")
 
 
+def _attachment_version(
+    transport: QuickBaseTransport,
+    table_id: str,
+    record_id: int,
+    field_id: int,
+) -> dict[str, Any] | None:
+    response = _object(
+        transport.post(
+            "records/query",
+            json_body={
+                "from": table_id,
+                "select": [3, field_id],
+                "where": f"{{3.EX.'{record_id}'}}",
+            },
+            retry_policy=RetryPolicy.SAFE,
+        ),
+        "POST /records/query",
+    )
+    records = response.get("data", [])
+    if not isinstance(records, list) or not records:
+        pytest.fail("Persistent attachment record is missing")
+    record = records[0]
+    if not isinstance(record, dict):
+        pytest.fail("Persistent attachment query returned a non-object record")
+    cell = record.get(str(field_id), {})
+    if not isinstance(cell, dict):
+        return None
+    value = cell.get("value", {})
+    if not isinstance(value, dict):
+        return None
+    versions = value.get("versions", [])
+    if not isinstance(versions, list) or not versions:
+        return None
+    version = max(
+        (item for item in versions if isinstance(item, dict)),
+        key=lambda item: item.get("versionNumber", 0),
+        default=None,
+    )
+    return cast(dict[str, Any] | None, version)
+
+
+def _ensure_attachment(
+    transport: QuickBaseTransport,
+    table_id: str,
+    field_id: int,
+    record_id: int,
+) -> None:
+    version = _attachment_version(transport, table_id, record_id, field_id)
+    if version is not None:
+        version_number = int(version["versionNumber"])
+        payload = transport.get_file(f"files/{table_id}/{record_id}/{field_id}/{version_number}")
+        if payload == ATTACHMENT_CONTENT and version.get("fileName") == ATTACHMENT_FILE_NAME:
+            return
+
+    _require_mutations("Persistent attachment fixture is missing or has drifted")
+    response = _object(
+        transport.post(
+            "records",
+            json_body={
+                "to": table_id,
+                "mergeFieldId": 3,
+                "data": [
+                    {
+                        "3": {"value": record_id},
+                        str(field_id): {
+                            "value": {
+                                "fileName": ATTACHMENT_FILE_NAME,
+                                "data": base64.b64encode(ATTACHMENT_CONTENT).decode("ascii"),
+                            }
+                        },
+                    }
+                ],
+            },
+        ),
+        "POST /records",
+    )
+    metadata = response.get("metadata", {})
+    if isinstance(metadata, dict) and metadata.get("lineErrors"):
+        pytest.fail(f"Attachment fixture upsert returned line errors: {metadata['lineErrors']}")
+
+    version = _attachment_version(transport, table_id, record_id, field_id)
+    if version is None:
+        pytest.fail("Attachment fixture was not returned after upsert")
+    payload = transport.get_file(
+        f"files/{table_id}/{record_id}/{field_id}/{int(version['versionNumber'])}"
+    )
+    if payload != ATTACHMENT_CONTENT:
+        pytest.fail("Attachment fixture bytes did not round-trip through Quickbase")
+
+
 @pytest.fixture(scope="session")
 def sandbox_config():
     if os.getenv("QBVISOR_RUN_INTEGRATION") != "1":
@@ -452,6 +545,12 @@ def sandbox_contract(
     )
     detail_fields["Related Contract Record"] = relationship_field_id
     record_ids = _ensure_records(sandbox_transport, records_table_id, record_fields)
+    _ensure_attachment(
+        sandbox_transport,
+        records_table_id,
+        record_fields["Attachment"],
+        record_ids["qbvisor-alpha"],
+    )
     _ensure_details(sandbox_transport, details_table_id, detail_fields, record_ids)
 
     return SandboxContract(
