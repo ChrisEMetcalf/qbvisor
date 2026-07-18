@@ -113,6 +113,13 @@ class AsyncQuickBaseTransport:
             else f"{self.base_url}/{normalized_path}"
         )
         request_headers = dict(self.headers)
+        if response_kind == "bytes":
+            request_headers = {
+                key: value
+                for key, value in request_headers.items()
+                if key.lower() != "content-type"
+            }
+            request_headers["Accept"] = "application/octet-stream"
         if headers:
             request_headers.update(headers)
         session = await self._get_session()

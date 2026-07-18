@@ -22,6 +22,7 @@ for dotenv_path in possible_paths:
 
 from .client import QuickBaseClient
 from .exceptions import (
+    QuickbaseBatchError,
     QuickbaseConfigurationError,
     QuickbaseConnectionError,
     QuickbaseError,
@@ -47,6 +48,7 @@ __all__ = [
     "QuickBaseTransport",
     "RetryPolicy",
     "QuickbaseError",
+    "QuickbaseBatchError",
     "QuickbaseConfigurationError",
     "QuickbaseConnectionError",
     "QuickbaseTimeoutError",

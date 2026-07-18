@@ -161,6 +161,9 @@ def test_async_binary_response_is_returned_without_json_decoding():
     result = asyncio.run(transport.get_bytes("files/table/1/6/1"))
 
     assert result == b"raw-file-bytes"
+    headers = session.requests[0][2]["headers"]
+    assert "Content-Type" not in headers
+    assert headers["Accept"] == "application/octet-stream"
 
 
 def test_invalid_async_json_raises_response_error_with_ray():

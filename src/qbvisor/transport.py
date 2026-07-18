@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable, Mapping
 from email.utils import parsedate_to_datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 import requests
 
@@ -176,17 +176,24 @@ class QuickBaseTransport:
         json_body: Any | None = None,
         *,
         retry_policy: RetryPolicy,
-    ) -> JSONValue:
+        response_kind: Literal["json", "bytes"] = "json",
+    ) -> JSONValue | bytes:
         normalized_method = method.upper()
         normalized_path = path.lstrip("/")
         url = f"{self.base_url}/{normalized_path}"
+        request_headers = self.headers
+        if response_kind == "bytes":
+            request_headers = {
+                key: value for key, value in self.headers.items() if key.lower() != "content-type"
+            }
+            request_headers["Accept"] = "application/octet-stream"
 
         for attempt in range(1, self.max_attempts + 1):
             try:
                 response = self.session.request(
                     normalized_method,
                     url,
-                    headers=self.headers,
+                    headers=request_headers,
                     params=params,
                     json=json_body,
                     timeout=self.timeout,
@@ -258,6 +265,8 @@ class QuickBaseTransport:
                     retry_after,
                 )
 
+            if response_kind == "bytes":
+                return response.content
             if response.status_code == 204 or not response.content:
                 return {}
             try:
@@ -326,9 +335,25 @@ class QuickBaseTransport:
     def get(
         self, path: str, params: dict[str, Any] | None = None, json_body: Any | None = None
     ) -> JSONValue:
-        return self._make_request(
+        response = self._make_request(
             "GET", path, params=params, json_body=json_body, retry_policy=RetryPolicy.SAFE
         )
+        if isinstance(response, bytes):
+            raise AssertionError("JSON transport returned a bytes response")
+        return response
+
+    def get_bytes(self, path: str, params: dict[str, Any] | None = None) -> bytes:
+        """Return a binary Quickbase response using the configured session and policy."""
+        response = self._make_request(
+            "GET",
+            path,
+            params=params,
+            retry_policy=RetryPolicy.SAFE,
+            response_kind="bytes",
+        )
+        if not isinstance(response, bytes):
+            raise AssertionError("Binary transport returned a non-bytes response")
+        return response
 
     def post(
         self,
@@ -338,9 +363,12 @@ class QuickBaseTransport:
         *,
         retry_policy: RetryPolicy = RetryPolicy.NEVER,
     ) -> JSONValue:
-        return self._make_request(
+        response = self._make_request(
             "POST", path, params=params, json_body=json_body, retry_policy=retry_policy
         )
+        if isinstance(response, bytes):
+            raise AssertionError("JSON transport returned a bytes response")
+        return response
 
     def delete(
         self,
@@ -350,6 +378,9 @@ class QuickBaseTransport:
         *,
         retry_policy: RetryPolicy = RetryPolicy.NEVER,
     ) -> JSONValue:
-        return self._make_request(
+        response = self._make_request(
             "DELETE", path, params=params, json_body=json_body, retry_policy=retry_policy
         )
+        if isinstance(response, bytes):
+            raise AssertionError("JSON transport returned a bytes response")
+        return response

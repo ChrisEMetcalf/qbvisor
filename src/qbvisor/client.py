@@ -4,15 +4,15 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeVar, cast, overload
+from uuid import uuid4
 
 import aiofiles
-import aiohttp
 import pandas as pd
-import requests
 from dotenv import load_dotenv
 
 from .async_transport import AsyncQuickBaseTransport
-from .exceptions import QuickbaseResponseError
+from .exceptions import QuickbaseBatchError, QuickbaseResponseError
+from .helpers import sanitize_filenames
 from .log_runner import get_logger
 from .metadata import QuickBaseMetaCache
 from .transport import QuickBaseTransport, RetryPolicy
@@ -978,47 +978,49 @@ class QuickBaseClient:
 
     async def _async_download_attachment(
         self,
-        session: aiohttp.ClientSession,
+        transport: AsyncQuickBaseTransport,
         sem: asyncio.Semaphore,
         download_url: str,
         save_path: Path,
-    ):
+        *,
+        record_id: Any,
+        file_name: str,
+    ) -> tuple[dict[str, Any], Exception | None]:
         """
         Download a file attachment asynchronously.
 
         Args:
-            session (aiohttp.ClientSession): The HTTP session to use for the request.
+            transport: The asynchronous Quickbase transport.
             sem (asyncio.Semaphore): Semaphore to limit concurrent downloads.
             download_url (str): The URL to download the file from.
             save_path (Path): The local path to save the downloaded file.
         """
+        result = {
+            "record_id": record_id,
+            "file_name": file_name,
+            "saved_path": str(save_path),
+        }
         if save_path.exists():
             self.logger.warning(f"File already exists: {save_path.name}")
-            return
+            return {**result, "status": "skipped"}, None
 
         async with sem:
+            temp_path = save_path.with_name(f".{save_path.name}.{uuid4().hex}.part")
             try:
-                # Lean headers for GET (avoid Content-Type on GET)
-                headers = {
-                    k: v for k, v in self.transport.headers.items() if k.lower() != "content-type"
-                }
-                headers.setdefault("Accept", "application/octet-stream")
-
-                async with session.get(download_url, headers=headers) as resp:
-                    resp.raise_for_status()
-                    raw = await resp.read()
-
-                    # API body is base64; decode to raw bytes. If not base64, write as-is.
-                    try:
-                        payload = base64.b64decode(raw, validate=True)
-                    except Exception:
-                        payload = raw
-
-                    async with aiofiles.open(save_path, "wb") as f:
-                        await f.write(payload)
+                payload = await transport.get_bytes(download_url)
+                async with aiofiles.open(temp_path, "wb") as file_handle:
+                    await file_handle.write(payload)
+                await asyncio.to_thread(temp_path.replace, save_path)
                 self.logger.info(f"Downloaded: {save_path.name}")
-            except Exception as e:
-                self.logger.error(f"Failed to download {download_url}: {e}")
+                return {**result, "status": "downloaded", "bytes_written": len(payload)}, None
+            except Exception as error:
+                temp_path.unlink(missing_ok=True)
+                self.logger.error(f"Failed to download {download_url}: {error}")
+                return {
+                    **result,
+                    "status": "failed",
+                    "error": str(error),
+                }, error
 
     async def _async_download_attachments(
         self, download_jobs: list[dict[str, Any]], target_dir: str, max_concurrency: int = 8
@@ -1034,23 +1036,39 @@ class QuickBaseClient:
         Returns:
             List[Dict[str, Any]]: List of results for each download job.
         """
-        sem = asyncio.Semaphore(max_concurrency)
-        output = []
+        if max_concurrency < 1:
+            raise ValueError("max_concurrency must be at least 1")
 
-        connector = aiohttp.TCPConnector(limit=None)  # type: ignore[arg-type]
-        async with aiohttp.ClientSession(connector=connector) as session:
+        sem = asyncio.Semaphore(max_concurrency)
+        async with AsyncQuickBaseTransport(self.transport) as transport:
             tasks = []
             for job in download_jobs:
                 rid = job["record_id"]
-                filename = job["file_name"]
+                filename = str(job["file_name"])
+                safe_filename = sanitize_filenames(filename).strip() or "attachment.bin"
                 url = job["url"]
-                save_path = Path(target_dir) / f"{rid}_{filename}"
-                output.append(
-                    {"record_id": rid, "file_name": filename, "saved_path": str(save_path)}
+                name_parts = [str(rid)]
+                if job.get("include_field_id"):
+                    name_parts.append(str(job["field_id"]))
+                name_parts.append(safe_filename)
+                save_path = Path(target_dir) / "_".join(name_parts)
+                tasks.append(
+                    self._async_download_attachment(
+                        transport,
+                        sem,
+                        url,
+                        save_path,
+                        record_id=rid,
+                        file_name=filename,
+                    )
                 )
-                tasks.append(self._async_download_attachment(session, sem, url, save_path))
-            await asyncio.gather(*tasks)
-        return output
+            outcomes = await asyncio.gather(*tasks)
+
+        results = [result for result, _ in outcomes]
+        errors = [error for _, error in outcomes if error is not None]
+        if errors:
+            raise QuickbaseBatchError("Attachment download", results, errors)
+        return results
 
     def download_attachments_async(
         self,
@@ -1078,6 +1096,11 @@ class QuickBaseClient:
         Returns:
             List[Dict[str, Any]]: List of results for each download job.
         """
+        if max_concurrency < 1:
+            raise ValueError("max_concurrency must be at least 1")
+        if not 1 <= page_size <= 1000:
+            raise ValueError("page_size must be between 1 and 1000")
+
         app_id, table_id = self._ids(app_name, table_name)
         Path(target_dir).mkdir(parents=True, exist_ok=True)
 
@@ -1152,7 +1175,9 @@ class QuickBaseClient:
                 download_jobs, target_dir, max_concurrency=max_concurrency
             )
         )
-        self.logger.info(f"Downloaded {len(output)} attachments.")
+        downloaded = sum(result["status"] == "downloaded" for result in output)
+        skipped = sum(result["status"] == "skipped" for result in output)
+        self.logger.info(f"Downloaded {downloaded} attachments; skipped {skipped} existing files.")
         return output
 
     def download_attachment_base64(
@@ -1193,33 +1218,15 @@ class QuickBaseClient:
 
         file_info = records[0].get(str(file_fid), {}).get("value") or {}
         versions = file_info.get("versions") or []
-        version_num = (
-            int(max(versions, key=lambda x: x.get("versionNumber", 0))["versionNumber"])
-            if versions
-            else 1
-        )
-
-        url = (
-            f"{self.transport.base_url}/files/{table_id}/{int(record_id)}/{file_fid}/{version_num}"
-        )
-
-        headers = {k: v for k, v in self.transport.headers.items() if k.lower() != "content-type"}
-        headers.setdefault("Accept", "application/octet-stream")
-
-        r = requests.get(url, headers=headers, timeout=60)
-        if r.status_code != 200:
-            self.logger.error(
-                f"Failed to download attachment for record {record_id}: {r.text[:300]}"
-            )
+        if not versions:
+            self.logger.warning(f"No attachment found for record {record_id}.")
             return None
+        version_num = int(
+            max(versions, key=lambda version: version.get("versionNumber", 0))["versionNumber"]
+        )
 
-        # API returns base64 in the body; validate and return as-is
-        txt = r.text.strip()
-        try:
-            base64.b64decode(txt, validate=True)
-            return txt
-        except Exception:
-            return base64.b64encode(r.content).decode("ascii")
+        path = f"files/{table_id}/{int(record_id)}/{file_fid}/{version_num}"
+        return base64.b64encode(self.transport.get_bytes(path)).decode("ascii")
 
     def download_table_attachments_async(
         self,
@@ -1245,6 +1252,11 @@ class QuickBaseClient:
         Returns:
             List[Dict[str, Any]]: A list of dictionaries containing information about the downloaded attachments.
         """
+        if max_concurrency < 1:
+            raise ValueError("max_concurrency must be at least 1")
+        if not 1 <= page_size <= 1000:
+            raise ValueError("page_size must be between 1 and 1000")
+
         app_id, table_id = self._ids(app_name, table_name)
         Path(target_dir).mkdir(parents=True, exist_ok=True)
 
@@ -1306,7 +1318,15 @@ class QuickBaseClient:
                     url = (
                         f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/{version_num}"
                     )
-                    download_jobs.append({"record_id": rid, "file_name": filename, "url": url})
+                    download_jobs.append(
+                        {
+                            "record_id": rid,
+                            "field_id": fid,
+                            "include_field_id": True,
+                            "file_name": filename,
+                            "url": url,
+                        }
+                    )
                     with_file += 1
 
             if len(rows) < page_size:
