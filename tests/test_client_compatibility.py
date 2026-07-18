@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from qbvisor.client import QuickBaseClient
+from qbvisor.transport import RetryPolicy
 
 
 class FakeMeta:
@@ -152,6 +153,7 @@ def test_query_records_translates_labels_to_field_ids(client):
             "groupBy": [{"fieldId": 7, "grouping": "equal-values"}],
             "options": {"skip": 10, "top": 50},
         },
+        retry_policy=RetryPolicy.SAFE,
     )
 
 
@@ -173,6 +175,47 @@ def test_query_dataframe_uses_quickbase_labels_as_columns(client):
         ]
     )
     pd.testing.assert_frame_equal(result, expected)
+    client._request.assert_called_once_with(
+        method="POST",
+        path="records/query",
+        json_body={
+            "from": "tbl_projects",
+            "select": [6, 7],
+            "options": {"skip": 0, "top": 1000},
+        },
+        retry_policy=RetryPolicy.SAFE,
+    )
+
+
+def test_run_report_marks_read_like_post_as_safe(client):
+    client._request.return_value = {
+        "fields": [{"id": 6, "label": "Name"}],
+        "data": [{"6": {"value": "Migration"}}],
+    }
+
+    result = client.run_report("Operations", "Projects", 12)
+
+    pd.testing.assert_frame_equal(result, pd.DataFrame([{"Name": "Migration"}]))
+    client._request.assert_called_once_with(
+        method="POST",
+        path="reports/12/run",
+        params={"tableId": "tbl_projects", "skip": 0, "top": 1000},
+        retry_policy=RetryPolicy.SAFE,
+    )
+
+
+def test_run_formula_marks_read_like_post_as_safe(client):
+    client._request.return_value = "formula result"
+
+    result = client.run_formula("Operations", "Projects", "[Name]", record_id=101)
+
+    assert result == "formula result"
+    client._request.assert_called_once_with(
+        method="POST",
+        path="formula/run",
+        json_body={"from": "tbl_projects", "formula": "[Name]", "rid": 101},
+        retry_policy=RetryPolicy.SAFE,
+    )
 
 
 def test_upsert_records_translates_labels_and_reports_success(client):

@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 from .log_runner import get_logger
 from .metadata import QuickBaseMetaCache
-from .transport import QuickBaseTransport
+from .transport import QuickBaseTransport, RetryPolicy
 
 logger = get_logger(__name__)
 
@@ -59,12 +59,20 @@ class QuickBaseClient:
         path: str,
         params: dict[str, Any] | None = None,
         json_body: Any | None = None,
+        retry_policy: RetryPolicy | None = None,
     ) -> dict[str, Any]:
         """
         Centralized request handling with logging.
         """
         try:
             func = getattr(self.transport, method.lower())
+            if retry_policy is not None:
+                return func(
+                    path,
+                    params=params,
+                    json_body=json_body,
+                    retry_policy=retry_policy,
+                )
             return func(path, params=params, json_body=json_body)
         except Exception as e:
             self.logger.error(f"Error in {method} request to {path}: {e}")
@@ -444,7 +452,12 @@ class QuickBaseClient:
         _, table_id = self._ids(app_name, table_name)
 
         params = {"tableId": table_id, "skip": skip, "top": top}
-        resp = self._request(method="POST", path=f"reports/{report_id}/run", params=params)
+        resp = self._request(
+            method="POST",
+            path=f"reports/{report_id}/run",
+            params=params,
+            retry_policy=RetryPolicy.SAFE,
+        )
         return pd.DataFrame(self._parse_report(resp))
 
     @staticmethod
@@ -534,7 +547,12 @@ class QuickBaseClient:
         if record_id is not None:
             body["rid"] = record_id
 
-        return self._request(method="POST", path="formula/run", json_body=body)
+        return self._request(
+            method="POST",
+            path="formula/run",
+            json_body=body,
+            retry_policy=RetryPolicy.SAFE,
+        )
 
     # ----------------
     # Record Methods
@@ -677,7 +695,12 @@ class QuickBaseClient:
                 {"fieldId": get_id(label), "grouping": "equal-values"} for label in group_by
             ]
 
-        return self._request(method="POST", path="records/query", json_body=body)
+        return self._request(
+            method="POST",
+            path="records/query",
+            json_body=body,
+            retry_policy=RetryPolicy.SAFE,
+        )
 
     def query_dataframe(
         self,
@@ -732,7 +755,12 @@ class QuickBaseClient:
             ]
 
         # Make the request
-        resp = self._request(method="POST", path="records/query", json_body=body)
+        resp = self._request(
+            method="POST",
+            path="records/query",
+            json_body=body,
+            retry_policy=RetryPolicy.SAFE,
+        )
         data = resp.get("data", [])
         fields = resp.get("fields", [])
         cols = [f["label"] for f in fields]
@@ -1024,7 +1052,12 @@ class QuickBaseClient:
             if where:
                 body["where"] = where
 
-            resp = self._request(method="POST", path="records/query", json_body=body)
+            resp = self._request(
+                method="POST",
+                path="records/query",
+                json_body=body,
+                retry_policy=RetryPolicy.SAFE,
+            )
             rows = resp.get("data", [])
             if not rows:
                 break
@@ -1099,7 +1132,12 @@ class QuickBaseClient:
             "select": [record_fid, file_fid],
             "where": f"{{3.EX.'{record_id}'}}",
         }
-        resp = self._request(method="POST", path="records/query", json_body=query_body)
+        resp = self._request(
+            method="POST",
+            path="records/query",
+            json_body=query_body,
+            retry_policy=RetryPolicy.SAFE,
+        )
         records = resp.get("data", [])
         if not records:
             self.logger.warning(f"No attachment found for record {record_id}.")
@@ -1185,7 +1223,12 @@ class QuickBaseClient:
             if where:
                 body["where"] = where
 
-            resp = self._request(method="POST", path="records/query", json_body=body)
+            resp = self._request(
+                method="POST",
+                path="records/query",
+                json_body=body,
+                retry_policy=RetryPolicy.SAFE,
+            )
             rows = resp.get("data", [])
             if not rows:
                 break
