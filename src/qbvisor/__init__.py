@@ -21,6 +21,15 @@ for dotenv_path in possible_paths:
         break
 
 from .client import QuickBaseClient
+from .exceptions import (
+    QuickbaseConfigurationError,
+    QuickbaseConnectionError,
+    QuickbaseError,
+    QuickbaseHTTPError,
+    QuickbaseRateLimitError,
+    QuickbaseResponseError,
+    QuickbaseTimeoutError,
+)
 from .helpers import (
     ensure_temp_dir,
     generate_timestamped_folder,
@@ -34,6 +43,13 @@ from .query_helper import QueryHelper
 
 __all__ = [
     "QuickBaseClient",
+    "QuickbaseError",
+    "QuickbaseConfigurationError",
+    "QuickbaseConnectionError",
+    "QuickbaseTimeoutError",
+    "QuickbaseHTTPError",
+    "QuickbaseRateLimitError",
+    "QuickbaseResponseError",
     "QueryHelper",
     "sanitize_filenames",
     "ensure_temp_dir",

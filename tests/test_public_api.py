@@ -13,6 +13,6 @@ def test_existing_public_exports_remain_available():
         "get_logger",
     }
 
-    assert set(qbvisor.__all__) == expected_exports
+    assert expected_exports <= set(qbvisor.__all__)
     for name in expected_exports:
         assert hasattr(qbvisor, name)
