@@ -1,10 +1,18 @@
 # Python
 __pycache__/
-.venv
+.venv/
 .venv.nosync/
+.uv-cache.nosync/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 .coverage*
 htmlcov/
-*.__pycache__
+build/
+dist/
+*.egg-info/
+*.whl
+*.py[cod]
 *.pyo
 *.pyd
 .env
@@ -13,6 +21,7 @@ htmlcov/
 *.log
 *.csv
 *.json
+!docs/api/*.json
 
 # Temp files
 tmp/
@@ -26,5 +35,5 @@ logs/
 .vscode/
 .idea/
 
-# Pypi build files
-dist/
+# Local API specifications and audit inputs
+.cache/
