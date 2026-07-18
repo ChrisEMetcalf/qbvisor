@@ -71,4 +71,6 @@ jobs:
         run: uv build
 
       - name: Verify wheel installation
-        run: uv run --isolated --no-project --with ./dist/qbvisor-0.2.0-py3-none-any.whl python -c "import qbvisor"
+        run: |
+          wheel_path="$(find dist -name '*.whl' -print -quit)"
+          uv run --isolated --no-project --with "$wheel_path" python -c "import qbvisor"
