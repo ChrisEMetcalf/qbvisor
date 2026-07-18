@@ -930,7 +930,7 @@ class QuickBaseClient:
             ),
             table_id,
         )
-        total = min(size, record_limit) if record_limit else size
+        total = min(size, record_limit) if record_limit is not None else size
 
         # Prepare batches
         request_size = min(chunk_size, 1000)
@@ -1014,7 +1014,12 @@ class QuickBaseClient:
                 self.logger.info(f"Downloaded: {save_path.name}")
                 return {**result, "status": "downloaded", "bytes_written": len(payload)}, None
             except Exception as error:
-                temp_path.unlink(missing_ok=True)
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except OSError as cleanup_error:
+                    self.logger.warning(
+                        f"Could not remove temporary attachment {temp_path}: {cleanup_error}"
+                    )
                 self.logger.error(f"Failed to download {download_url}: {error}")
                 return {
                     **result,

@@ -468,3 +468,23 @@ def test_record_export_chunk_preserves_quickbase_field_labels(client):
 def test_record_export_rejects_invalid_batch_configuration(client, tmp_path, kwargs, message):
     with pytest.raises(ValueError, match=message):
         client.download_records_to_csv("Operations", "Projects", str(tmp_path), **kwargs)
+
+
+def test_record_export_respects_an_explicit_zero_record_limit(client, tmp_path):
+    client._gather_chunks = AsyncMock(return_value=[])
+
+    output = client.download_records_to_csv(
+        "Operations",
+        "Projects",
+        str(tmp_path),
+        record_limit=0,
+    )
+
+    assert output == ""
+    client._gather_chunks.assert_awaited_once_with(
+        "tbl_projects",
+        [3, 6, 7],
+        "{3.GT.'0'}",
+        [],
+        4,
+    )
