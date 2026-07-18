@@ -16,6 +16,7 @@ from .transport import (
     JSONValue,
     QuickBaseTransport,
     RetryPolicy,
+    _decode_file_response,
     _http_error,
 )
 
@@ -94,6 +95,23 @@ class AsyncQuickBaseTransport:
             raise AssertionError("Binary transport returned a non-bytes response")
         return response
 
+    async def get_file(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> bytes:
+        response = await self._request(
+            "GET",
+            path,
+            params=params,
+            retry_policy=RetryPolicy.SAFE,
+            response_kind="file",
+        )
+        if not isinstance(response, bytes):
+            raise AssertionError("File transport returned a non-bytes response")
+        return response
+
     async def _request(
         self,
         method: str,
@@ -113,7 +131,7 @@ class AsyncQuickBaseTransport:
             else f"{self.base_url}/{normalized_path}"
         )
         request_headers = dict(self.headers)
-        if response_kind == "bytes":
+        if response_kind in {"bytes", "file"}:
             request_headers = {
                 key: value
                 for key, value in request_headers.items()
@@ -208,6 +226,14 @@ class AsyncQuickBaseTransport:
 
             if response_kind == "bytes":
                 return raw
+            if response_kind == "file":
+                return _decode_file_response(
+                    raw,
+                    self._header(response_headers, "content-type"),
+                    method=normalized_method,
+                    path=normalized_path,
+                    qb_api_ray=qb_api_ray,
+                )
             if status_code == 204 or not raw:
                 return {}
             payload = self._json_or_none(raw)

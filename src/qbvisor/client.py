@@ -1007,7 +1007,7 @@ class QuickBaseClient:
         async with sem:
             temp_path = save_path.with_name(f".{save_path.name}.{uuid4().hex}.part")
             try:
-                payload = await transport.get_bytes(download_url)
+                payload = await transport.get_file(download_url)
                 async with aiofiles.open(temp_path, "wb") as file_handle:
                     await file_handle.write(payload)
                 await asyncio.to_thread(temp_path.replace, save_path)
@@ -1226,7 +1226,7 @@ class QuickBaseClient:
         )
 
         path = f"files/{table_id}/{int(record_id)}/{file_fid}/{version_num}"
-        return base64.b64encode(self.transport.get_bytes(path)).decode("ascii")
+        return base64.b64encode(self.transport.get_file(path)).decode("ascii")
 
     def download_table_attachments_async(
         self,

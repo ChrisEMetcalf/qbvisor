@@ -166,6 +166,21 @@ def test_async_binary_response_is_returned_without_json_decoding():
     assert headers["Accept"] == "application/octet-stream"
 
 
+def test_async_file_response_decodes_observed_quickbase_base64_text():
+    session = FakeSession(
+        FakeResponse(
+            200,
+            headers={"Content-Type": "text/plain; charset=utf-8"},
+            content=b"SGVsbG8=",
+        )
+    )
+    transport = async_transport(session)
+
+    result = asyncio.run(transport.get_file("files/table/1/6/1"))
+
+    assert result == b"Hello"
+
+
 def test_invalid_async_json_raises_response_error_with_ray():
     session = FakeSession(
         FakeResponse(200, headers={"qb-api-ray": "ray-invalid"}, content=b"not-json")

@@ -1,3 +1,5 @@
+import base64
+import binascii
 import math
 import os
 import random
@@ -107,6 +109,30 @@ def _http_error(
     )
 
 
+def _decode_file_response(
+    raw: bytes,
+    content_type: str | None,
+    *,
+    method: str,
+    path: str,
+    qb_api_ray: str | None,
+) -> bytes:
+    """Resolve Quickbase's documented binary and observed base64-text file responses."""
+    media_type = content_type.partition(";")[0].strip().lower() if content_type else None
+    if media_type != "text/plain":
+        return raw
+    try:
+        return base64.b64decode(raw.strip(), validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise QuickbaseResponseError(
+            method,
+            path,
+            qb_api_ray,
+            expected="base64-encoded file body",
+            actual=media_type,
+        ) from error
+
+
 class QuickBaseTransport:
     """Synchronous HTTP transport for the Quickbase JSON API."""
 
@@ -176,13 +202,13 @@ class QuickBaseTransport:
         json_body: Any | None = None,
         *,
         retry_policy: RetryPolicy,
-        response_kind: Literal["json", "bytes"] = "json",
+        response_kind: Literal["json", "bytes", "file"] = "json",
     ) -> JSONValue | bytes:
         normalized_method = method.upper()
         normalized_path = path.lstrip("/")
         url = f"{self.base_url}/{normalized_path}"
         request_headers = self.headers
-        if response_kind == "bytes":
+        if response_kind in {"bytes", "file"}:
             request_headers = {
                 key: value for key, value in self.headers.items() if key.lower() != "content-type"
             }
@@ -267,6 +293,14 @@ class QuickBaseTransport:
 
             if response_kind == "bytes":
                 return response.content
+            if response_kind == "file":
+                return _decode_file_response(
+                    response.content,
+                    self._header(response.headers, "content-type"),
+                    method=normalized_method,
+                    path=normalized_path,
+                    qb_api_ray=qb_api_ray,
+                )
             if response.status_code == 204 or not response.content:
                 return {}
             try:
@@ -353,6 +387,19 @@ class QuickBaseTransport:
         )
         if not isinstance(response, bytes):
             raise AssertionError("Binary transport returned a non-bytes response")
+        return response
+
+    def get_file(self, path: str, params: dict[str, Any] | None = None) -> bytes:
+        """Return decoded file bytes for documented and observed Quickbase responses."""
+        response = self._make_request(
+            "GET",
+            path,
+            params=params,
+            retry_policy=RetryPolicy.SAFE,
+            response_kind="file",
+        )
+        if not isinstance(response, bytes):
+            raise AssertionError("File transport returned a non-bytes response")
         return response
 
     def post(

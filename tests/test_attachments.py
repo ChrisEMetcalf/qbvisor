@@ -23,7 +23,7 @@ class FakeAsyncTransport:
     async def __aexit__(self, *_: object) -> None:
         return None
 
-    async def get_bytes(self, path: str) -> bytes:
+    async def get_file(self, path: str) -> bytes:
         self.calls.append(path)
         outcome = self.outcomes[path]
         if isinstance(outcome, Exception):
@@ -159,12 +159,12 @@ def test_single_attachment_base64_encodes_raw_binary_response(client):
         }
     )
     client.transport = Mock()
-    client.transport.get_bytes.return_value = b"\xff\x00binary"
+    client.transport.get_file.return_value = b"\xff\x00binary"
 
     result = client.download_attachment_base64("Sandbox", "Records", 101, "Attachment")
 
     assert result == base64.b64encode(b"\xff\x00binary").decode("ascii")
-    client.transport.get_bytes.assert_called_once_with("files/table/101/8/2")
+    client.transport.get_file.assert_called_once_with("files/table/101/8/2")
 
 
 def test_single_attachment_returns_none_only_when_no_version_exists(client):
@@ -177,4 +177,4 @@ def test_single_attachment_returns_none_only_when_no_version_exists(client):
     result = client.download_attachment_base64("Sandbox", "Records", 101, "Attachment")
 
     assert result is None
-    client.transport.get_bytes.assert_not_called()
+    client.transport.get_file.assert_not_called()
