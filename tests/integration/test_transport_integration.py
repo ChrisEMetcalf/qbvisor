@@ -1,47 +1,32 @@
-import os
-
 import pytest
 
-from qbvisor import QuickbaseHTTPError, QuickBaseTransport
+from qbvisor import QuickbaseHTTPError
+from qbvisor.transport import QuickBaseTransport
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(scope="module")
-def sandbox_transport():
-    variable_names = (
-        "QBVISOR_TEST_REALM",
-        "QBVISOR_TEST_TOKEN",
-        "QBVISOR_TEST_APP_ID",
-    )
-    config = {name: os.getenv(name) for name in variable_names}
-    missing = [name for name, value in config.items() if not value]
-    if missing:
-        pytest.skip(f"Persistent sandbox is not configured; missing {', '.join(missing)}")
+def test_reads_configured_sandbox_app(sandbox_transport, sandbox_config):
+    payload = sandbox_transport.get(f"apps/{sandbox_config.app_id}")
 
-    transport = QuickBaseTransport(
-        realm_hostname=config["QBVISOR_TEST_REALM"],
-        auth_token=config["QBVISOR_TEST_TOKEN"],
-    )
-    try:
-        yield transport, config["QBVISOR_TEST_APP_ID"]
-    finally:
-        transport.close()
+    assert isinstance(payload, dict)
+    assert payload["id"] == sandbox_config.app_id
 
 
-def test_reads_configured_sandbox_app(sandbox_transport):
-    transport, app_id = sandbox_transport
+def test_tables_endpoint_returns_documented_top_level_array(
+    sandbox_transport: QuickBaseTransport, sandbox_config
+):
+    payload = sandbox_transport.get("tables", params={"appId": sandbox_config.app_id})
 
-    payload = transport.get(f"apps/{app_id}")
-
-    assert payload["id"] == app_id
+    assert isinstance(payload, list)
+    assert all(isinstance(table, dict) for table in payload)
 
 
 def test_sandbox_error_includes_quickbase_diagnostic_id(sandbox_transport):
-    transport, _ = sandbox_transport
-
     with pytest.raises(QuickbaseHTTPError) as caught:
-        transport.get("apps/qbvisor-invalid-app-id")
+        sandbox_transport.get("apps/qbvisor-invalid-app-id")
 
-    assert caught.value.status_code in {400, 404}
+    assert 400 <= caught.value.status_code < 500
+    assert caught.value.message
+    assert caught.value.description
     assert caught.value.qb_api_ray

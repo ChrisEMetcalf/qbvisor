@@ -67,7 +67,8 @@ addopts = [
     "--cov-fail-under=40",
 ]
 markers = [
-    "integration: read-only tests against the configured persistent Quickbase sandbox",
+    "integration: live contract tests against the configured persistent Quickbase sandbox",
+    "sandbox_mutation: explicitly opted-in tests that mutate only the dedicated sandbox",
 ]
 testpaths = ["tests"]
 

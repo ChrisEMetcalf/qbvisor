@@ -80,7 +80,11 @@ print(active_records.head())
 
 ## Transport reliability
 
-`QuickBaseTransport` reuses one `requests.Session` and applies a 10-second connect timeout and a 120-second read timeout by default. GET requests and read-like POST operations retry connection failures, timeouts, and temporary gateway responses. Mutations are not replayed after an uncertain failure. A `429` response follows Quickbase's `Retry-After` guidance for every operation.
+`QuickBaseTransport` reuses one `requests.Session` and applies a 10-second connect timeout and a 120-second read timeout by default. GET requests and read-like POST operations retry connection failures, timeouts, and temporary gateway responses. Mutations are not replayed after an uncertain failure.
+
+A `429` response is replayed for every operation only when Quickbase provides a valid `Retry-After` value. Missing or invalid guidance raises `QuickbaseRateLimitError` immediately instead of inventing a delay for a mutation.
+
+The transport accepts any valid JSON response. High-level methods enforce the response shape documented for their endpoint. In particular, table, report, and field collection endpoints return top-level lists rather than wrapped objects.
 
 Customize the transport and pass it to the high-level client:
 
@@ -137,10 +141,17 @@ Run all tests with:
 uv run pytest
 ```
 
-Read-only integration tests use a dedicated persistent sandbox and skip when its variables are absent. Set `QBVISOR_TEST_REALM`, `QBVISOR_TEST_TOKEN`, and `QBVISOR_TEST_APP_ID`, then run:
+Live integration tests use a dedicated persistent sandbox and skip unless explicitly enabled. Set `QBVISOR_TEST_REALM`, `QBVISOR_TEST_TOKEN`, and `QBVISOR_TEST_APP_ID` in `.env`, then run the established contract without allowing changes:
 
 ```bash
-uv run pytest -m integration --no-cov
+QBVISOR_RUN_INTEGRATION=1 uv run pytest -m integration --no-cov
+```
+
+The first bootstrap and the mutation contracts require a second opt-in. They create only the named persistent fixtures and uniquely named temporary resources inside the configured sandbox:
+
+```bash
+QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=1 \
+  uv run pytest -m integration --no-cov
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete development and compatibility policy.
