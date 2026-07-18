@@ -1,0 +1,335 @@
+{
+  "source": {
+    "url": "https://developer.quickbase.com/quickbase.json",
+    "retrievedAt": "2026-07-18T22:28:45+00:00",
+    "sha256": "033e274b35427e21a5e3ef8d2fc7c92c5e89dff2bb842c91f1c46bfc0efbffdc",
+    "etag": "W/\"3267aa7ca17a15264c61711293a89de4\"",
+    "lastModified": "Fri, 17 Jul 2026 11:09:24 GMT",
+    "oasVersion": "2.0",
+    "apiVersion": "1.0.0"
+  },
+  "supportedOperations": [
+    {
+      "method": "POST",
+      "path": "/apps",
+      "operationId": "createApp",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/apps/{appId}",
+      "operationId": "getApp",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/apps/{appId}",
+      "operationId": "updateApp",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/apps/{appId}",
+      "operationId": "deleteApp",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/apps/{appId}/copy",
+      "operationId": "copyApp",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/tables",
+      "operationId": "getAppTables",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/tables",
+      "operationId": "createTable",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/tables/{tableId}",
+      "operationId": "getTable",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/tables/{tableId}",
+      "operationId": "updateTable",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/tables/{tableId}",
+      "operationId": "deleteTable",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/tables/{tableId}/relationships",
+      "operationId": "getRelationships",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/tables/{tableId}/relationship",
+      "operationId": "createRelationship",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/tables/{tableId}/relationship/{relationshipId}",
+      "operationId": "deleteRelationship",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/reports",
+      "operationId": "getTableReports",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/reports/{reportId}",
+      "operationId": "getReport",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/reports/{reportId}/run",
+      "operationId": "runReport",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/fields",
+      "operationId": "getFields",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/fields",
+      "operationId": "createField",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/fields",
+      "operationId": "deleteFields",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/fields/{fieldId}",
+      "operationId": "getField",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/fields/{fieldId}",
+      "operationId": "updateField",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/formula/run",
+      "operationId": "runFormula",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/records",
+      "operationId": "upsert",
+      "responses": {
+        "200": {
+          "description": "",
+          "shape": "object",
+          "mediaType": "application/json"
+        },
+        "207": {
+          "description": "",
+          "shape": "object",
+          "mediaType": "application/json"
+        },
+        "400": {
+          "description": "",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/records",
+      "operationId": "deleteRecords",
+      "responses": {
+        "200": {
+          "description": "Successful delete records response.",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/records/query",
+      "operationId": "runQuery",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}",
+      "operationId": "downloadFile",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "binary",
+          "mediaType": "application/octet-stream"
+        }
+      }
+    }
+  ]
+}
