@@ -4,6 +4,8 @@ import qbvisor
 def test_existing_public_exports_remain_available():
     expected_exports = {
         "QuickBaseClient",
+        "QuickBaseTransport",
+        "RetryPolicy",
         "QueryHelper",
         "sanitize_filenames",
         "ensure_temp_dir",

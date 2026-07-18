@@ -38,11 +38,14 @@ from .helpers import (
 )
 from .log_runner import LoggingConfigurator, get_logger
 from .query_helper import QueryHelper
+from .transport import QuickBaseTransport, RetryPolicy
 
 # Expose file download utilities directly on the client
 
 __all__ = [
     "QuickBaseClient",
+    "QuickBaseTransport",
+    "RetryPolicy",
     "QuickbaseError",
     "QuickbaseConfigurationError",
     "QuickbaseConnectionError",

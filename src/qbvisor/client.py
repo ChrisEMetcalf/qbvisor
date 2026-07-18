@@ -24,11 +24,23 @@ class QuickBaseClient:
     High-level QuickBase client that composes transport, metadata, and file utilities.
     """
 
-    def __init__(self):
+    def __init__(self, transport: QuickBaseTransport | None = None):
         load_dotenv()
-        self.transport = QuickBaseTransport()
+        self._owns_transport = transport is None
+        self.transport = transport if transport is not None else QuickBaseTransport()
         self.meta = QuickBaseMetaCache(self.transport)
         self.logger = get_logger(__name__)
+
+    def __enter__(self) -> "QuickBaseClient":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Close the transport created by this client."""
+        if self._owns_transport:
+            self.transport.close()
 
     # ----------------
     # Private: Map friendly names to IDs

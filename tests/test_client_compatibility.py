@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+import qbvisor.client as client_module
 from qbvisor.client import QuickBaseClient
 from qbvisor.transport import RetryPolicy
 
@@ -65,6 +66,29 @@ def client() -> QuickBaseClient:
     instance.logger = Mock()
     instance._request = Mock()
     return instance
+
+
+def test_client_accepts_caller_owned_transport(monkeypatch):
+    monkeypatch.setenv("QB_APP_IDS", '{"Operations": "app_operations"}')
+    injected_transport = Mock()
+
+    instance = QuickBaseClient(transport=injected_transport)
+    instance.close()
+
+    assert instance.transport is injected_transport
+    assert instance.meta.transport is injected_transport
+    injected_transport.close.assert_not_called()
+
+
+def test_client_context_closes_transport_it_creates(monkeypatch):
+    monkeypatch.setenv("QB_APP_IDS", '{"Operations": "app_operations"}')
+    owned_transport = Mock()
+    monkeypatch.setattr(client_module, "QuickBaseTransport", Mock(return_value=owned_transport))
+
+    with QuickBaseClient() as instance:
+        assert instance.transport is owned_transport
+
+    owned_transport.close.assert_called_once_with()
 
 
 def test_ids_resolve_names_to_stable_ids(client):
