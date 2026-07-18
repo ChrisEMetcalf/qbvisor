@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class QuickbaseError(Exception):
     """Base class for errors raised by qbvisor."""
 
@@ -50,6 +53,23 @@ class QuickbaseHTTPError(QuickbaseError):
 
 class QuickbaseRateLimitError(QuickbaseHTTPError):
     """Raised when Quickbase rate limiting remains after retries are exhausted."""
+
+
+class QuickbaseBatchError(QuickbaseError):
+    """Raised when a batch operation completes with one or more failed items."""
+
+    def __init__(
+        self,
+        operation: str,
+        results: list[dict[str, Any]],
+        errors: list[Exception],
+    ):
+        self.operation = operation
+        self.results = results
+        self.errors = errors
+        super().__init__(
+            f"{operation} completed with {len(errors)} failure(s) across {len(results)} item(s)"
+        )
 
 
 class QuickbaseResponseError(QuickbaseError):

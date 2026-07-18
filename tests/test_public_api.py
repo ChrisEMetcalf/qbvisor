@@ -5,6 +5,7 @@ def test_existing_public_exports_remain_available():
     expected_exports = {
         "QuickBaseClient",
         "QuickBaseTransport",
+        "QuickbaseBatchError",
         "RetryPolicy",
         "QueryHelper",
         "sanitize_filenames",

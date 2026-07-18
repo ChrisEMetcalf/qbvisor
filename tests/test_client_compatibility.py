@@ -1,5 +1,6 @@
+import asyncio
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pandas as pd
 import pytest
@@ -406,3 +407,84 @@ def test_file_attachment_fields_are_resolved_from_metadata(client):
     )
 
     assert client.get_file_attachment_fields("Operations", "Projects") == ["Document"]
+
+
+def test_record_export_caps_batches_without_skipping_records(client, tmp_path):
+    client.meta.get_table = Mock(return_value={"id": "tbl_projects", "size": 2500})
+    client._gather_chunks = AsyncMock(return_value=[[{"Name": "Migration"}]])
+
+    output = client.download_records_to_csv(
+        "Operations",
+        "Projects",
+        str(tmp_path),
+        chunk_size=2500,
+        record_limit=2500,
+        max_concurrency=3,
+    )
+
+    assert output.startswith(str(tmp_path / "Projects_"))
+    assert output.endswith(".csv")
+    client._gather_chunks.assert_awaited_once_with(
+        "tbl_projects",
+        [3, 6, 7],
+        "{3.GT.'0'}",
+        [(0, 1000), (1000, 1000), (2000, 500)],
+        3,
+    )
+
+
+def test_record_export_chunk_preserves_quickbase_field_labels(client):
+    async_transport = SimpleNamespace(
+        post_json=AsyncMock(
+            return_value={
+                "fields": [{"id": 6, "label": "Name"}, {"id": 7, "label": "Status"}],
+                "data": [
+                    {"6": {"value": "Migration"}, "7": {"value": "Active"}},
+                ],
+            }
+        )
+    )
+    body = {"from": "tbl_projects", "select": [6, 7], "options": {"skip": 0, "top": 1000}}
+
+    rows = asyncio.run(client._fetch_chunk(async_transport, body, 0))
+
+    assert rows == [{"Name": "Migration", "Status": "Active"}]
+    async_transport.post_json.assert_awaited_once_with(
+        "records/query",
+        json_body=body,
+        headers={"Accept-Encoding": "gzip"},
+        retry_policy=RetryPolicy.SAFE,
+    )
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"chunk_size": 0}, "chunk_size must be at least 1"),
+        ({"max_concurrency": 0}, "max_concurrency must be at least 1"),
+        ({"record_limit": -1}, "record_limit cannot be negative"),
+    ],
+)
+def test_record_export_rejects_invalid_batch_configuration(client, tmp_path, kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        client.download_records_to_csv("Operations", "Projects", str(tmp_path), **kwargs)
+
+
+def test_record_export_respects_an_explicit_zero_record_limit(client, tmp_path):
+    client._gather_chunks = AsyncMock(return_value=[])
+
+    output = client.download_records_to_csv(
+        "Operations",
+        "Projects",
+        str(tmp_path),
+        record_limit=0,
+    )
+
+    assert output == ""
+    client._gather_chunks.assert_awaited_once_with(
+        "tbl_projects",
+        [3, 6, 7],
+        "{3.GT.'0'}",
+        [],
+        4,
+    )

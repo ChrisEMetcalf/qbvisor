@@ -1,4 +1,5 @@
 from qbvisor import (
+    QuickbaseBatchError,
     QuickbaseConnectionError,
     QuickbaseHTTPError,
     QuickbaseResponseError,
@@ -38,3 +39,17 @@ def test_response_error_includes_diagnostic_identifier():
     error = QuickbaseResponseError("GET", "apps/app_id", "ray-456")
 
     assert str(error) == ("GET apps/app_id returned an invalid JSON response (qb-api-ray: ray-456)")
+
+
+def test_batch_error_retains_partial_results_and_original_errors():
+    failure = QuickbaseConnectionError("GET", "files/table/102/8/1", 5)
+    results = [
+        {"record_id": 101, "status": "downloaded"},
+        {"record_id": 102, "status": "failed", "error": str(failure)},
+    ]
+
+    error = QuickbaseBatchError("Attachment download", results, [failure])
+
+    assert error.results is results
+    assert error.errors == [failure]
+    assert str(error) == "Attachment download completed with 1 failure(s) across 2 item(s)"

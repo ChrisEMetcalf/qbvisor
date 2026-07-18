@@ -16,6 +16,20 @@ uv run python scripts/audit_quickbase_oas.py --refresh --write
 - A `207` upsert response remains a successful object. Callers can inspect `metadata.lineErrors` alongside successfully processed records.
 - Quickbase error objects preserve `message` and `description`. Exceptions also preserve the HTTP status, `Retry-After`, and `qb-api-ray` header when present.
 
+## File responses
+
+The OpenAPI document describes `GET /files/{tableId}/{recordId}/{fieldId}/{versionNumber}` as an
+`application/octet-stream` response. The persistent sandbox currently returns `text/plain` with a
+base64-encoded body instead. qbvisor uses the response media type to support both contracts:
+
+- `text/plain` must contain valid base64 and is decoded to file bytes;
+- `application/octet-stream` is preserved byte-for-byte;
+- malformed base64 text raises `QuickbaseResponseError` with `qb-api-ray` when Quickbase provides
+  it.
+
+This distinction avoids heuristically decoding raw binary data that only happens to resemble
+base64. Both synchronous and concurrent attachment paths apply the same interpretation.
+
 ## Rate limiting
 
 Quickbase's [rate-limit guidance](https://developer.quickbase.com/rateLimit) instructs clients to wait for `Retry-After` before retrying. qbvisor applies a valid delay to both reads and mutations because the server has explicitly told the client when to replay the request. If the header is missing or invalid, qbvisor raises `QuickbaseRateLimitError` immediately. It does not invent a mutation retry delay.

@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import base64
 import os
 import uuid
+from pathlib import Path
 from typing import Any, cast
 
 import pandas as pd
 import pytest
 import requests
-from conftest import APP_NAME, MUTATION_ENV, SandboxConfig, SandboxContract
+from conftest import (
+    APP_NAME,
+    ATTACHMENT_CONTENT,
+    ATTACHMENT_FILE_NAME,
+    MUTATION_ENV,
+    SandboxConfig,
+    SandboxContract,
+)
 
 from qbvisor.client import QuickBaseClient
 from qbvisor.transport import JSONValue, QuickBaseTransport, RetryPolicy
@@ -152,6 +161,74 @@ def test_default_report_contract_when_table_has_reports(
     )
     assert isinstance(frame, pd.DataFrame)
     assert not frame.empty
+
+
+def test_concurrent_record_export_round_trips_persistent_rows(
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+    tmp_path: Path,
+):
+    key_fid = sandbox_contract.record_fields["Fixture Key"]
+    where = "OR".join(
+        f"{{{key_fid}.EX.'{key}'}}" for key in ("qbvisor-alpha", "qbvisor-beta", "qbvisor-gamma")
+    )
+
+    output = sandbox_client.download_records_to_csv(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        str(tmp_path),
+        where=where,
+        chunk_size=2,
+        max_concurrency=2,
+    )
+
+    frame = pd.read_csv(output)
+    fixture_rows = frame[frame["Fixture Key"].str.startswith("qbvisor-")]
+    assert set(fixture_rows["Fixture Key"]) == {
+        "qbvisor-alpha",
+        "qbvisor-beta",
+        "qbvisor-gamma",
+    }
+
+
+def test_attachment_downloads_preserve_documented_binary_bytes_and_skip_existing(
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+    tmp_path: Path,
+):
+    record_id = sandbox_contract.record_ids["qbvisor-alpha"]
+    encoded = sandbox_client.download_attachment_base64(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        record_id,
+        "Attachment",
+    )
+    assert encoded is not None
+    assert base64.b64decode(encoded) == ATTACHMENT_CONTENT
+
+    first = sandbox_client.download_attachments_async(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        "Attachment",
+        str(tmp_path),
+        where=f"{{3.EX.'{record_id}'}}",
+        max_concurrency=2,
+    )
+    assert len(first) == 1
+    assert first[0]["status"] == "downloaded"
+    assert first[0]["file_name"] == ATTACHMENT_FILE_NAME
+    assert Path(first[0]["saved_path"]).read_bytes() == ATTACHMENT_CONTENT
+
+    second = sandbox_client.download_attachments_async(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        "Attachment",
+        str(tmp_path),
+        where=f"{{3.EX.'{record_id}'}}",
+        max_concurrency=2,
+    )
+    assert len(second) == 1
+    assert second[0]["status"] == "skipped"
 
 
 class RecordingSession(requests.Session):

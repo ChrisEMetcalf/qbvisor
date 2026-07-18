@@ -233,6 +233,56 @@ def test_valid_json_array_success_is_returned_without_wrapping():
     assert transport(session).get("tables") == payload
 
 
+def test_binary_response_is_returned_exactly_without_json_or_base64_decoding():
+    session = Mock(spec=requests.Session)
+    session.request.return_value = response(200, content=b"SGVsbG8=")
+
+    result = transport(session).get_bytes("files/table/1/6/1")
+
+    assert result == b"SGVsbG8="
+    headers = session.request.call_args.kwargs["headers"]
+    assert "Content-Type" not in headers
+    assert headers["Accept"] == "application/octet-stream"
+
+
+def test_file_response_decodes_observed_quickbase_base64_text():
+    session = Mock(spec=requests.Session)
+    session.request.return_value = response(
+        200,
+        headers={"Content-Type": "text/plain; charset=utf-8"},
+        content=b"SGVsbG8=",
+    )
+
+    assert transport(session).get_file("files/table/1/6/1") == b"Hello"
+
+
+def test_file_response_preserves_documented_octet_stream_even_when_base64_like():
+    session = Mock(spec=requests.Session)
+    session.request.return_value = response(
+        200,
+        headers={"Content-Type": "application/octet-stream"},
+        content=b"SGVsbG8=",
+    )
+
+    assert transport(session).get_file("files/table/1/6/1") == b"SGVsbG8="
+
+
+def test_malformed_base64_text_file_response_raises_response_error():
+    session = Mock(spec=requests.Session)
+    session.request.return_value = response(
+        200,
+        headers={"Content-Type": "text/plain", "qb-api-ray": "ray-file"},
+        content=b"not valid base64!",
+    )
+
+    with pytest.raises(QuickbaseResponseError) as caught:
+        transport(session).get_file("files/table/1/6/1")
+
+    assert caught.value.expected == "base64-encoded file body"
+    assert caught.value.actual == "text/plain"
+    assert caught.value.qb_api_ray == "ray-file"
+
+
 def test_invalid_success_json_raises_response_error_with_ray():
     session = Mock(spec=requests.Session)
     invalid_response = response(200, headers={"qb-api-ray": "ray-invalid"}, content=b"not json")

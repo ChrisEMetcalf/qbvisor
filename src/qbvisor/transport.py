@@ -1,3 +1,5 @@
+import base64
+import binascii
 import math
 import os
 import random
@@ -5,7 +7,7 @@ import time
 from collections.abc import Callable, Mapping
 from email.utils import parsedate_to_datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 import requests
 
@@ -32,6 +34,103 @@ class RetryPolicy(Enum):
 
     NEVER = "never"
     SAFE = "safe"
+
+
+class _RequestPolicy:
+    """Shared retry timing and error interpretation for HTTP transports."""
+
+    def __init__(
+        self,
+        *,
+        max_attempts: int,
+        base_delay: float,
+        max_delay: float,
+        jitter: Callable[[float, float], float],
+        clock: Callable[[], float],
+    ):
+        self.max_attempts = max_attempts
+        self.base_delay = base_delay
+        self.max_delay = max_delay
+        self._jitter = jitter
+        self._clock = clock
+
+    def should_retry_exception(self, retry_policy: RetryPolicy, attempt: int) -> bool:
+        return retry_policy is RetryPolicy.SAFE and attempt < self.max_attempts
+
+    def retry_after_seconds(self, value: str | None) -> float | None:
+        if value is None:
+            return None
+        try:
+            seconds = float(value)
+            return max(0.0, seconds) if math.isfinite(seconds) else None
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(value)
+                if retry_at.tzinfo is None:
+                    return None
+                return max(0.0, retry_at.timestamp() - self._clock())
+            except (TypeError, ValueError, OverflowError):
+                return None
+
+    def retry_delay(self, attempt: int, retry_after: str | None = None) -> float:
+        wait = self.retry_after_seconds(retry_after)
+        if wait is not None:
+            return wait
+        backoff = min(self.max_delay, self.base_delay * (2 ** (attempt - 1)))
+        return self._jitter(backoff * 0.5, backoff * 1.5)
+
+
+def _http_error(
+    *,
+    method: str,
+    path: str,
+    status_code: int,
+    payload: JSONValue,
+    qb_api_ray: str | None,
+    retry_after: str | None,
+) -> QuickbaseHTTPError:
+    message: str | None = None
+    description: str | None = None
+    if isinstance(payload, dict):
+        raw_message = payload.get("message")
+        raw_description = payload.get("description")
+        message = raw_message if isinstance(raw_message, str) else None
+        description = raw_description if isinstance(raw_description, str) else None
+
+    error_type = QuickbaseRateLimitError if status_code == 429 else QuickbaseHTTPError
+    return error_type(
+        method=method,
+        path=path,
+        status_code=status_code,
+        message=message,
+        description=description,
+        qb_api_ray=qb_api_ray,
+        retry_after=retry_after,
+    )
+
+
+def _decode_file_response(
+    raw: bytes,
+    content_type: str | None,
+    *,
+    method: str,
+    path: str,
+    qb_api_ray: str | None,
+) -> bytes:
+    """Resolve Quickbase's documented binary and observed base64-text file responses."""
+    media_type = content_type.partition(";")[0].strip().lower() if content_type else None
+    if media_type != "text/plain":
+        return raw
+    try:
+        return base64.b64decode(raw.strip(), validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise QuickbaseResponseError(
+            method,
+            path,
+            qb_api_ray,
+            expected="base64-encoded file body",
+            actual=media_type,
+        ) from error
 
 
 class QuickBaseTransport:
@@ -74,6 +173,13 @@ class QuickBaseTransport:
         self._sleep = sleep
         self._jitter = jitter
         self._clock = clock
+        self._request_policy = _RequestPolicy(
+            max_attempts=max_attempts,
+            base_delay=base_delay,
+            max_delay=max_delay,
+            jitter=jitter,
+            clock=clock,
+        )
         self._owns_session = session is None
         self.session = session if session is not None else requests.Session()
 
@@ -96,17 +202,24 @@ class QuickBaseTransport:
         json_body: Any | None = None,
         *,
         retry_policy: RetryPolicy,
-    ) -> JSONValue:
+        response_kind: Literal["json", "bytes", "file"] = "json",
+    ) -> JSONValue | bytes:
         normalized_method = method.upper()
         normalized_path = path.lstrip("/")
         url = f"{self.base_url}/{normalized_path}"
+        request_headers = self.headers
+        if response_kind in {"bytes", "file"}:
+            request_headers = {
+                key: value for key, value in self.headers.items() if key.lower() != "content-type"
+            }
+            request_headers["Accept"] = "application/octet-stream"
 
         for attempt in range(1, self.max_attempts + 1):
             try:
                 response = self.session.request(
                     normalized_method,
                     url,
-                    headers=self.headers,
+                    headers=request_headers,
                     params=params,
                     json=json_body,
                     timeout=self.timeout,
@@ -178,6 +291,16 @@ class QuickBaseTransport:
                     retry_after,
                 )
 
+            if response_kind == "bytes":
+                return response.content
+            if response_kind == "file":
+                return _decode_file_response(
+                    response.content,
+                    self._header(response.headers, "content-type"),
+                    method=normalized_method,
+                    path=normalized_path,
+                    qb_api_ray=qb_api_ray,
+                )
             if response.status_code == 204 or not response.content:
                 return {}
             try:
@@ -191,7 +314,7 @@ class QuickBaseTransport:
         raise AssertionError("Request retry loop exited unexpectedly")
 
     def _should_retry_exception(self, retry_policy: RetryPolicy, attempt: int) -> bool:
-        return retry_policy is RetryPolicy.SAFE and attempt < self.max_attempts
+        return self._request_policy.should_retry_exception(retry_policy, attempt)
 
     def _wait_before_retry(
         self,
@@ -204,10 +327,7 @@ class QuickBaseTransport:
         qb_api_ray: str | None = None,
     ) -> None:
         if wait is None:
-            wait = self._retry_after_seconds(retry_after)
-        if wait is None:
-            backoff = min(self.max_delay, self.base_delay * (2 ** (attempt - 1)))
-            wait = self._jitter(backoff * 0.5, backoff * 1.5)
+            wait = self._request_policy.retry_delay(attempt, retry_after)
         logger.warning(
             "Retrying %s %s after attempt %s in %.1fs (qb-api-ray=%s)",
             method,
@@ -219,19 +339,7 @@ class QuickBaseTransport:
         self._sleep(wait)
 
     def _retry_after_seconds(self, value: str | None) -> float | None:
-        if value is None:
-            return None
-        try:
-            seconds = float(value)
-            return max(0.0, seconds) if math.isfinite(seconds) else None
-        except ValueError:
-            try:
-                retry_at = parsedate_to_datetime(value)
-                if retry_at.tzinfo is None:
-                    return None
-                return max(0.0, retry_at.timestamp() - self._clock())
-            except (TypeError, ValueError, OverflowError):
-                return None
+        return self._request_policy.retry_after_seconds(value)
 
     @staticmethod
     def _header(headers: Mapping[str, str], name: str) -> str | None:
@@ -245,25 +353,15 @@ class QuickBaseTransport:
         qb_api_ray: str | None,
         retry_after: str | None,
     ) -> None:
-        message: str | None = None
-        description: str | None = None
         try:
             payload = response.json()
         except (requests.JSONDecodeError, ValueError):
             payload = None
-        if isinstance(payload, dict):
-            raw_message = payload.get("message")
-            raw_description = payload.get("description")
-            message = raw_message if isinstance(raw_message, str) else None
-            description = raw_description if isinstance(raw_description, str) else None
-
-        error_type = QuickbaseRateLimitError if response.status_code == 429 else QuickbaseHTTPError
-        raise error_type(
+        raise _http_error(
             method=method,
             path=path,
             status_code=response.status_code,
-            message=message,
-            description=description,
+            payload=payload,
             qb_api_ray=qb_api_ray,
             retry_after=retry_after,
         )
@@ -271,9 +369,38 @@ class QuickBaseTransport:
     def get(
         self, path: str, params: dict[str, Any] | None = None, json_body: Any | None = None
     ) -> JSONValue:
-        return self._make_request(
+        response = self._make_request(
             "GET", path, params=params, json_body=json_body, retry_policy=RetryPolicy.SAFE
         )
+        if isinstance(response, bytes):
+            raise AssertionError("JSON transport returned a bytes response")
+        return response
+
+    def get_bytes(self, path: str, params: dict[str, Any] | None = None) -> bytes:
+        """Return a binary Quickbase response using the configured session and policy."""
+        response = self._make_request(
+            "GET",
+            path,
+            params=params,
+            retry_policy=RetryPolicy.SAFE,
+            response_kind="bytes",
+        )
+        if not isinstance(response, bytes):
+            raise AssertionError("Binary transport returned a non-bytes response")
+        return response
+
+    def get_file(self, path: str, params: dict[str, Any] | None = None) -> bytes:
+        """Return decoded file bytes for documented and observed Quickbase responses."""
+        response = self._make_request(
+            "GET",
+            path,
+            params=params,
+            retry_policy=RetryPolicy.SAFE,
+            response_kind="file",
+        )
+        if not isinstance(response, bytes):
+            raise AssertionError("File transport returned a non-bytes response")
+        return response
 
     def post(
         self,
@@ -283,9 +410,12 @@ class QuickBaseTransport:
         *,
         retry_policy: RetryPolicy = RetryPolicy.NEVER,
     ) -> JSONValue:
-        return self._make_request(
+        response = self._make_request(
             "POST", path, params=params, json_body=json_body, retry_policy=retry_policy
         )
+        if isinstance(response, bytes):
+            raise AssertionError("JSON transport returned a bytes response")
+        return response
 
     def delete(
         self,
@@ -295,6 +425,9 @@ class QuickBaseTransport:
         *,
         retry_policy: RetryPolicy = RetryPolicy.NEVER,
     ) -> JSONValue:
-        return self._make_request(
+        response = self._make_request(
             "DELETE", path, params=params, json_body=json_body, retry_policy=retry_policy
         )
+        if isinstance(response, bytes):
+            raise AssertionError("JSON transport returned a bytes response")
+        return response
