@@ -119,6 +119,8 @@ def test_safe_request_reports_attempts_after_connection_retries_are_exhausted():
         transport(session, max_attempts=3, sleep=Mock()).get("apps/one")
 
     assert caught.value.attempts == 3
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__ is True
     assert session.request.call_count == 3
 
 
@@ -192,11 +194,43 @@ def test_exhausted_rate_limit_raises_specific_error_with_diagnostics():
     assert session.request.call_count == 2
 
 
+@pytest.mark.parametrize("retry_after", [None, "", "not-a-delay", "NaN"])
+def test_rate_limit_without_valid_retry_after_is_not_replayed(retry_after):
+    session = Mock(spec=requests.Session)
+    headers = {"qb-api-ray": "ray-no-delay"}
+    if retry_after is not None:
+        headers["Retry-After"] = retry_after
+    session.request.return_value = response(
+        429,
+        {"message": "Too many requests", "description": "Wait for Quickbase"},
+        headers=headers,
+    )
+    sleep = Mock()
+
+    with pytest.raises(QuickbaseRateLimitError) as caught:
+        transport(session, sleep=sleep).post("records", json_body={"data": []})
+
+    assert caught.value.message == "Too many requests"
+    assert caught.value.description == "Wait for Quickbase"
+    assert caught.value.retry_after == retry_after
+    assert caught.value.qb_api_ray == "ray-no-delay"
+    assert session.request.call_count == 1
+    sleep.assert_not_called()
+
+
 def test_empty_success_response_returns_empty_mapping():
     session = Mock(spec=requests.Session)
     session.request.return_value = response(204)
 
     assert transport(session).delete("records") == {}
+
+
+def test_valid_json_array_success_is_returned_without_wrapping():
+    session = Mock(spec=requests.Session)
+    payload = [{"id": "table_one"}, {"id": "table_two"}]
+    session.request.return_value = response(200, payload)
+
+    assert transport(session).get("tables") == payload
 
 
 def test_invalid_success_json_raises_response_error_with_ray():

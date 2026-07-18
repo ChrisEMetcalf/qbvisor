@@ -1,3 +1,4 @@
+import math
 import os
 import random
 import time
@@ -22,6 +23,8 @@ logger = get_logger(__name__)
 
 DEFAULT_TIMEOUT = (10.0, 120.0)
 RETRYABLE_STATUS_CODES = frozenset({502, 503, 504})
+
+type JSONValue = None | bool | int | float | str | list["JSONValue"] | dict[str, "JSONValue"]
 
 
 class RetryPolicy(Enum):
@@ -93,7 +96,7 @@ class QuickBaseTransport:
         json_body: Any | None = None,
         *,
         retry_policy: RetryPolicy,
-    ) -> dict[str, Any]:
+    ) -> JSONValue:
         normalized_method = method.upper()
         normalized_path = path.lstrip("/")
         url = f"{self.base_url}/{normalized_path}"
@@ -108,18 +111,22 @@ class QuickBaseTransport:
                     json=json_body,
                     timeout=self.timeout,
                 )
-            except requests.Timeout as exc:
+            except requests.Timeout:
                 if self._should_retry_exception(retry_policy, attempt):
                     self._wait_before_retry(normalized_method, normalized_path, attempt)
                     continue
-                raise QuickbaseTimeoutError(normalized_method, normalized_path, attempt) from exc
-            except requests.ConnectionError as exc:
+                raise QuickbaseTimeoutError(normalized_method, normalized_path, attempt) from None
+            except requests.ConnectionError:
                 if self._should_retry_exception(retry_policy, attempt):
                     self._wait_before_retry(normalized_method, normalized_path, attempt)
                     continue
-                raise QuickbaseConnectionError(normalized_method, normalized_path, attempt) from exc
-            except requests.RequestException as exc:
-                raise QuickbaseConnectionError(normalized_method, normalized_path, attempt) from exc
+                raise QuickbaseConnectionError(
+                    normalized_method, normalized_path, attempt
+                ) from None
+            except requests.RequestException:
+                raise QuickbaseConnectionError(
+                    normalized_method, normalized_path, attempt
+                ) from None
 
             qb_api_ray = self._header(response.headers, "qb-api-ray")
             retry_after = self._header(response.headers, "retry-after")
@@ -131,15 +138,24 @@ class QuickBaseTransport:
                 attempt,
                 qb_api_ray or "unavailable",
             )
-            if response.status_code == 429 and attempt < self.max_attempts:
-                self._wait_before_retry(
+            if response.status_code == 429:
+                retry_after_seconds = self._retry_after_seconds(retry_after)
+                if retry_after_seconds is not None and attempt < self.max_attempts:
+                    self._wait_before_retry(
+                        normalized_method,
+                        normalized_path,
+                        attempt,
+                        wait=retry_after_seconds,
+                        qb_api_ray=qb_api_ray,
+                    )
+                    continue
+                self._raise_http_error(
+                    response,
                     normalized_method,
                     normalized_path,
-                    attempt,
-                    retry_after=retry_after,
-                    qb_api_ray=qb_api_ray,
+                    qb_api_ray,
+                    retry_after,
                 )
-                continue
             if (
                 response.status_code in RETRYABLE_STATUS_CODES
                 and retry_policy is RetryPolicy.SAFE
@@ -170,8 +186,6 @@ class QuickBaseTransport:
                 raise QuickbaseResponseError(
                     normalized_method, normalized_path, qb_api_ray
                 ) from exc
-            if not isinstance(payload, dict):
-                raise QuickbaseResponseError(normalized_method, normalized_path, qb_api_ray)
             return payload
 
         raise AssertionError("Request retry loop exited unexpectedly")
@@ -185,10 +199,12 @@ class QuickBaseTransport:
         path: str,
         attempt: int,
         *,
+        wait: float | None = None,
         retry_after: str | None = None,
         qb_api_ray: str | None = None,
     ) -> None:
-        wait = self._retry_after_seconds(retry_after)
+        if wait is None:
+            wait = self._retry_after_seconds(retry_after)
         if wait is None:
             backoff = min(self.max_delay, self.base_delay * (2 ** (attempt - 1)))
             wait = self._jitter(backoff * 0.5, backoff * 1.5)
@@ -206,10 +222,14 @@ class QuickBaseTransport:
         if value is None:
             return None
         try:
-            return max(0.0, float(value))
+            seconds = float(value)
+            return max(0.0, seconds) if math.isfinite(seconds) else None
         except ValueError:
             try:
-                return max(0.0, parsedate_to_datetime(value).timestamp() - self._clock())
+                retry_at = parsedate_to_datetime(value)
+                if retry_at.tzinfo is None:
+                    return None
+                return max(0.0, retry_at.timestamp() - self._clock())
             except (TypeError, ValueError, OverflowError):
                 return None
 
@@ -250,7 +270,7 @@ class QuickBaseTransport:
 
     def get(
         self, path: str, params: dict[str, Any] | None = None, json_body: Any | None = None
-    ) -> dict[str, Any]:
+    ) -> JSONValue:
         return self._make_request(
             "GET", path, params=params, json_body=json_body, retry_policy=RetryPolicy.SAFE
         )
@@ -262,7 +282,7 @@ class QuickBaseTransport:
         json_body: Any | None = None,
         *,
         retry_policy: RetryPolicy = RetryPolicy.NEVER,
-    ) -> dict[str, Any]:
+    ) -> JSONValue:
         return self._make_request(
             "POST", path, params=params, json_body=json_body, retry_policy=retry_policy
         )
@@ -274,7 +294,7 @@ class QuickBaseTransport:
         json_body: Any | None = None,
         *,
         retry_policy: RetryPolicy = RetryPolicy.NEVER,
-    ) -> dict[str, Any]:
+    ) -> JSONValue:
         return self._make_request(
             "DELETE", path, params=params, json_body=json_body, retry_policy=retry_policy
         )

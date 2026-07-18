@@ -53,11 +53,29 @@ class QuickbaseRateLimitError(QuickbaseHTTPError):
 
 
 class QuickbaseResponseError(QuickbaseError):
-    """Raised when a successful Quickbase response cannot be decoded."""
+    """Raised when a successful response is invalid JSON or has an unexpected shape."""
 
-    def __init__(self, method: str, path: str, qb_api_ray: str | None = None):
+    def __init__(
+        self,
+        method: str,
+        path: str,
+        qb_api_ray: str | None = None,
+        *,
+        expected: str | None = None,
+        actual: str | None = None,
+    ):
         self.method = method
         self.path = path
         self.qb_api_ray = qb_api_ray
+        self.expected = expected
+        self.actual = actual
         ray = f" (qb-api-ray: {qb_api_ray})" if qb_api_ray else ""
-        super().__init__(f"{method} {path} returned an invalid JSON response{ray}")
+        if expected:
+            actual_detail = f", got {actual}" if actual else ""
+            message = (
+                f"{method} {path} returned an unexpected JSON response: "
+                f"expected {expected}{actual_detail}"
+            )
+        else:
+            message = f"{method} {path} returned an invalid JSON response"
+        super().__init__(f"{message}{ray}")
