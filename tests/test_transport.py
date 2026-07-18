@@ -6,6 +6,7 @@ import pytest
 import requests
 
 from qbvisor import (
+    QuickbaseConfigurationError,
     QuickbaseConnectionError,
     QuickbaseHTTPError,
     QuickbaseRateLimitError,
@@ -37,6 +38,16 @@ def transport(session: Mock, **kwargs: object) -> QuickBaseTransport:
         session=session,
         **kwargs,
     )
+
+
+def test_missing_credentials_preserves_os_error_compatibility(monkeypatch):
+    monkeypatch.delenv("QB_REALM_HOSTNAME", raising=False)
+    monkeypatch.delenv("QB_REALM_API_KEY", raising=False)
+
+    with pytest.raises(QuickbaseConfigurationError) as caught:
+        QuickBaseTransport()
+
+    assert isinstance(caught.value, OSError)
 
 
 def test_reuses_session_and_applies_default_timeout():

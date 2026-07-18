@@ -2,7 +2,7 @@ class QuickbaseError(Exception):
     """Base class for errors raised by qbvisor."""
 
 
-class QuickbaseConfigurationError(QuickbaseError):
+class QuickbaseConfigurationError(QuickbaseError, OSError):
     """Raised when required client configuration is missing or invalid."""
 
 
