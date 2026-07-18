@@ -12,13 +12,13 @@ class FakeTransport:
 
     def get(self, path, params=None):
         if path == "tables":
-            return {"tables": self._tables}
+            return self._tables
         if path.startswith("tables/") and "relationships" not in path:
             # table metadata
             tbl = self._tables[0]
             return {"nextRecordId": tbl["size"] + 1}
         if path == "fields":
-            return {"fields": self._fields}
+            return self._fields
         if path.endswith("/relationships"):
             return {"relationships": []}
         raise ValueError(path)

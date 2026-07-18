@@ -6,6 +6,7 @@ import pytest
 
 import qbvisor.client as client_module
 from qbvisor.client import QuickBaseClient
+from qbvisor.exceptions import QuickbaseResponseError
 from qbvisor.transport import RetryPolicy
 
 
@@ -28,8 +29,8 @@ class FakeMeta:
 
     def get_table_id(self, app: str, table: str) -> str:
         assert app == "app_operations"
-        assert table in {"Projects", "tbl_projects"}
-        return "tbl_projects"
+        assert table in {"Projects", "tbl_projects", "Customers", "tbl_customers"}
+        return "tbl_customers" if table in {"Customers", "tbl_customers"} else "tbl_projects"
 
     def get_field_id(self, app: str, table: str, label: str) -> int:
         assert app == "app_operations"
@@ -96,6 +97,16 @@ def test_ids_resolve_names_to_stable_ids(client):
     assert client._ids("Operations", "Projects") == ("app_operations", "tbl_projects")
 
 
+def test_request_rejects_an_undocumented_top_level_shape():
+    instance = QuickBaseClient.__new__(QuickBaseClient)
+    instance.transport = Mock()
+    instance.transport.get.return_value = {"tables": []}
+    instance.logger = Mock()
+
+    with pytest.raises(QuickbaseResponseError, match="expected JSON array, got dict"):
+        QuickBaseClient._request(instance, "GET", "tables", response_type=list)
+
+
 def test_create_app_preserves_existing_request_shape(client):
     client._request.return_value = {"id": "new_app"}
 
@@ -145,9 +156,75 @@ def test_create_table_preserves_existing_request_shape(client):
         json_body={
             "name": "Tasks",
             "description": "Project tasks",
-            "singularRecordName": "Task",
+            "singleRecordName": "Task",
             "pluralRecordName": "Tasks",
         },
+    )
+
+
+def test_list_tables_preserves_documented_top_level_array(client):
+    client._request.return_value = [{"id": "tbl_projects", "name": "Projects"}]
+
+    result = client.get_tables_for_app("Operations")
+
+    assert result == [{"id": "tbl_projects", "name": "Projects"}]
+    client._request.assert_called_once_with(
+        method="GET",
+        path="tables",
+        params={"appId": "app_operations"},
+        response_type=list,
+    )
+
+
+def test_field_mutations_put_table_id_in_query_parameter(client):
+    client._request.return_value = {"id": 8, "label": "Owner"}
+
+    assert client.create_field("Operations", "Projects", "Owner", "text") == {
+        "id": 8,
+        "label": "Owner",
+    }
+    client._request.assert_called_once_with(
+        method="POST",
+        path="fields",
+        params={"tableId": "tbl_projects"},
+        json_body={"label": "Owner", "fieldType": "text"},
+    )
+
+    client._request.reset_mock(return_value=True)
+    client._request.return_value = {"deletedFieldIds": [7]}
+    assert client.delete_fields("Operations", "Projects", ["Status"]) == {"deletedFieldIds": [7]}
+    client._request.assert_called_once_with(
+        method="DELETE",
+        path="fields",
+        params={"tableId": "tbl_projects"},
+        json_body={"fieldIds": [7]},
+    )
+
+
+def test_relationship_mutations_match_documented_paths_and_body(client):
+    client._request.return_value = {"id": 9}
+
+    assert client.create_relationship(
+        "Operations",
+        "Projects",
+        "Customers",
+        foreign_key_label="Related Customer",
+    ) == {"id": 9}
+    client._request.assert_called_once_with(
+        method="POST",
+        path="tables/tbl_projects/relationship",
+        json_body={
+            "parentTableId": "tbl_customers",
+            "foreignKeyField": {"label": "Related Customer"},
+        },
+    )
+
+    client._request.reset_mock(return_value=True)
+    client._request.return_value = {"relationshipId": 7}
+    assert client.delete_relationship("Operations", "Projects", "Status") == 7
+    client._request.assert_called_once_with(
+        method="DELETE",
+        path="tables/tbl_projects/relationship/7",
     )
 
 
@@ -229,11 +306,11 @@ def test_run_report_marks_read_like_post_as_safe(client):
 
 
 def test_run_formula_marks_read_like_post_as_safe(client):
-    client._request.return_value = "formula result"
+    client._request.return_value = {"result": "formula result"}
 
     result = client.run_formula("Operations", "Projects", "[Name]", record_id=101)
 
-    assert result == "formula result"
+    assert result == {"result": "formula result"}
     client._request.assert_called_once_with(
         method="POST",
         path="formula/run",

@@ -4,7 +4,7 @@ import json
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Any, overload
+from typing import Any, TypeVar, cast, overload
 
 import aiofiles
 import aiohttp
@@ -12,11 +12,14 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from .exceptions import QuickbaseResponseError
 from .log_runner import get_logger
 from .metadata import QuickBaseMetaCache
 from .transport import QuickBaseTransport, RetryPolicy
 
 logger = get_logger(__name__)
+
+ResponseT = TypeVar("ResponseT")
 
 
 class QuickBaseClient:
@@ -65,6 +68,7 @@ class QuickBaseClient:
         table_id = self.meta.get_table_id(app_id, table_name)
         return app_id, table_id
 
+    @overload
     def _request(
         self,
         method: str,
@@ -72,20 +76,53 @@ class QuickBaseClient:
         params: dict[str, Any] | None = None,
         json_body: Any | None = None,
         retry_policy: RetryPolicy | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any]: ...
+
+    @overload
+    def _request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        json_body: Any | None = None,
+        retry_policy: RetryPolicy | None = None,
+        *,
+        response_type: type[ResponseT],
+    ) -> ResponseT: ...
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        json_body: Any | None = None,
+        retry_policy: RetryPolicy | None = None,
+        *,
+        response_type: type[Any] = dict,
+    ) -> Any:
         """
         Centralized request handling with logging.
         """
         try:
             func = getattr(self.transport, method.lower())
             if retry_policy is not None:
-                return func(
+                payload = func(
                     path,
                     params=params,
                     json_body=json_body,
                     retry_policy=retry_policy,
                 )
-            return func(path, params=params, json_body=json_body)
+            else:
+                payload = func(path, params=params, json_body=json_body)
+            if not isinstance(payload, response_type):
+                expected = "JSON object" if response_type is dict else "JSON array"
+                raise QuickbaseResponseError(
+                    method,
+                    path,
+                    expected=expected,
+                    actual=type(payload).__name__,
+                )
+            return cast(Any, payload)
         except Exception as e:
             self.logger.error(f"Error in {method} request to {path}: {e}")
             raise
@@ -231,15 +268,16 @@ class QuickBaseClient:
         """
         app_id, _ = self._ids(app_name)
 
-        body = {
-            "name": table_name,
-            "description": description,
-            "singularRecordName": singular_record_name,
-            "pluralRecordName": plural_record_name,
-        }
+        body = {"name": table_name}
+        if description is not None:
+            body["description"] = description
+        if singular_record_name is not None:
+            body["singleRecordName"] = singular_record_name
+        if plural_record_name is not None:
+            body["pluralRecordName"] = plural_record_name
         return self._request(method="POST", path="tables", params={"appId": app_id}, json_body=body)
 
-    def get_tables_for_app(self, app_name: str) -> dict[str, Any]:
+    def get_tables_for_app(self, app_name: str) -> list[dict[str, Any]]:
         """
         List tables for a given app: GET /v1/tables?appId={appId}
 
@@ -251,7 +289,9 @@ class QuickBaseClient:
         """
         app_id, _ = self._ids(app_name)
 
-        return self._request(method="GET", path="tables", params={"appId": app_id})
+        return self._request(
+            method="GET", path="tables", params={"appId": app_id}, response_type=list
+        )
 
     def get_table(
         self,
@@ -299,7 +339,7 @@ class QuickBaseClient:
         if new_table_name:
             body["name"] = new_table_name
         if singular_record_name:
-            body["singularRecordName"] = singular_record_name
+            body["singleRecordName"] = singular_record_name
         if plural_record_name:
             body["pluralRecordName"] = plural_record_name
 
@@ -338,11 +378,9 @@ class QuickBaseClient:
         Returns:
             list: A list of dictionaries containing metadata for each relationship in the table.
         """
-        app_id, table_id = self._ids(app_name, table_name)
+        _, table_id = self._ids(app_name, table_name)
 
-        resp = self._request(
-            method="GET", path=f"tables/{table_id}/relationships", params={"appId": app_id}
-        )
+        resp = self._request(method="GET", path=f"tables/{table_id}/relationships")
         return resp.get("relationships", [])
 
     def create_relationship(
@@ -371,7 +409,7 @@ class QuickBaseClient:
         app_id, table_id = self._ids(app_name, table_name)
 
         parent_id = self.meta.get_table_id(app_id, parent_table_name)
-        body: dict[str, Any] = {"parentTableId": parent_id, "childTableId": table_id}
+        body: dict[str, Any] = {"parentTableId": parent_id}
         if foreign_key_label:
             body["foreignKeyField"] = {"label": foreign_key_label}
         if lookup_field_ids:
@@ -381,7 +419,6 @@ class QuickBaseClient:
         return self._request(
             method="POST",
             path=f"tables/{table_id}/relationship",
-            params={"appId": app_id},
             json_body=body,
         )
 
@@ -405,9 +442,7 @@ class QuickBaseClient:
         app_id, table_id = self._ids(app_name, table_name)
 
         rel_id = self.meta.get_field_id(app_id, table_id, related_field)
-        resp = self._request(
-            method="DELETE", path=f"relationship/{rel_id}", params={"appId": app_id}
-        )
+        resp = self._request(method="DELETE", path=f"tables/{table_id}/relationship/{rel_id}")
 
         return resp.get("relationshipId", None)
 
@@ -427,8 +462,9 @@ class QuickBaseClient:
         """
         _, table_id = self._ids(app_name, table_name)
 
-        resp = self._request(method="GET", path="reports", params={"tableId": table_id})
-        return resp.get("reports", [])
+        return self._request(
+            method="GET", path="reports", params={"tableId": table_id}, response_type=list
+        )
 
     def get_report(self, app_name: str, table_name: str, report_id: int) -> dict[str, Any]:
         """
@@ -509,8 +545,10 @@ class QuickBaseClient:
         """
         _, table_id = self._ids(app_name, table_name)
 
-        body = {"tableId": table_id, "label": label, "fieldType": field_type}
-        return self._request(method="POST", path="fields", json_body=body)
+        body = {"label": label, "fieldType": field_type}
+        return self._request(
+            method="POST", path="fields", params={"tableId": table_id}, json_body=body
+        )
 
     def delete_fields(
         self, app_name: str, table_name: str, field_labels: list[str]
@@ -532,8 +570,10 @@ class QuickBaseClient:
 
         # Lookup field IDs based on the provided labels
         field_ids = [fmap[label]["id"] for label in field_labels]
-        body = {"tableId": table_id, "fieldIds": field_ids}
-        return self._request(method="DELETE", path="fields", json_body=body)
+        body = {"fieldIds": field_ids}
+        return self._request(
+            method="DELETE", path="fields", params={"tableId": table_id}, json_body=body
+        )
 
     # ----------------
     # Formula Methods
