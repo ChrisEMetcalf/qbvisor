@@ -4,10 +4,11 @@ from datetime import date, datetime
 _DATE_PATTERN = "%Y-%m-%d"
 _DATETIME_PATTERN = "%Y-%m-%d %I:%M%p"
 
+
 def format_query_value(value) -> str:
     """
     Format a Python value into a Quickbase-safe query string.
-    
+
     Automatically handles quoting, dates, booleans, numbers, and lists.
     """
 
@@ -22,9 +23,10 @@ def format_query_value(value) -> str:
     if isinstance(value, list):
         elements = "; ".join(_strip_quotes(format_query_value(v)) for v in value)
         return f"'{elements}'"
-    
+
     # Default: treat as string
     return f"'{str(value)}'"
+
 
 def _strip_quotes(text: str) -> str:
     """

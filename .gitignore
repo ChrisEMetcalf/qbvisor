@@ -1,6 +1,8 @@
 # Python
 __pycache__/
 .venv/
+.coverage
+htmlcov/
 *.__pycache__
 *.pyo
 *.pyd
