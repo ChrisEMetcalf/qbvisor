@@ -110,6 +110,39 @@ except QuickbaseHTTPError as error:
 
 Request credentials and bodies are not included in transport logs or exception messages.
 
+## Concurrent exports and attachments
+
+`download_records_to_csv()` reads records concurrently in Quickbase's maximum 1,000-record
+pages. `chunk_size` controls each page and is capped at 1,000 without skipping offsets;
+`max_concurrency` bounds the number of requests in flight. Query pages use the same timeout,
+rate-limit, retry, exception, and diagnostic rules as other read operations.
+
+The existing `download_attachments_async()` and `download_table_attachments_async()` names are
+preserved for compatibility. They are synchronous entry points that use bounded asynchronous I/O
+internally and return a list of result dictionaries. Each result retains `record_id`, `file_name`,
+and `saved_path`, and adds a `status`:
+
+- `downloaded` includes `bytes_written`.
+- `skipped` means the destination already existed and was not overwritten.
+- `failed` includes a safe error message in `QuickbaseBatchError.results`.
+
+If one or more files fail, independent downloads finish and the method raises
+`QuickbaseBatchError`. Its `results` attribute contains every item outcome, while `errors` retains
+the original structured exceptions. Files are written through a temporary path and moved into
+place only after the complete response has been saved.
+
+Single-field downloads preserve the existing `recordId_filename` layout. Whole-table downloads
+use `recordId_fieldId_filename` so identical filenames in different file fields cannot collide.
+Quickbase-provided filenames are sanitized before they are joined to the destination directory.
+
+`download_attachment_base64()` returns `None` only when the requested record or attachment version
+does not exist. Transport, authentication, rate-limit, and server failures raise qbvisor
+exceptions. The returned string is always base64 encoded from the resolved file bytes.
+
+Because the compatibility methods call `asyncio.run()`, they cannot be invoked from a thread that
+already has a running event loop. A native public async interface is intentionally deferred rather
+than changing the return type of an existing method.
+
 ## Module overview
 
 - `QuickBaseClient`
@@ -118,7 +151,7 @@ Request credentials and bodies are not included in transport logs or exception m
 
 - `QuickBaseTransport`
 
-    Synchronous session, timeout, retry, response parsing, and error handling.
+    Synchronous session, timeout, retry, JSON and file response parsing, and error handling.
 
 - `QueryHelper`
 
