@@ -158,6 +158,93 @@ not contain the API token or request headers, but the destination still needs ac
 retention policy appropriate for the source application. Compression, encryption, retention,
 incremental capture, and restore automation are intentionally outside the first backup format.
 
+## Declarative application schemas
+
+Define an application with stable resource keys, review a read-only plan, and apply that exact plan
+after it is understood. Display names remain normal Quickbase names; keys such as `projects` and
+`project_details` provide the durable identity used for renames and drift detection.
+
+```python
+from qbvisor import (
+    AppSpec,
+    FieldSpec,
+    QuickBaseClient,
+    RelationshipSpec,
+    SummaryFieldSpec,
+    TableSpec,
+)
+
+spec = AppSpec(
+    key="operations",
+    name="Operations",
+    tables=[
+        TableSpec(
+            key="projects",
+            name="Projects",
+            fields=[
+                FieldSpec(key="name", label="Project Name", field_type="text"),
+            ],
+        ),
+        TableSpec(
+            key="details",
+            name="Project Details",
+            fields=[
+                FieldSpec(key="hours", label="Hours", field_type="numeric"),
+            ],
+        ),
+    ],
+    relationships=[
+        RelationshipSpec(
+            key="project_details",
+            parent_table="projects",
+            child_table="details",
+            foreign_key_label="Related Project",
+            lookup_fields=["name"],
+            summary_fields=[
+                SummaryFieldSpec(
+                    key="total_hours",
+                    accumulation_type="SUM",
+                    field="hours",
+                    label="Total Hours",
+                )
+            ],
+        )
+    ],
+)
+
+with QuickBaseClient() as qb:
+    plan = qb.plan_app(spec)
+    print(plan)
+
+    if plan.can_apply:
+        result = qb.apply_app(plan)
+        print(result.quickbase_change_count, result.state.serial)
+```
+
+`plan_app()` makes GET requests but does not change Quickbase or write state. `apply_app()` accepts
+the reviewed `SchemaPlan`, checks that neither Quickbase nor local state changed after planning,
+applies only the declared differences, verifies convergence, and then atomically publishes
+`.qbvisor/state.json`. A second plan should be unchanged.
+
+Existing resources are imported by a unique case-insensitive name match. After that first apply,
+stored Quickbase IDs are authoritative, so display names can be changed safely without replacing
+resources. Missing bound IDs, ambiguous imports, and field-type changes are conflicts rather than
+implicit recreation. Remote tables and fields not declared in the specification are left alone;
+deletion is not part of the current workflow.
+
+The state file contains resource addresses, Quickbase IDs, display names, and limited managed
+metadata. It does not contain credentials or record data, but it is operationally important and
+should not be casually deleted. `.qbvisor/` is ignored by default; CI and team workflows should
+persist the selected state path through an access-controlled artifact or state store appropriate
+for the project.
+
+Planning does not query records. It reads the app, the table collection, fields for each declared
+existing table, and relationships for each declared existing child table. Its cost therefore grows
+with the managed schema, not with record count.
+
+See [Declarative schemas](docs/declarative-schemas.md) for import semantics, managed attributes,
+state behavior, conflicts, and operational guidance.
+
 ## Application and schema inspection
 
 The client exposes Quickbase's current app-event, app-role, and field-usage endpoints without

@@ -43,6 +43,11 @@ from .exceptions import (
     QuickbaseHTTPError,
     QuickbaseRateLimitError,
     QuickbaseResponseError,
+    QuickbaseSchemaApplyError,
+    QuickbaseSchemaConflictError,
+    QuickbaseSchemaLockError,
+    QuickbaseSchemaStalePlanError,
+    QuickbaseSchemaStateError,
     QuickbaseTimeoutError,
 )
 from .helpers import (
@@ -54,6 +59,24 @@ from .helpers import (
 from .log_runner import LoggingConfigurator, get_logger
 from .models import RelationshipAccumulation, RelationshipSummary
 from .query_helper import QueryHelper
+from .schema import (
+    SCHEMA_STATE_FORMAT,
+    SCHEMA_STATE_FORMAT_VERSION,
+    AppSpec,
+    FieldSpec,
+    RelationshipSpec,
+    SchemaAction,
+    SchemaApplyResult,
+    SchemaAttributeChange,
+    SchemaChange,
+    SchemaPlan,
+    SchemaResourceKind,
+    SchemaState,
+    SchemaStateAction,
+    StateResource,
+    SummaryFieldSpec,
+    TableSpec,
+)
 from .transport import QuickBaseTransport, RetryPolicy
 
 # Expose file download utilities directly on the client
@@ -82,7 +105,28 @@ __all__ = [
     "QuickbaseHTTPError",
     "QuickbaseRateLimitError",
     "QuickbaseResponseError",
+    "QuickbaseSchemaApplyError",
+    "QuickbaseSchemaConflictError",
+    "QuickbaseSchemaLockError",
+    "QuickbaseSchemaStateError",
+    "QuickbaseSchemaStalePlanError",
     "QueryHelper",
+    "SCHEMA_STATE_FORMAT",
+    "SCHEMA_STATE_FORMAT_VERSION",
+    "AppSpec",
+    "FieldSpec",
+    "RelationshipSpec",
+    "SchemaAction",
+    "SchemaApplyResult",
+    "SchemaAttributeChange",
+    "SchemaChange",
+    "SchemaPlan",
+    "SchemaResourceKind",
+    "SchemaState",
+    "SchemaStateAction",
+    "StateResource",
+    "SummaryFieldSpec",
+    "TableSpec",
     "RelationshipAccumulation",
     "RelationshipSummary",
     "sanitize_filenames",

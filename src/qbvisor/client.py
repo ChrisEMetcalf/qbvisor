@@ -22,6 +22,7 @@ from .helpers import sanitize_filenames
 from .log_runner import get_logger
 from .metadata import QuickBaseMetaCache
 from .models import RelationshipSummary
+from .schema import AppSpec, SchemaApplyResult, SchemaPlan
 from .transport import QuickBaseTransport, RetryPolicy
 
 logger = get_logger(__name__)
@@ -87,6 +88,23 @@ class QuickBaseClient:
             output_dir,
             options=options or BackupOptions(),
         )
+
+    def plan_app(
+        self,
+        spec: AppSpec,
+        *,
+        state_path: str | Path = ".qbvisor/state.json",
+    ) -> SchemaPlan:
+        """Compare a declarative app specification without mutating Quickbase or state."""
+        from ._schema.planner import plan_application_schema
+
+        return plan_application_schema(self, spec, state_path=state_path)
+
+    def apply_app(self, plan: SchemaPlan) -> SchemaApplyResult:
+        """Apply a reviewed app plan and publish state only after verification."""
+        from ._schema.apply import apply_application_schema
+
+        return apply_application_schema(self, plan)
 
     # ----------------
     # Private: Map friendly names to IDs

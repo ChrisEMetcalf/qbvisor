@@ -37,3 +37,4 @@ logs/
 
 # Local API specifications and audit inputs
 .cache/
+.qbvisor/
