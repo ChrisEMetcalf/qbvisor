@@ -530,6 +530,10 @@ class QuickBaseClient:
     # ----------------
     # Field Methods
     # ----------------
+    def get_fields_for_table(self, app_name: str, table_name: str) -> list[dict[str, Any]]:
+        """List fields and permissions for a table: GET /v1/fields."""
+        return self._fields.list_for_table(app_name, table_name)
+
     def create_field(
         self, app_name: str, table_name: str, label: str, field_type: str
     ) -> dict[str, Any]:
