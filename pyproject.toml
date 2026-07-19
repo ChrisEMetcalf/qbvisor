@@ -36,6 +36,8 @@ Repository = "https://github.com/ChrisEMetcalf/qbvisor"
 
 [dependency-groups]
 dev = [
+    "mkdocs>=1.6.1",
+    "mkdocstrings[python]>=1.0.6",
     "mypy>=1.14",
     "pandas-stubs>=2.2",
     "pytest>=8.0",

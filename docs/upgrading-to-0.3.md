@@ -107,4 +107,5 @@ snapshots. Review their documented boundaries before operational use.
 6. Run critical workflows against a dedicated Quickbase sandbox.
 7. Pin the final `0.3.0` release only after those checks pass.
 
-See the [changelog](../CHANGELOG.md) for the complete unreleased change list.
+See the [changelog](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CHANGELOG.md) for the complete
+unreleased change list.

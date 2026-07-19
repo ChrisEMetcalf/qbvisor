@@ -99,5 +99,6 @@ QBVISOR_ALLOW_SANDBOX_MUTATIONS=0
 ```
 
 Read-only sandbox tests require `QBVISOR_RUN_INTEGRATION=1`. Fixture creation and mutation tests
-also require `QBVISOR_ALLOW_SANDBOX_MUTATIONS=1`. Review [Contributing](../CONTRIBUTING.md) before
+also require `QBVISOR_ALLOW_SANDBOX_MUTATIONS=1`. Review
+[Contributing](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CONTRIBUTING.md) before
 enabling either setting.

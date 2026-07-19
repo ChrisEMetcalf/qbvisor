@@ -1,8 +1,4 @@
-"""
-src/qbvisor/__init__.py
-
-Aggregate exports for the QuickBase archiver package.
-"""
+"""Public package interface for the qbvisor Quickbase SDK."""
 
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path

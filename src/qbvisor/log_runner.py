@@ -43,9 +43,10 @@ _DEFAULT_LOGGER_NAME = "qbvisor"
 
 
 def get_logger(name: str = _DEFAULT_LOGGER_NAME) -> logging.Logger:
-    """
-    Return a logger by name. Does not auto-configure.
-    Call LoggingConfigurator.setup(...) in your script to configure output.
+    """Return a logger without configuring handlers.
+
+    Call :meth:`LoggingConfigurator.setup` in the application entry point when qbvisor should
+    manage console and rotating-file handlers.
     """
     logger = logging.getLogger(name)
     LogHooks.run("on_get_logger", logger=logger)
@@ -53,10 +54,7 @@ def get_logger(name: str = _DEFAULT_LOGGER_NAME) -> logging.Logger:
 
 
 class LoggingConfigurator:
-    """
-    Optional setup utility for file + console logging.
-    Does not auto-run — call `setup()` explicitly in your script.
-    """
+    """Configure optional console and rotating-file logging for qbvisor."""
 
     _configured = False
 
@@ -82,8 +80,8 @@ class LoggingConfigurator:
         Args:
             logger_name: Name of the logger to configure.
             log_dir: Directory to store log files.
-            log_name: Name of the log file. Defaults to '{logger_name}.log'.
-            log_level: Logging level (e.g., 'DEBUG', 'INFO'). Defaults to 'INFO'.
+            log_name: Log filename. Defaults to the project-directory name plus ``.log``.
+            log_level: Logging level. Defaults to ``LOG_LEVEL`` and then ``DEBUG``.
             enable_colored: Whether to use colored logs in console (if coloredlogs is installed).
             fmt: Log message format.
             max_bytes: Maximum size of log file before rotation.

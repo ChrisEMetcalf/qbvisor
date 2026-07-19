@@ -191,7 +191,7 @@ messages.
 
 ## Documentation
 
-- [Documentation index](docs/README.md)
+- [Documentation index](docs/index.md)
 - [Configuration and authentication](docs/configuration.md)
 - [Data queries, reports, and record movement](docs/data-workflows.md)
 - [Building Quickbase applications](docs/application-building.md)

@@ -1,0 +1,54 @@
+site_name: qbvisor
+site_description: Developer-focused Python SDK for building on Quickbase
+repo_url: https://github.com/ChrisEMetcalf/qbvisor
+repo_name: ChrisEMetcalf/qbvisor
+edit_uri: edit/main/docs/
+strict: true
+
+theme:
+  name: mkdocs
+  color_mode: auto
+  user_color_mode_toggle: true
+
+nav:
+  - Overview: index.md
+  - Getting started:
+      - Configuration: configuration.md
+      - Data workflows: data-workflows.md
+      - Building applications: application-building.md
+      - Backups and attachments: backups-and-attachments.md
+      - Logging and errors: logging-and-errors.md
+  - Declarative schemas: declarative-schemas.md
+  - API reference:
+      - Public API: reference/index.md
+      - Client: reference/client.md
+      - Queries: reference/queries.md
+      - Declarative schemas: reference/schemas.md
+      - Backups: reference/backups.md
+      - Transport: reference/transport.md
+      - Logging: reference/logging.md
+      - Exceptions: reference/exceptions.md
+  - Quickbase API coverage: api/README.md
+  - Upgrading to 0.3: upgrading-to-0.3.md
+  - Release policy: release-policy.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            members_order: source
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            show_signature_annotations: true
+            separate_signature: true
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - toc:
+      permalink: true
