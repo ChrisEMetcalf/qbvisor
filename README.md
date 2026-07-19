@@ -1,6 +1,6 @@
 # qbvisor
 
-A Python client for the Quickbase REST API, offering:
+A developer-focused Python SDK for using Quickbase as an application backend. It offers:
 
 - Synchronous HTTP transport with pooled connections, timeouts, and operation-aware retries
 - Async data and attachment workflows via `aiohttp`
@@ -15,7 +15,7 @@ qbvisor is developed as public infrastructure for building, querying, moving, an
 
 ## Python support
 
-qbvisor supports Python 3.12 and 3.13.
+Python 3.12 is the minimum supported version. CI verifies Python 3.12, 3.13, and 3.14.
 
 Existing public method names remain stable when practical. Clearly broken behavior may be corrected when the fix is tested and documented.
 
@@ -31,11 +31,17 @@ cd qbvisor
 uv sync --all-groups
 ```
 
-Install the current package directly from GitHub:
+qbvisor is not yet published on PyPI. Install the current development package directly from
+GitHub:
 
 ```bash
 pip install git+https://github.com/ChrisEMetcalf/qbvisor.git
 ```
+
+Production applications should pin a released version. When a temporary Git dependency is
+necessary, pin its full commit SHA rather than tracking `main`. See the
+[release and compatibility policy](docs/release-policy.md) for the supported API and release
+contract.
 
 ## Configure
 
@@ -493,4 +499,6 @@ QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=1 \
   uv run pytest -m integration --no-cov
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete development and compatibility policy.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow,
+[CHANGELOG.md](CHANGELOG.md) for user-visible changes, and [SECURITY.md](SECURITY.md) for private
+vulnerability reporting.

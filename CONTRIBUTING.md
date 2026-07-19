@@ -4,7 +4,7 @@ qbvisor is shared infrastructure for developers who build on Quickbase. Changes 
 
 ## Requirements
 
-- Python 3.12 or 3.13
+- Python 3.12, 3.13, or 3.14
 - [uv](https://docs.astral.sh/uv/)
 
 ## Setup
@@ -21,6 +21,8 @@ uv run ruff format --check .
 uv run mypy src/qbvisor
 uv run pytest
 uv build
+uv run twine check --strict dist/*
+uv run python scripts/verify_distribution.py dist
 ```
 
 ## Compatibility
@@ -28,6 +30,9 @@ uv build
 Existing public method names and call signatures should remain stable when practical. Clearly broken behavior may be corrected when the change includes regression tests and release notes.
 
 `QuickBaseClient` is the supported high-level client. Preserve its public method names and call signatures unless a documented major release provides a migration path.
+
+Record user-visible behavior in [CHANGELOG.md](CHANGELOG.md). Follow the versioning, Python support,
+deprecation, and artifact requirements in [docs/release-policy.md](docs/release-policy.md).
 
 ## Client architecture
 

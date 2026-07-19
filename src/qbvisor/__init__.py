@@ -4,6 +4,7 @@ src/qbvisor/__init__.py
 Aggregate exports for the QuickBase archiver package.
 """
 
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -81,9 +82,15 @@ from .schema import (
 )
 from .transport import QuickBaseTransport, RetryPolicy
 
+try:
+    __version__ = version("qbvisor")
+except PackageNotFoundError:  # pragma: no cover - only possible from an uninstalled source tree
+    __version__ = "0+unknown"
+
 # Expose file download utilities directly on the client
 
 __all__ = [
+    "__version__",
     "QuickBaseClient",
     "BACKUP_FORMAT",
     "BACKUP_FORMAT_VERSION",

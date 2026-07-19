@@ -1,8 +1,11 @@
+from importlib.metadata import version
+
 import qbvisor
 
 
 def test_existing_public_exports_remain_available():
     expected_exports = {
+        "__version__",
         "QuickBaseClient",
         "ApplicationBackup",
         "BackupManifest",
@@ -46,3 +49,7 @@ def test_existing_public_exports_remain_available():
     assert expected_exports <= set(qbvisor.__all__)
     for name in expected_exports:
         assert hasattr(qbvisor, name)
+
+
+def test_public_version_matches_installed_distribution():
+    assert qbvisor.__version__ == version("qbvisor")
