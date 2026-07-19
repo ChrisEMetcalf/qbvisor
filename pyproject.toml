@@ -1,19 +1,24 @@
 [project]
 name = "qbvisor"
 version = "0.2.0"
-description = "Quickbase Python client with async transport, logging, and data processing utilities."
+description = "Developer-focused Python SDK for building, querying, moving, and backing up Quickbase applications."
 readme = "README.md"
 requires-python = ">=3.12"
-license = { file = "LICENSE.md" }
+license = "MIT"
+license-files = ["LICENSE.md"]
 authors = [
     { name = "Chris Metcalf", email = "christopher.e.metcalf@gmail.com" },
 ]
+keywords = ["api", "automation", "backup", "quickbase", "sdk"]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 dependencies = [
     "aiofiles>=23.2",
@@ -22,6 +27,11 @@ dependencies = [
     "python-dotenv>=1.0",
     "requests>=2.31",
 ]
+
+[project.urls]
+Documentation = "https://github.com/ChrisEMetcalf/qbvisor/tree/main/docs"
+Issues = "https://github.com/ChrisEMetcalf/qbvisor/issues"
+Repository = "https://github.com/ChrisEMetcalf/qbvisor"
 
 [dependency-groups]
 dev = [
