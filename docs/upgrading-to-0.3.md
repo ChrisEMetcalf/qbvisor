@@ -1,7 +1,7 @@
 # Upgrading from 0.2 to 0.3
 
-This is the migration guide for the planned `0.3.0` release. It will be finalized with the release
-version and date before publication.
+qbvisor `0.3.0` was released on July 19, 2026. This guide covers the compatibility and operational
+changes from `0.2.x`.
 
 qbvisor preserves established `QuickBaseClient` method names and the public signatures of its most
 used query, report, export, attachment, and upsert methods. The release intentionally changes some
@@ -13,9 +13,10 @@ documented Quickbase API.
 - Python 3.12 is now the minimum supported version.
 - Python 3.12, 3.13, and 3.14 are tested.
 - The package uses a `src/` layout and modern `pyproject.toml` metadata.
-- The first PyPI package will expose inline typing and `qbvisor.__version__`.
+- The PyPI package exposes inline typing and `qbvisor.__version__`.
 
-Until that release exists, pin a reviewed Git commit rather than an unversioned `main` dependency.
+Install the reviewed release with `python -m pip install qbvisor==0.3.0` or
+`uv add qbvisor==0.3.0`.
 
 ## Transport and exceptions
 
@@ -107,5 +108,6 @@ snapshots. Review their documented boundaries before operational use.
 6. Run critical workflows against a dedicated Quickbase sandbox.
 7. Pin the final `0.3.0` release only after those checks pass.
 
-See the [changelog](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CHANGELOG.md) for the complete
-unreleased change list.
+See the [0.3.0 release notes](releases/0.3.0.md) for the release summary and the
+[changelog](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CHANGELOG.md) for the complete change
+list.

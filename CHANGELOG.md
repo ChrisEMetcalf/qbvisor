@@ -6,16 +6,18 @@ heading.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-19
+
 ### Added
 
 - Add public package metadata, inline typing, release and security policies, and distribution
   artifact validation ([#18]).
 - Add trusted PyPI publishing with isolated OpenID Connect permissions, release identity checks,
-  artifact attestations, and a documented maintainer procedure.
+  artifact attestations, and a documented maintainer procedure ([#20]).
 - Add task-focused guides, a generated public API reference, strict documentation validation, and
-  the planned `0.3.0` migration.
+  the `0.3.0` migration guide ([#19]).
 - Publish the reviewed documentation site through GitHub Pages and expose its canonical URL in
-  package metadata.
+  package metadata ([#21]).
 - Add a shared synchronous transport with pooled connections, explicit timeouts, structured
   exceptions, and operation-aware retries ([#3]).
 - Add app events, app roles, field usage, relationship lookup, relationship summary, and record
@@ -42,6 +44,8 @@ heading.
 
 ### Fixed
 
+- Report the installed package version in the HTTP `User-Agent` instead of a stale hard-coded
+  version.
 - Preserve attachment bytes across response encodings and base64 conversion ([#9]).
 - Continue attachment discovery until Quickbase metadata confirms that all matching records have
   been scanned ([#15]).
@@ -74,7 +78,8 @@ heading.
 
 - Publish the initial Quickbase client, query helpers, transport, tests, and project documentation.
 
-[Unreleased]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ChrisEMetcalf/qbvisor/releases/tag/v0.1.0
@@ -95,3 +100,6 @@ heading.
 [#16]: https://github.com/ChrisEMetcalf/qbvisor/pull/16
 [#17]: https://github.com/ChrisEMetcalf/qbvisor/pull/17
 [#18]: https://github.com/ChrisEMetcalf/qbvisor/pull/18
+[#19]: https://github.com/ChrisEMetcalf/qbvisor/pull/19
+[#20]: https://github.com/ChrisEMetcalf/qbvisor/pull/20
+[#21]: https://github.com/ChrisEMetcalf/qbvisor/pull/21
