@@ -191,7 +191,7 @@ messages.
 
 ## Documentation
 
-- [Documentation index](docs/index.md)
+- [Documentation site](https://chrisemetcalf.github.io/qbvisor/)
 - [Configuration and authentication](docs/configuration.md)
 - [Data queries, reports, and record movement](docs/data-workflows.md)
 - [Building Quickbase applications](docs/application-building.md)
