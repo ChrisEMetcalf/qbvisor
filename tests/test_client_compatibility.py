@@ -1058,10 +1058,18 @@ def test_run_formula_marks_read_like_post_as_safe(client):
 
 def test_upsert_records_translates_labels_and_reports_success(client):
     client._request.return_value = {
+        "data": [
+            {
+                "3": {"value": 101},
+                "7": {"value": "Active"},
+            }
+        ],
         "metadata": {
             "createdRecordIds": [101],
+            "updatedRecordIds": [],
+            "unchangedRecordIds": [],
             "totalNumberOfRecordsProcessed": 1,
-        }
+        },
     }
 
     result = client.upsert_records(
@@ -1072,7 +1080,14 @@ def test_upsert_records_translates_labels_and_reports_success(client):
         fields_to_return=["Record ID#", "Status"],
     )
 
-    assert result == {"success": True, "createdRecordIds": [101], "totalProcessed": 1}
+    assert result == {
+        "success": True,
+        "createdRecordIds": [101],
+        "updatedRecordIds": [],
+        "unchangedRecordIds": [],
+        "totalProcessed": 1,
+        "data": [{"3": {"value": 101}, "7": {"value": "Active"}}],
+    }
     client._request.assert_called_once_with(
         method="POST",
         path="records",
@@ -1087,11 +1102,14 @@ def test_upsert_records_translates_labels_and_reports_success(client):
 
 def test_upsert_records_preserves_partial_failure_details(client):
     client._request.return_value = {
+        "data": [{"3": {"value": 101}}],
         "metadata": {
-            "lineErrors": {"2": "Invalid value"},
+            "lineErrors": {"2": ["Invalid value"]},
             "createdRecordIds": [101],
+            "updatedRecordIds": [],
+            "unchangedRecordIds": [],
             "totalNumberOfRecordsProcessed": 2,
-        }
+        },
     }
 
     result = client.upsert_records(
@@ -1103,10 +1121,70 @@ def test_upsert_records_preserves_partial_failure_details(client):
     assert result == {
         "success": False,
         "partial": True,
-        "lineErrors": {"2": "Invalid value"},
+        "lineErrors": {"2": ["Invalid value"]},
         "createdRecordIds": [101],
+        "updatedRecordIds": [],
+        "unchangedRecordIds": [],
         "totalProcessed": 2,
+        "data": [{"3": {"value": 101}}],
     }
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        ({"metadata": []}, "metadata object"),
+        (
+            {"metadata": {"totalNumberOfRecordsProcessed": 1}, "data": {}},
+            "data array of record objects",
+        ),
+        (
+            {
+                "metadata": {
+                    "totalNumberOfRecordsProcessed": 1,
+                    "updatedRecordIds": [True],
+                }
+            },
+            "metadata.updatedRecordIds array of positive record IDs",
+        ),
+        (
+            {
+                "metadata": {
+                    "totalNumberOfRecordsProcessed": 1,
+                    "lineErrors": {"2": ["Invalid value"]},
+                }
+            },
+            "one-based record positions",
+        ),
+        (
+            {
+                "metadata": {
+                    "totalNumberOfRecordsProcessed": 1,
+                    "lineErrors": {"1": "Invalid value"},
+                }
+            },
+            "error-message arrays",
+        ),
+    ],
+)
+def test_upsert_records_rejects_invalid_response_contract(client, response, message):
+    client._request.return_value = response
+
+    with pytest.raises(QuickbaseResponseError, match=message):
+        client.upsert_records("Operations", "Projects", [{"Name": "Migration"}])
+
+
+def test_upsert_records_requires_processed_count_to_match_submission(client):
+    client._request.return_value = {
+        "metadata": {"totalNumberOfRecordsProcessed": 1},
+    }
+
+    with pytest.raises(QuickbaseResponseError, match=r"equal to submitted records \(2\)"):
+        client.upsert_records(
+            "Operations",
+            "Projects",
+            [{"Name": "Migration"}, {"Name": "Backup"}],
+        )
 
 
 def test_delete_records_accepts_query_or_record_ids(client):
