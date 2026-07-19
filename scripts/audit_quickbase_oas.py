@@ -57,6 +57,7 @@ SUPPORTED_OPERATIONS = (
     ("POST", "/records/modifiedSince"),
     ("POST", "/records/query"),
     ("GET", "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}"),
+    ("DELETE", "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}"),
 )
 
 EXPECTED_SUCCESS_SHAPES = {

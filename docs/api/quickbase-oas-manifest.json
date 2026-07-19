@@ -10,8 +10,8 @@
   },
   "coverage": {
     "totalOperations": 67,
-    "supportedOperations": 32,
-    "missingOperations": 35,
+    "supportedOperations": 33,
+    "missingOperations": 34,
     "byTag": [
       {
         "tag": "Apps",
@@ -46,8 +46,8 @@
       {
         "tag": "Files",
         "total": 2,
-        "supported": 1,
-        "missing": 1
+        "supported": 2,
+        "missing": 0
       },
       {
         "tag": "Formulas",
@@ -316,7 +316,7 @@
       "operationId": "deleteFile",
       "tag": "Files",
       "summary": "Delete file",
-      "supported": false,
+      "supported": true,
       "successShapes": [
         "object"
       ]
@@ -1242,6 +1242,18 @@
           "description": "Success",
           "shape": "binary",
           "mediaType": "application/octet-stream"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}",
+      "operationId": "deleteFile",
+      "responses": {
+        "200": {
+          "description": "Successfully Deleted the File Attachment",
+          "shape": "object",
+          "mediaType": "application/json"
         }
       }
     }

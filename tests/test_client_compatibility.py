@@ -43,7 +43,13 @@ class FakeMeta:
     def get_field_id(self, app: str, table: str, label: str) -> int:
         assert app == "app_operations"
         fields = {
-            "tbl_projects": {"Record ID#": 3, "Name": 6, "Status": 7, "Hours": 8},
+            "tbl_projects": {
+                "Record ID#": 3,
+                "Name": 6,
+                "Status": 7,
+                "Hours": 8,
+                "Attachment": 12,
+            },
             "tbl_customers": {"Record ID#": 3, "Customer Name": 6},
         }
         return fields[table][label]
@@ -469,6 +475,36 @@ def test_records_modified_since_accepts_a_utc_string(client):
 def test_records_modified_since_rejects_invalid_or_naive_timestamps(client, after):
     with pytest.raises(ValueError, match="after must"):
         client.records_modified_since("Operations", "Projects", after)
+
+    client._request.assert_not_called()
+
+
+def test_delete_file_resolves_a_field_label_and_requires_an_explicit_version(client):
+    client._request.return_value = {"versionNumber": 2, "fileName": "evidence.pdf"}
+
+    result = client.delete_file("Operations", "Projects", 42, "Attachment", 2)
+
+    assert result == {"versionNumber": 2, "fileName": "evidence.pdf"}
+    client._request.assert_called_once_with(
+        method="DELETE",
+        path="files/tbl_projects/42/12/2",
+    )
+
+
+def test_delete_file_allows_documented_latest_version_zero(client):
+    client._request.return_value = {"versionNumber": 3, "fileName": "latest.pdf"}
+
+    client.delete_file("Operations", "Projects", 42, 12, 0)
+
+    client._request.assert_called_once_with(
+        method="DELETE",
+        path="files/tbl_projects/42/12/0",
+    )
+
+
+def test_delete_file_rejects_a_negative_version_before_resolving_ids(client):
+    with pytest.raises(ValueError, match="version_number cannot be negative"):
+        client.delete_file("Operations", "Projects", 42, 12, -1)
 
     client._request.assert_not_called()
 

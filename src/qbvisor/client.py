@@ -1154,6 +1154,26 @@ class QuickBaseClient:
         fmap = self.meta.get_field_map(app_id, table_id)
         return [label for label, meta in fmap.items() if meta.get("type") == "file"]
 
+    def delete_file(
+        self,
+        app_name: str,
+        table_name: str,
+        record_id: int,
+        field: str | int,
+        version_number: int,
+    ) -> dict[str, Any]:
+        """Delete one explicit attachment version; version 0 selects the latest."""
+        if version_number < 0:
+            raise ValueError("version_number cannot be negative")
+        app_id, table_id = self._ids(app_name, table_name)
+        field_id = (
+            field if isinstance(field, int) else self.meta.get_field_id(app_id, table_id, field)
+        )
+        return self._request(
+            method="DELETE",
+            path=f"files/{table_id}/{record_id}/{field_id}/{version_number}",
+        )
+
     async def _async_download_attachment(
         self,
         transport: AsyncQuickBaseTransport,
