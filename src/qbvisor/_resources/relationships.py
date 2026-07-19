@@ -36,11 +36,14 @@ class RelationshipResource(BaseResource):
             body["lookupFieldIds"] = lookup_field_ids
         if summary_fields:
             body["summaryFields"] = summary_fields
-        return self._request_object(
+        response = self._request_object(
             method="POST",
             path=f"tables/{table_id}/relationship",
             json_body=body,
         )
+        self.meta.invalidate_fields(app_id, table_id)
+        self.meta.invalidate_fields(app_id, parent_id)
+        return response
 
     def update(
         self,
@@ -122,4 +125,5 @@ class RelationshipResource(BaseResource):
             method="DELETE",
             path=f"tables/{table_id}/relationship/{relationship_id}",
         )
+        self.meta.invalidate_app_fields(app_id)
         return response.get("relationshipId", None)

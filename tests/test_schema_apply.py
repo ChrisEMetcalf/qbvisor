@@ -177,7 +177,10 @@ class StatefulQuickbase:
 
 def client_for(api: StatefulQuickbase, *, configured: bool) -> QuickBaseClient:
     client = QuickBaseClient.__new__(QuickBaseClient)
-    client.meta = SimpleNamespace(app_ids={"Operations": APP_ID} if configured else {})
+    client.meta = SimpleNamespace(
+        app_ids={"Operations": APP_ID} if configured else {},
+        invalidate_tables=Mock(),
+    )
     client._request = Mock(side_effect=api.request)
     return client
 
@@ -257,11 +260,12 @@ def test_apply_imports_exact_matches_without_posting_to_quickbase(tmp_path):
     assert result.state_written
     assert result.state.serial == 1
     assert result.verification.action_counts["unchanged"] == 3
+    client.meta.invalidate_tables.assert_not_called()
 
 
 def test_apply_updates_only_planned_managed_attributes_and_advances_state(tmp_path):
     api = StatefulQuickbase(existing=True)
-    client = client_for(api, configured=False)
+    client = client_for(api, configured=True)
     state_path = tmp_path / "state.json"
     previous = write_bound_state(state_path)
     spec = application_spec(
@@ -282,6 +286,7 @@ def test_apply_updates_only_planned_managed_attributes_and_advances_state(tmp_pa
     assert result.state.lineage == previous.lineage
     assert result.state.serial == previous.serial + 1
     assert result.verification.can_apply
+    client.meta.invalidate_tables.assert_called_once_with(APP_ID)
 
 
 def test_apply_creates_and_updates_formula_fields_with_quickbase_syntax(tmp_path):

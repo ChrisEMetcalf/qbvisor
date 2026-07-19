@@ -19,9 +19,13 @@ from qbvisor.transport import RetryPolicy
 
 class FakeMeta:
     invalidated_fields: list[tuple[str, str]]
+    invalidated_app_fields: list[str]
+    invalidated_tables: list[str]
 
     def __init__(self):
         self.invalidated_fields = []
+        self.invalidated_app_fields = []
+        self.invalidated_tables = []
 
     cache = {
         "Operations": {
@@ -78,6 +82,12 @@ class FakeMeta:
 
     def invalidate_fields(self, app: str, table: str) -> None:
         self.invalidated_fields.append((app, table))
+
+    def invalidate_app_fields(self, app: str) -> None:
+        self.invalidated_app_fields.append(app)
+
+    def invalidate_tables(self, app: str) -> None:
+        self.invalidated_tables.append(app)
 
 
 @pytest.fixture
@@ -274,6 +284,7 @@ def test_create_table_preserves_existing_request_shape(client):
             "pluralRecordName": "Tasks",
         },
     )
+    assert client.meta.invalidated_tables == ["app_operations"]
 
 
 def test_list_tables_preserves_documented_top_level_array(client):
@@ -321,6 +332,7 @@ def test_table_resource_preserves_get_update_and_delete_requests(client):
             params={"appId": "app_operations"},
         ),
     ]
+    assert client.meta.invalidated_tables == ["app_operations", "app_operations"]
 
 
 def test_field_mutations_put_table_id_in_query_parameter(client):
@@ -346,6 +358,10 @@ def test_field_mutations_put_table_id_in_query_parameter(client):
         params={"tableId": "tbl_projects"},
         json_body={"fieldIds": [7]},
     )
+    assert client.meta.invalidated_fields == [
+        ("app_operations", "tbl_projects"),
+        ("app_operations", "tbl_projects"),
+    ]
 
 
 def test_field_usage_resolves_names_and_preserves_pagination(client):
@@ -431,6 +447,11 @@ def test_relationship_mutations_match_documented_paths_and_body(client):
         method="DELETE",
         path="tables/tbl_projects/relationship/7",
     )
+    assert client.meta.invalidated_fields == [
+        ("app_operations", "tbl_projects"),
+        ("app_operations", "tbl_customers"),
+    ]
+    assert client.meta.invalidated_app_fields == ["app_operations"]
 
 
 def test_relationship_resource_preserves_collection_response(client):

@@ -218,7 +218,10 @@ class RelationshipQuickbase:
 
 def client_for(api: RelationshipQuickbase) -> QuickBaseClient:
     client = QuickBaseClient.__new__(QuickBaseClient)
-    client.meta = SimpleNamespace(app_ids={"Operations": APP_ID})
+    client.meta = SimpleNamespace(
+        app_ids={"Operations": APP_ID},
+        invalidate_tables=Mock(),
+    )
     client._request = Mock(side_effect=api.request)
     return client
 

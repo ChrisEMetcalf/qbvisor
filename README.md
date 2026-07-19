@@ -299,8 +299,9 @@ with QuickBaseClient() as qb:
 ```
 
 `COUNT` summaries omit the source field, as required by Quickbase. Other accumulation types require
-a child-table field. Successful relationship updates invalidate the affected field metadata so the
-new lookup and summary fields are visible on the next access.
+a child-table field. Successful table, field, and relationship mutations invalidate the affected
+metadata so schema changes are visible on the next access without sacrificing repeated label
+resolution performance.
 
 ## Change tracking and attachment cleanup
 

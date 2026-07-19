@@ -104,7 +104,16 @@ class QuickBaseClient:
         """Apply a reviewed app plan and publish state only after verification."""
         from ._schema.apply import apply_application_schema
 
-        return apply_application_schema(self, plan)
+        result = apply_application_schema(self, plan)
+        app_resource = result.state.resource(plan.spec.address)
+        if (
+            result.quickbase_change_count
+            and app_resource is not None
+            and isinstance(app_resource.remote_id, str)
+            and app_resource.remote_id in self.meta.app_ids.values()
+        ):
+            self.meta.invalidate_tables(app_resource.remote_id)
+        return result
 
     # ----------------
     # Private: Map friendly names to IDs
