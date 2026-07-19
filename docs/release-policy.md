@@ -37,6 +37,9 @@ Published distributions will become the recommended installation path after the 
 release. Releases will use reviewed commits, signed `vMAJOR.MINOR.PATCH` tags, validated wheel and
 source artifacts, and a protected publishing environment.
 
+Maintainers must follow the [release process](releasing.md). The publishing job uses PyPI trusted
+publishing with a short-lived identity token; the repository does not store a PyPI credential.
+
 Production applications should pin a released version. If a temporary Git dependency is required,
 pin its full commit SHA rather than tracking `main`.
 

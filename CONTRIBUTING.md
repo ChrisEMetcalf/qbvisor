@@ -35,6 +35,8 @@ Existing public method names and call signatures should remain stable when pract
 
 Record user-visible behavior in [CHANGELOG.md](CHANGELOG.md). Follow the versioning, Python support,
 deprecation, and artifact requirements in [docs/release-policy.md](docs/release-policy.md).
+Maintainers should use the controlled procedure in [docs/releasing.md](docs/releasing.md) for tags,
+GitHub Releases, and PyPI publication.
 
 ## Client architecture
 

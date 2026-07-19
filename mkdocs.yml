@@ -31,6 +31,7 @@ nav:
   - Quickbase API coverage: api/README.md
   - Upgrading to 0.3: upgrading-to-0.3.md
   - Release policy: release-policy.md
+  - Maintainer release process: releasing.md
 
 plugins:
   - search
