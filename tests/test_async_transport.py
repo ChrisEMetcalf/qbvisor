@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
@@ -179,6 +180,40 @@ def test_async_file_response_decodes_observed_quickbase_base64_text():
     result = asyncio.run(transport.get_file("files/table/1/6/1"))
 
     assert result == b"Hello"
+
+
+def test_async_file_response_decodes_observed_octet_stream_base64_text():
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/"
+        "x8AAusB9Y9ZQmcAAAAASUVORK5CYII="
+    )
+    session = FakeSession(
+        FakeResponse(
+            200,
+            headers={"Content-Type": "application/octet-stream"},
+            content=base64.b64encode(png),
+        )
+    )
+    transport = async_transport(session)
+
+    result = asyncio.run(transport.get_file("files/table/1/6/1"))
+
+    assert result == png
+
+
+def test_async_file_response_preserves_non_base64_bytes():
+    session = FakeSession(
+        FakeResponse(
+            200,
+            headers={"Content-Type": "application/octet-stream"},
+            content=b"\x89PNG\r\n\x1a\nraw-binary",
+        )
+    )
+    transport = async_transport(session)
+
+    result = asyncio.run(transport.get_file("files/table/1/6/1"))
+
+    assert result == b"\x89PNG\r\n\x1a\nraw-binary"
 
 
 def test_invalid_async_json_raises_response_error_with_ray():

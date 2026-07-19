@@ -1,3 +1,4 @@
+import base64
 from datetime import UTC, datetime
 from email.utils import format_datetime
 from unittest.mock import Mock
@@ -256,18 +257,22 @@ def test_file_response_decodes_observed_quickbase_base64_text():
     assert transport(session).get_file("files/table/1/6/1") == b"Hello"
 
 
-def test_file_response_preserves_documented_octet_stream_even_when_base64_like():
+def test_file_response_decodes_observed_octet_stream_base64_text():
     session = Mock(spec=requests.Session)
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/"
+        "x8AAusB9Y9ZQmcAAAAASUVORK5CYII="
+    )
     session.request.return_value = response(
         200,
         headers={"Content-Type": "application/octet-stream"},
-        content=b"SGVsbG8=",
+        content=base64.b64encode(png),
     )
 
-    assert transport(session).get_file("files/table/1/6/1") == b"SGVsbG8="
+    assert transport(session).get_file("files/table/1/6/1") == png
 
 
-def test_malformed_base64_text_file_response_raises_response_error():
+def test_file_response_preserves_non_base64_bytes_regardless_of_content_type():
     session = Mock(spec=requests.Session)
     session.request.return_value = response(
         200,
@@ -275,12 +280,7 @@ def test_malformed_base64_text_file_response_raises_response_error():
         content=b"not valid base64!",
     )
 
-    with pytest.raises(QuickbaseResponseError) as caught:
-        transport(session).get_file("files/table/1/6/1")
-
-    assert caught.value.expected == "base64-encoded file body"
-    assert caught.value.actual == "text/plain"
-    assert caught.value.qb_api_ray == "ray-file"
+    assert transport(session).get_file("files/table/1/6/1") == b"not valid base64!"
 
 
 def test_invalid_success_json_raises_response_error_with_ray():

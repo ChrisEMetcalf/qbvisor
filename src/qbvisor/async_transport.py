@@ -227,13 +227,7 @@ class AsyncQuickBaseTransport:
             if response_kind == "bytes":
                 return raw
             if response_kind == "file":
-                return _decode_file_response(
-                    raw,
-                    self._header(response_headers, "content-type"),
-                    method=normalized_method,
-                    path=normalized_path,
-                    qb_api_ray=qb_api_ray,
-                )
+                return _decode_file_response(raw)
             if status_code == 204 or not raw:
                 return {}
             payload = self._json_or_none(raw)

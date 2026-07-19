@@ -109,28 +109,16 @@ def _http_error(
     )
 
 
-def _decode_file_response(
-    raw: bytes,
-    content_type: str | None,
-    *,
-    method: str,
-    path: str,
-    qb_api_ray: str | None,
-) -> bytes:
-    """Resolve Quickbase's documented binary and observed base64-text file responses."""
-    media_type = content_type.partition(";")[0].strip().lower() if content_type else None
-    if media_type != "text/plain":
-        return raw
+def _decode_file_response(raw: bytes) -> bytes:
+    """Decode Quickbase's observed base64 file bodies, otherwise preserve raw bytes.
+
+    Quickbase returns base64 text under both text/plain and application/octet-stream,
+    so the response body is authoritative and the reported media type is not.
+    """
     try:
         return base64.b64decode(raw.strip(), validate=True)
-    except (ValueError, binascii.Error) as error:
-        raise QuickbaseResponseError(
-            method,
-            path,
-            qb_api_ray,
-            expected="base64-encoded file body",
-            actual=media_type,
-        ) from error
+    except (ValueError, binascii.Error):
+        return raw
 
 
 class QuickBaseTransport:
@@ -294,13 +282,7 @@ class QuickBaseTransport:
             if response_kind == "bytes":
                 return response.content
             if response_kind == "file":
-                return _decode_file_response(
-                    response.content,
-                    self._header(response.headers, "content-type"),
-                    method=normalized_method,
-                    path=normalized_path,
-                    qb_api_ray=qb_api_ray,
-                )
+                return _decode_file_response(response.content)
             if response.status_code == 204 or not response.content:
                 return {}
             try:
