@@ -48,6 +48,11 @@ class QuickBaseMetaCache:
         self.name_map = {name.lower(): name for name in parsed.keys()}
         self.transport = transport
         self.cache: dict[str, dict[str, Any]] = {}
+        self._table_catalogs: dict[str, list[dict[str, Any]]] = {}
+        self._tables_by_id: dict[str, dict[str, dict[str, Any]]] = {}
+        self._tables_by_name: dict[str, dict[str, dict[str, Any]]] = {}
+        self._loaded_field_maps: set[tuple[str, str]] = set()
+        self._field_labels: dict[tuple[str, str], dict[str, str]] = {}
 
     def normalize_app(self, app: str) -> str:
         # Accept either friendly name or app ID
@@ -73,7 +78,15 @@ class QuickBaseMetaCache:
         name = self.normalize_app(app)
         app_id = self.app_ids[name]
         payload = self.transport.get("tables", params={"appId": app_id})
-        return _expect_object_array(payload, "tables")
+        tables = _expect_object_array(payload, "tables")
+        self._table_catalogs[name] = tables
+        self._tables_by_id[name] = {
+            table["id"]: table for table in tables if isinstance(table.get("id"), str)
+        }
+        self._tables_by_name[name] = {
+            table["name"].lower(): table for table in tables if isinstance(table.get("name"), str)
+        }
+        return tables
 
     def get_table(self, app: str, table: str) -> dict[str, Any]:
         """
@@ -84,14 +97,18 @@ class QuickBaseMetaCache:
         if name not in self.cache:
             self.cache[name] = {"tables": {}}
 
-        # Find the table by friendly name (case-insensitive)
-        tables = self.get_tables(name)
-        if table in [t["id"] for t in tables]:
-            match = next((t for t in tables if t["id"] == table), None)
-        else:
-            match = next((t for t in tables if t["name"].lower() == table.lower()), None)
+        # Fetch the app's table catalog once, then resolve later requests locally.
+        if name not in self._table_catalogs:
+            self.get_tables(name)
+        match = self._tables_by_id[name].get(table)
+        if match is None:
+            match = self._tables_by_name[name].get(table.lower())
         if not match:
-            available = [t["name"] for t in tables]
+            available = [
+                item["name"]
+                for item in self._table_catalogs[name]
+                if isinstance(item.get("name"), str)
+            ]
             raise QuickBaseInputError(
                 f"Table '{table}' not found in app '{app}'. Available: {available}"
             )
@@ -129,19 +146,29 @@ class QuickBaseMetaCache:
 
         # ** Mutate ** the cached table-info dict in-place
         table_info["fields"] = fmap
+        field_key = (name, tbl_id)
+        self._loaded_field_maps.add(field_key)
+        self._field_labels[field_key] = {label.lower(): label for label in fmap}
         return fmap
 
     def get_field_map(self, app: str, table: str) -> dict[str, dict[str, Any]]:
         # Ensure and return field mapping
+        name = self.normalize_app(app)
         table_info = self.get_table(app, table)
+        field_key = (name, table_info["id"])
         # If we haven't cached the fields yet, do so now
-        if not table_info.get("fields"):
+        if field_key not in self._loaded_field_maps:
             self.get_fields(app, table)
         return table_info["fields"]
 
     def get_field_id(self, app: str, table: str, field_label: str) -> int:
-        fmap = self.get_field_map(app, table)
-        lookup = {lbl.lower(): lbl for lbl in fmap}
+        name = self.normalize_app(app)
+        table_info = self.get_table(app, table)
+        field_key = (name, table_info["id"])
+        if field_key not in self._loaded_field_maps:
+            self.get_fields(app, table)
+        fmap = table_info["fields"]
+        lookup = self._field_labels[field_key]
         if field_label.lower() not in lookup:
             raise QuickBaseInputError(
                 f"Field '{field_label}' not found. Options: {list(fmap.keys())}"
@@ -156,7 +183,40 @@ class QuickBaseMetaCache:
         for table_name, table_info in tables.items():
             if table == table_info.get("id") or table.lower() == table_name.lower():
                 table_info["fields"] = {}
+                field_key = (name, table_info["id"])
+                self._loaded_field_maps.discard(field_key)
+                self._field_labels.pop(field_key, None)
                 return
+
+    def invalidate_app_fields(self, app: str) -> None:
+        """Discard all cached field metadata after an app-wide schema mutation."""
+        name = self.normalize_app(app)
+        for table_info in self.cache.get(name, {}).get("tables", {}).values():
+            table_info["fields"] = {}
+        self._loaded_field_maps = {
+            field_key for field_key in self._loaded_field_maps if field_key[0] != name
+        }
+        self._field_labels = {
+            field_key: labels
+            for field_key, labels in self._field_labels.items()
+            if field_key[0] != name
+        }
+
+    def invalidate_tables(self, app: str) -> None:
+        """Discard table and field metadata after a table collection mutation."""
+        name = self.normalize_app(app)
+        self.cache.pop(name, None)
+        self._table_catalogs.pop(name, None)
+        self._tables_by_id.pop(name, None)
+        self._tables_by_name.pop(name, None)
+        self._loaded_field_maps = {
+            field_key for field_key in self._loaded_field_maps if field_key[0] != name
+        }
+        self._field_labels = {
+            field_key: labels
+            for field_key, labels in self._field_labels.items()
+            if field_key[0] != name
+        }
 
     def get_relationships(self, app: str, table: str) -> list[dict[str, Any]]:
         """

@@ -6,6 +6,7 @@ import os
 import uuid
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -104,6 +105,40 @@ def test_persistent_relationship_matches_contract(
     )
     assert match["parentTableId"] == sandbox_contract.records_table_id
     assert match["childTableId"] == sandbox_contract.details_table_id
+
+
+def test_repeated_label_resolution_reuses_live_metadata(
+    sandbox_transport: QuickBaseTransport,
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+):
+    sandbox_client.meta.invalidate_tables(APP_NAME)
+
+    with patch.object(sandbox_transport, "get", wraps=sandbox_transport.get) as get:
+        for _ in range(100):
+            assert (
+                sandbox_client.get_field_id(
+                    sandbox_contract.app_id,
+                    sandbox_contract.records_table_id,
+                    "Fixture Key",
+                )
+                == sandbox_contract.record_fields["Fixture Key"]
+            )
+            assert (
+                sandbox_client.get_field_id(
+                    sandbox_contract.app_id,
+                    sandbox_contract.records_table_id,
+                    "name",
+                )
+                == sandbox_contract.record_fields["Name"]
+            )
+
+    assert get.call_count == 3
+    assert [call.args[0] for call in get.call_args_list] == [
+        "tables",
+        f"tables/{sandbox_contract.records_table_id}",
+        "fields",
+    ]
 
 
 def test_seed_query_and_dataframe_preserve_developer_facing_labels(

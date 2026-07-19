@@ -15,13 +15,15 @@ class FieldResource(BaseResource):
         label: str,
         field_type: str,
     ) -> dict[str, Any]:
-        _, table_id = self._ids(app_name, table_name)
-        return self._request_object(
+        app_id, table_id = self._ids(app_name, table_name)
+        response = self._request_object(
             method="POST",
             path="fields",
             params={"tableId": table_id},
             json_body={"label": label, "fieldType": field_type},
         )
+        self.meta.invalidate_fields(app_id, table_id)
+        return response
 
     def list_for_table(self, app_name: str, table_name: str) -> list[dict[str, Any]]:
         _, table_id = self._ids(app_name, table_name)
@@ -40,12 +42,14 @@ class FieldResource(BaseResource):
         app_id, table_id = self._ids(app_name, table_name)
         field_map = self.meta.get_field_map(app_id, table_id)
         field_ids = [field_map[label]["id"] for label in field_labels]
-        return self._request_object(
+        response = self._request_object(
             method="DELETE",
             path="fields",
             params={"tableId": table_id},
             json_body={"fieldIds": field_ids},
         )
+        self.meta.invalidate_fields(app_id, table_id)
+        return response
 
     def usage(
         self,

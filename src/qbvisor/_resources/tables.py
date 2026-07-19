@@ -24,12 +24,14 @@ class TableResource(BaseResource):
             body["singleRecordName"] = singular_record_name
         if plural_record_name is not None:
             body["pluralRecordName"] = plural_record_name
-        return self._request_object(
+        response = self._request_object(
             method="POST",
             path="tables",
             params={"appId": app_id},
             json_body=body,
         )
+        self.meta.invalidate_tables(app_id)
+        return response
 
     def list(self, app_name: str) -> list[dict[str, Any]]:
         app_id, _ = self._ids(app_name)
@@ -68,20 +70,24 @@ class TableResource(BaseResource):
                 "Must specify at least one field to update "
                 "(new_table_name, singular_record_name, or plural_record_name)."
             )
-        return self._request_object(
+        response = self._request_object(
             method="POST",
             path=f"tables/{table_id}",
             params={"appId": app_id},
             json_body=body,
         )
+        self.meta.invalidate_tables(app_id)
+        return response
 
     def delete(self, app_name: str, table_name: str) -> dict[str, Any]:
         app_id, table_id = self._ids(app_name, table_name)
-        return self._request_object(
+        response = self._request_object(
             method="DELETE",
             path=f"tables/{table_id}",
             params={"appId": app_id},
         )
+        self.meta.invalidate_tables(app_id)
+        return response
 
     def get_id(self, app_id: str, table_id: str) -> str:
         return self.meta.get_table_id(app_id, table_id)
