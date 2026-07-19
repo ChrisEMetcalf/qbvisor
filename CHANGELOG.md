@@ -10,8 +10,8 @@ heading.
 
 - Add public package metadata, inline typing, release and security policies, and distribution
   artifact validation ([#18]).
-- Add task-focused documentation for configuration, data movement, application building, backups,
-  attachments, logging, recovery, and the planned `0.3.0` migration.
+- Add task-focused guides, a generated public API reference, strict documentation validation, and
+  the planned `0.3.0` migration.
 - Add a shared synchronous transport with pooled connections, explicit timeouts, structured
   exceptions, and operation-aware retries ([#3]).
 - Add app events, app roles, field usage, relationship lookup, relationship summary, and record

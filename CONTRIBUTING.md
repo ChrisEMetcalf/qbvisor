@@ -20,6 +20,8 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src/qbvisor
 uv run pytest
+uv run python scripts/verify_docs.py
+uv run mkdocs build --strict
 uv build
 uv run twine check --strict dist/*
 uv run python scripts/verify_distribution.py dist
