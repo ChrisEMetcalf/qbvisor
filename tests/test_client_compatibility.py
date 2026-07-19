@@ -7,6 +7,8 @@ import pandas as pd
 import pytest
 
 import qbvisor.client as client_module
+from qbvisor._resources.apps import AppResource
+from qbvisor._resources.tables import TableResource
 from qbvisor.client import QuickBaseClient
 from qbvisor.exceptions import QuickbaseResponseError
 from qbvisor.models import RelationshipSummary
@@ -86,6 +88,8 @@ def client() -> QuickBaseClient:
     )
     instance.logger = Mock()
     instance._request = Mock()
+    instance._apps = AppResource(instance)
+    instance._tables = TableResource(instance)
     return instance
 
 
@@ -98,6 +102,8 @@ def test_client_accepts_caller_owned_transport(monkeypatch):
 
     assert instance.transport is injected_transport
     assert instance.meta.transport is injected_transport
+    assert instance._apps.meta is instance.meta
+    assert instance._tables.meta is instance.meta
     injected_transport.close.assert_not_called()
 
 
@@ -182,6 +188,46 @@ def test_app_events_and_roles_use_documented_array_responses(client):
     ]
 
 
+def test_app_resource_preserves_get_update_copy_and_delete_requests(client):
+    client._request.side_effect = [
+        {"id": "app_operations"},
+        {"id": "app_operations", "name": "Operations 2"},
+        {"id": "app_copy"},
+        {"deletedAppId": "app_operations"},
+    ]
+
+    assert client.get_app("Operations")["id"] == "app_operations"
+    assert client.update_app("Operations", new_name="Operations 2")["name"] == "Operations 2"
+    assert client.copy_app("Operations", "Operations Copy")["id"] == "app_copy"
+    assert client.delete_app("Operations") == {"deletedAppId": "app_operations"}
+    assert client._request.call_args_list == [
+        call(
+            method="GET",
+            path="apps/app_operations",
+            params={"appId": "app_operations"},
+        ),
+        call(
+            method="POST",
+            path="apps/app_operations",
+            json_body={"name": "Operations 2"},
+        ),
+        call(
+            method="POST",
+            path="apps/app_operations/copy",
+            json_body={
+                "name": "Operations Copy",
+                "description": None,
+                "properties": None,
+            },
+        ),
+        call(
+            method="DELETE",
+            path="apps/app_operations",
+            params={"appId": "app_operations"},
+        ),
+    ]
+
+
 def test_create_table_preserves_existing_request_shape(client):
     client._request.return_value = {"id": "tbl_new"}
 
@@ -219,6 +265,39 @@ def test_list_tables_preserves_documented_top_level_array(client):
         params={"appId": "app_operations"},
         response_type=list,
     )
+
+
+def test_table_resource_preserves_get_update_and_delete_requests(client):
+    client._request.side_effect = [
+        {"id": "tbl_projects", "name": "Projects"},
+        {"id": "tbl_projects", "name": "Projects 2"},
+        {"deletedTableId": "tbl_projects"},
+    ]
+
+    assert client.get_table("Operations", "Projects")["id"] == "tbl_projects"
+    assert client.update_table("Operations", "Projects", new_table_name="Projects 2")["name"] == (
+        "Projects 2"
+    )
+    assert client.delete_table("Operations", "Projects") == {"deletedTableId": "tbl_projects"}
+    assert client.get_table_id("app_operations", "Projects") == "tbl_projects"
+    assert client._request.call_args_list == [
+        call(
+            method="GET",
+            path="tables/tbl_projects",
+            params={"appId": "app_operations"},
+        ),
+        call(
+            method="POST",
+            path="tables/tbl_projects",
+            params={"appId": "app_operations"},
+            json_body={"name": "Projects 2"},
+        ),
+        call(
+            method="DELETE",
+            path="tables/tbl_projects",
+            params={"appId": "app_operations"},
+        ),
+    ]
 
 
 def test_field_mutations_put_table_id_in_query_parameter(client):

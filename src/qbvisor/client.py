@@ -11,6 +11,8 @@ import aiofiles
 import pandas as pd
 from dotenv import load_dotenv
 
+from ._resources.apps import AppResource
+from ._resources.tables import TableResource
 from .async_transport import AsyncQuickBaseTransport
 from .exceptions import QuickbaseBatchError, QuickbaseResponseError
 from .helpers import sanitize_filenames
@@ -50,6 +52,8 @@ class QuickBaseClient:
         self.transport = transport if transport is not None else QuickBaseTransport()
         self.meta = QuickBaseMetaCache(self.transport)
         self.logger = get_logger(__name__)
+        self._apps = AppResource(self)
+        self._tables = TableResource(self)
 
     def __enter__(self) -> "QuickBaseClient":
         return self
@@ -169,41 +173,27 @@ class QuickBaseClient:
         Returns:
             dict: The created app's metadata.
         """
-        body = {"name": name, "assignToken": assign_token}
-        if description:
-            body["description"] = description
-        if variables:
-            body["variables"] = variables
-        if security_properties:
-            body["securityProperties"] = security_properties
-
-        return self._request(method="POST", path="apps", json_body=body)
+        return self._apps.create(
+            name,
+            description=description,
+            assign_token=assign_token,
+            variables=variables,
+            security_properties=security_properties,
+        )
 
     def get_app(self, app_name: str) -> dict[str, Any]:
         """
         Get app metadata: GET /v1/apps/{appId}
         """
-        app_id, _ = self._ids(app_name)
-
-        return self._request(method="GET", path=f"apps/{app_id}", params={"appId": app_id})
+        return self._apps.get(app_name)
 
     def get_app_events(self, app_name: str) -> list[dict[str, Any]]:
         """List events configured in an app: GET /v1/apps/{appId}/events."""
-        app_id, _ = self._ids(app_name)
-        return self._request(
-            method="GET",
-            path=f"apps/{app_id}/events",
-            response_type=list,
-        )
+        return self._apps.events(app_name)
 
     def get_app_roles(self, app_name: str) -> list[dict[str, Any]]:
         """List roles configured in an app: GET /v1/apps/{appId}/roles."""
-        app_id, _ = self._ids(app_name)
-        return self._request(
-            method="GET",
-            path=f"apps/{app_id}/roles",
-            response_type=list,
-        )
+        return self._apps.roles(app_name)
 
     def update_app(
         self,
@@ -226,21 +216,13 @@ class QuickBaseClient:
         Returns:
             dict: The updated app's metadata.
         """
-        app_id, _ = self._ids(app_name)
-
-        body: dict[str, Any] = {}
-        if new_name:
-            body["name"] = new_name
-        if description:
-            body["description"] = description
-        if variables:
-            body["variables"] = variables
-        if security_properties:
-            body["securityProperties"] = security_properties
-
-        if not body:
-            raise ValueError("No update parameters provided.")
-        return self._request(method="POST", path=f"apps/{app_id}", json_body=body)
+        return self._apps.update(
+            app_name,
+            new_name=new_name,
+            description=description,
+            variables=variables,
+            security_properties=security_properties,
+        )
 
     def delete_app(self, app_name: str) -> dict[str, Any]:
         """
@@ -252,9 +234,7 @@ class QuickBaseClient:
         Returns:
             dict: The deleted app's App ID.
         """
-        app_id, _ = self._ids(app_name)
-
-        return self._request(method="DELETE", path=f"apps/{app_id}", params={"appId": app_id})
+        return self._apps.delete(app_name)
 
     def copy_app(
         self,
@@ -272,10 +252,12 @@ class QuickBaseClient:
             description (str, optional): A description for the new application.
             properties (dict, optional): Additional properties for the new application.
         """
-        app_id, _ = self._ids(app_name)
-
-        body = {"name": new_app_name, "description": description, "properties": properties}
-        return self._request(method="POST", path=f"apps/{app_id}/copy", json_body=body)
+        return self._apps.copy(
+            app_name,
+            new_app_name,
+            description=description,
+            properties=properties,
+        )
 
     # ----------------
     # Table Methods
@@ -301,16 +283,13 @@ class QuickBaseClient:
         Returns:
             dict: The created table's metadata.
         """
-        app_id, _ = self._ids(app_name)
-
-        body = {"name": table_name}
-        if description is not None:
-            body["description"] = description
-        if singular_record_name is not None:
-            body["singleRecordName"] = singular_record_name
-        if plural_record_name is not None:
-            body["pluralRecordName"] = plural_record_name
-        return self._request(method="POST", path="tables", params={"appId": app_id}, json_body=body)
+        return self._tables.create(
+            app_name,
+            table_name,
+            description=description,
+            singular_record_name=singular_record_name,
+            plural_record_name=plural_record_name,
+        )
 
     def get_tables_for_app(self, app_name: str) -> list[dict[str, Any]]:
         """
@@ -322,11 +301,7 @@ class QuickBaseClient:
         Returns:
             list: A list of dictionaries containing metadata for each table in the app.
         """
-        app_id, _ = self._ids(app_name)
-
-        return self._request(
-            method="GET", path="tables", params={"appId": app_id}, response_type=list
-        )
+        return self._tables.list(app_name)
 
     def get_table(
         self,
@@ -343,9 +318,7 @@ class QuickBaseClient:
         Returns:
             dict: The table's metadata.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        return self._request(method="GET", path=f"tables/{table_id}", params={"appId": app_id})
+        return self._tables.get(app_name, table_name)
 
     def update_table(
         self,
@@ -368,23 +341,12 @@ class QuickBaseClient:
         Returns:
             dict: The updated table's metadata.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        body: dict[str, Any] = {}
-        if new_table_name:
-            body["name"] = new_table_name
-        if singular_record_name:
-            body["singleRecordName"] = singular_record_name
-        if plural_record_name:
-            body["pluralRecordName"] = plural_record_name
-
-        if not body:
-            raise ValueError(
-                "Must specify at least one field to update (new_table_name, singular_record_name, or plural_record_name)."
-            )
-
-        return self._request(
-            method="POST", path=f"tables/{table_id}", params={"appId": app_id}, json_body=body
+        return self._tables.update(
+            app_name,
+            table_name,
+            new_table_name=new_table_name,
+            singular_record_name=singular_record_name,
+            plural_record_name=plural_record_name,
         )
 
     def delete_table(self, app_name: str, table_name: str) -> dict[str, Any]:
@@ -398,9 +360,7 @@ class QuickBaseClient:
         Returns:
             dict: The deleted table's Table ID.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        return self._request(method="DELETE", path=f"tables/{table_id}", params={"appId": app_id})
+        return self._tables.delete(app_name, table_name)
 
     def get_all_relationships(self, app_name: str, table_name: str) -> list[dict[str, Any]]:
         """
@@ -1557,7 +1517,7 @@ class QuickBaseClient:
         return self.meta.get_field_id(app_id, table_id, field_label)
 
     def get_table_id(self, app_id: str, table_id: str) -> str:
-        return self.meta.get_table_id(app_id, table_id)
+        return self._tables.get_id(app_id, table_id)
 
     def get_field(self, app_id, table_id, field_id):
         return self.transport.get(

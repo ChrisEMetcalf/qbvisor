@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol, cast, overload
+from typing import Any, Protocol, TypeVar, cast, overload
 
 from ..metadata import QuickBaseMetaCache
 from ..transport import QuickBaseTransport, RetryPolicy
+
+ResponseT = TypeVar("ResponseT")
 
 
 class ClientContext(Protocol):
@@ -14,12 +16,23 @@ class ClientContext(Protocol):
     meta: QuickBaseMetaCache
     transport: QuickBaseTransport
 
-    def _ids(
-        self,
-        app_name: str,
-        table_name: str | None = None,
-    ) -> tuple[str, str | None]: ...
+    @overload
+    def _ids(self, app_name: str, table_name: None = None) -> tuple[str, None]: ...
 
+    @overload
+    def _ids(self, app_name: str, table_name: str) -> tuple[str, str]: ...
+
+    @overload
+    def _request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        json_body: Any | None = None,
+        retry_policy: RetryPolicy | None = None,
+    ) -> dict[str, Any]: ...
+
+    @overload
     def _request(
         self,
         method: str,
@@ -28,8 +41,8 @@ class ClientContext(Protocol):
         json_body: Any | None = None,
         retry_policy: RetryPolicy | None = None,
         *,
-        response_type: type[Any] = dict,
-    ) -> Any: ...
+        response_type: type[ResponseT],
+    ) -> ResponseT: ...
 
 
 class BaseResource:
