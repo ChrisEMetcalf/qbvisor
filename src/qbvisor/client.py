@@ -1258,30 +1258,17 @@ class QuickBaseClient:
         record_fid = 3  # Record ID#
 
         select_ids = [record_fid, file_fid]
-        skip = 0
         download_jobs: list[dict[str, Any]] = []
 
         seen = with_file = skipped_empty = 0
 
-        while True:
-            body = {
-                "from": table_id,
-                "select": select_ids,
-                "options": {"skip": skip, "top": page_size},
-            }
-            if where:
-                body["where"] = where
-
-            resp = self._request(
-                method="POST",
-                path="records/query",
-                json_body=body,
-                retry_policy=RetryPolicy.SAFE,
-            )
-            rows = resp.get("data", [])
-            if not rows:
-                break
-
+        for rows in iter_record_pages_by_id(
+            self,
+            table_id,
+            select_fields=select_ids,
+            where=where,
+            page_size=page_size,
+        ):
             for rec in rows:
                 seen += 1
                 rid = rec.get(str(record_fid), {}).get("value")
@@ -1306,10 +1293,6 @@ class QuickBaseClient:
                     {"record_id": rid, "file_name": attachment.file_name, "url": full_url}
                 )
                 with_file += 1
-
-            if len(rows) < page_size:
-                break
-            skip += page_size
 
         self.logger.info(
             f"Scanned {seen} records; queued {with_file} downloads (skipped {skipped_empty} with no attachment)."
@@ -1419,30 +1402,17 @@ class QuickBaseClient:
             return []
 
         select_ids = [3] + [fid for _, fid in file_fields]  # 3 = Record ID#
-        skip = 0
         download_jobs: list[dict[str, Any]] = []
 
         seen_cells = with_file = skipped_empty = 0
 
-        while True:
-            body = {
-                "from": table_id,
-                "select": select_ids,
-                "options": {"skip": skip, "top": page_size},
-            }
-            if where:
-                body["where"] = where
-
-            resp = self._request(
-                method="POST",
-                path="records/query",
-                json_body=body,
-                retry_policy=RetryPolicy.SAFE,
-            )
-            rows = resp.get("data", [])
-            if not rows:
-                break
-
+        for rows in iter_record_pages_by_id(
+            self,
+            table_id,
+            select_fields=select_ids,
+            where=where,
+            page_size=page_size,
+        ):
             for rec in rows:
                 rid = rec.get("3", {}).get("value")
                 if not rid:
@@ -1475,10 +1445,6 @@ class QuickBaseClient:
                         }
                     )
                     with_file += 1
-
-            if len(rows) < page_size:
-                break
-            skip += page_size
 
         self.logger.info(
             f"Scanned {seen_cells} file cells; queued {with_file} downloads (skipped {skipped_empty} empty)."

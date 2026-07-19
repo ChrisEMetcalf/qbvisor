@@ -353,6 +353,42 @@ def test_attachment_downloads_preserve_documented_binary_bytes_and_skip_existing
     assert second[0]["status"] == "skipped"
 
 
+def test_attachment_discovery_scans_all_keyset_pages(
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    record_ids = [
+        sandbox_contract.record_ids[key]
+        for key in ("qbvisor-alpha", "qbvisor-beta", "qbvisor-gamma")
+    ]
+    where = "OR".join(f"{{3.EX.{record_id}}}" for record_id in record_ids)
+    original_query = sandbox_client._query_records_by_ids
+    queries: list[dict[str, Any]] = []
+
+    def record_query(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        queries.append(kwargs)
+        return original_query(*args, **kwargs)
+
+    monkeypatch.setattr(sandbox_client, "_query_records_by_ids", record_query)
+
+    results = sandbox_client.download_attachments_async(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        "Attachment",
+        str(tmp_path),
+        where=where,
+        page_size=2,
+    )
+
+    assert len(queries) == 2
+    assert queries[0]["where"] == where
+    assert queries[1]["where"].startswith(f"({where})AND{{3.GT.")
+    assert len(results) == 1
+    assert Path(results[0]["saved_path"]).read_bytes() == ATTACHMENT_CONTENT
+
+
 def test_application_backup_round_trips_persistent_records_and_attachments(
     sandbox_client: QuickBaseClient,
     sandbox_contract: SandboxContract,

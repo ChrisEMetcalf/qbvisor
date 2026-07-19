@@ -376,6 +376,12 @@ preserved for compatibility. They are synchronous entry points that use bounded 
 internally and return a list of result dictionaries. Each result retains `record_id`, `file_name`,
 and `saved_path`, and adds a `status`:
 
+Matching records are discovered in stable Record ID# order. `page_size` limits each query but does
+not limit the total scan, and a response shorter than the requested page is not treated as
+completion when Quickbase reports more records. Each populated file field queues its highest
+attachment version, preserving the existing latest-version behavior. Invalid attachment metadata
+raises `QuickbaseResponseError` before downloads begin instead of guessing a version.
+
 - `downloaded` includes `bytes_written`.
 - `skipped` means the destination already existed and was not overwritten.
 - `failed` includes a safe error message in `QuickbaseBatchError.results`.

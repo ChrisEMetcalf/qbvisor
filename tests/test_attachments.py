@@ -3,7 +3,7 @@ import base64
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 
@@ -42,6 +42,43 @@ def client() -> QuickBaseClient:
 
 def install_async_transport(monkeypatch, transport: FakeAsyncTransport) -> None:
     monkeypatch.setattr(client_module, "AsyncQuickBaseTransport", lambda _sync: transport)
+
+
+def attachment_query_response(
+    records: list[dict[str, Any]],
+    *,
+    field_ids: list[int],
+    total_records: int,
+) -> dict[str, Any]:
+    return {
+        "data": records,
+        "fields": [{"id": field_id} for field_id in field_ids],
+        "metadata": {
+            "numFields": len(field_ids),
+            "numRecords": len(records),
+            "totalRecords": total_records,
+        },
+    }
+
+
+def configure_attachment_client(
+    client: QuickBaseClient,
+    *,
+    field_map: dict[str, dict[str, Any]],
+    responses: list[dict[str, Any]],
+) -> AsyncMock:
+    client._ids = Mock(return_value=("app", "table"))
+    client.meta = Mock()
+    client.meta.get_field_map.return_value = field_map
+    client.transport = SimpleNamespace(base_url="https://api.quickbase.com/v1")
+    client._query_records_by_ids = Mock(side_effect=responses)
+    downloader = AsyncMock(
+        side_effect=lambda jobs, *_args, **_kwargs: [
+            {"record_id": job["record_id"], "status": "downloaded"} for job in jobs
+        ]
+    )
+    client._async_download_attachments = downloader
+    return downloader
 
 
 def test_latest_attachment_selects_highest_version_and_preserves_its_name():
@@ -96,6 +133,118 @@ def test_latest_attachment_builds_stable_fallback_name():
     )
 
     assert result == LatestAttachment(version_number=2, file_name="fid8_v2.bin")
+
+
+def test_single_field_discovery_continues_after_intelligent_short_page(client, tmp_path):
+    where = "{6.EX.'active'}OR{7.EX.'priority'}"
+    responses = [
+        attachment_query_response(
+            [
+                {
+                    "3": {"value": 10},
+                    "8": {"value": {"versions": [{"versionNumber": 2, "fileName": "first.pdf"}]}},
+                }
+            ],
+            field_ids=[3, 8],
+            total_records=2,
+        ),
+        attachment_query_response(
+            [
+                {
+                    "3": {"value": 20},
+                    "8": {"value": {"versions": [{"versionNumber": 1, "fileName": "second.pdf"}]}},
+                }
+            ],
+            field_ids=[3, 8],
+            total_records=1,
+        ),
+    ]
+    downloader = configure_attachment_client(
+        client,
+        field_map={"Attachment": {"id": 8, "type": "file"}},
+        responses=responses,
+    )
+
+    results = client.download_attachments_async(
+        "Sandbox",
+        "Records",
+        "Attachment",
+        str(tmp_path),
+        where=where,
+        page_size=1000,
+    )
+
+    assert [result["record_id"] for result in results] == [10, 20]
+    assert client._query_records_by_ids.call_args_list == [
+        call(
+            "table",
+            select_fields=(3, 8),
+            where=where,
+            sort_by=((3, "ASC"),),
+            top=1000,
+        ),
+        call(
+            "table",
+            select_fields=(3, 8),
+            where=f"({where})AND{{3.GT.10}}",
+            sort_by=((3, "ASC"),),
+            top=1000,
+        ),
+    ]
+    jobs = downloader.await_args.args[0]
+    assert [job["url"] for job in jobs] == [
+        "https://api.quickbase.com/v1/files/table/10/8/2",
+        "https://api.quickbase.com/v1/files/table/20/8/1",
+    ]
+
+
+def test_whole_table_discovery_scans_every_page_and_file_field(client, tmp_path):
+    responses = [
+        attachment_query_response(
+            [
+                {
+                    "3": {"value": 10},
+                    "8": {"value": {"versions": []}},
+                    "9": {"value": {"versions": [{"versionNumber": 1, "fileName": "photo.jpg"}]}},
+                }
+            ],
+            field_ids=[3, 8, 9],
+            total_records=2,
+        ),
+        attachment_query_response(
+            [
+                {
+                    "3": {"value": 20},
+                    "8": {"value": {"versions": [{"versionNumber": 3, "fileName": "invoice.pdf"}]}},
+                    "9": {"value": None},
+                }
+            ],
+            field_ids=[3, 8, 9],
+            total_records=1,
+        ),
+    ]
+    downloader = configure_attachment_client(
+        client,
+        field_map={
+            "Record ID#": {"id": 3, "type": "recordid"},
+            "Invoice": {"id": 8, "type": "file"},
+            "Photo": {"id": 9, "type": "file"},
+        },
+        responses=responses,
+    )
+
+    results = client.download_table_attachments_async(
+        "Sandbox", "Records", str(tmp_path), page_size=500
+    )
+
+    assert [result["record_id"] for result in results] == [10, 20]
+    assert client._query_records_by_ids.call_count == 2
+    jobs = downloader.await_args.args[0]
+    assert [(job["record_id"], job["field_id"], job["file_name"]) for job in jobs] == [
+        (10, 9, "photo.jpg"),
+        (20, 8, "invoice.pdf"),
+    ]
+    assert all(job["include_field_id"] is True for job in jobs)
 
 
 def test_batch_download_writes_documented_binary_response_exactly(client, monkeypatch, tmp_path):
