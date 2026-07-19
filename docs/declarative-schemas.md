@@ -70,9 +70,89 @@ Plan output includes individual before-and-after values and whether an existing 
 bound into state. `plan.can_apply` is false when any conflict is present. `plan.to_dict()` provides a
 deterministic machine-readable representation for tooling or review output.
 
+The plan also prints the resource execution order. Scalar fields are created first. Formula fields,
+relationships, lookups, and summaries then follow their declared dependencies. A dependency cycle
+is reported as a conflict before Quickbase is changed.
+
 Planning is read-only but not offline. It calls Quickbase to observe the current schema. It does not
 query table records or attachments. The planner fetches the app, one table collection, fields for
 each declared existing table, and relationships for declared existing child tables.
+
+## Formula fields
+
+`FormulaSpec` manages raw Quickbase formula syntax. qbvisor preserves the expression and sends it to
+Quickbase for parsing, reference validation, return-type checking, and evaluation. It does not
+maintain a second implementation of the Quickbase formula language.
+
+```python
+from qbvisor import AppSpec, FieldSpec, FormulaSpec, TableSpec
+
+spec = AppSpec(
+    key="billing",
+    name="Billing",
+    tables=[
+        TableSpec(
+            key="invoices",
+            name="Invoices",
+            fields=[
+                FieldSpec(key="quantity", label="Quantity", field_type="numeric"),
+                FieldSpec(key="rate", label="Rate", field_type="currency"),
+                FieldSpec(
+                    key="amount",
+                    label="Amount",
+                    field_type="currency",
+                    formula=FormulaSpec(
+                        expression="[Quantity] * [Rate]",
+                        depends_on=(
+                            "tables.invoices.fields.quantity",
+                            "tables.invoices.fields.rate",
+                        ),
+                    ),
+                    properties={"decimalPlaces": 2},
+                ),
+            ],
+        )
+    ],
+)
+```
+
+Quickbase formulas refer to fields by label. `depends_on` does not rewrite that formula text. It
+declares the stable resources that must exist first. Supported dependency addresses are:
+
+```text
+tables.<table_key>.fields.<field_key>
+relationships.<relationship_key>
+relationships.<relationship_key>.lookups.<parent_field_key>
+relationships.<relationship_key>.summaries.<summary_key>
+```
+
+Declare formula-to-formula dependencies and any dependency on a relationship-generated field.
+Formula queries that use newly managed fields in another table should declare those table-field
+dependencies as well. qbvisor does not infer dependencies from arbitrary formula text because
+bracketed content can also appear in literals, escaped text, HTML, comments, and embedded query
+strings.
+
+The JSON API currently supports formula mode for `text`, `rich-text`, `numeric`, `currency`,
+`rating`, `percent`, `date`, `datetime`, `timeofday`, `duration`, `checkbox`, `phone`, `email`,
+`url`, `user`, and `multitext`. Quickbase returns a requested `datetime` formula as the canonical
+`timestamp` response type; qbvisor handles that difference during planning.
+
+The JSON field endpoint rejects formula properties for text multiple-choice, text multi-line,
+List-User, address, and file fields. It also does not accept Work Date as a create-field type. These
+are rejected while constructing the specification instead of failing partway through apply. This
+scope reflects observed JSON API behavior and is narrower than the formula types available through
+some Quickbase UI workflows.
+
+A formula field must be created with a non-empty, currently valid expression. Quickbase does not
+allow qbvisor to create a scalar or empty placeholder and convert it later. The dependency order is
+therefore part of the reviewed plan and is enforced during apply. Field mode is also part of
+identity: an existing scalar, lookup, or summary field is a conflict when the desired resource is a
+formula, and the reverse is also true.
+
+Quickbase removes trailing formula whitespace when reading the field. `FormulaSpec` applies the
+same normalization while preserving internal spacing, line breaks, comments, and escaping. A
+formula query produces a plan warning because filtering, sorting, or grouping on formula-query
+fields can have application-wide performance effects.
 
 ## Apply and state publication
 
@@ -108,6 +188,8 @@ Apply is blocked when:
 - a state-bound Quickbase ID is missing;
 - more than one remote resource could satisfy a first import;
 - a field's desired type differs from its existing immutable type;
+- a field's scalar or derived mode differs from the desired formula mode;
+- declared schema dependencies contain a cycle;
 - a relationship is bound to different parent or child tables;
 - a generated field no longer matches its stable relationship identity;
 - a filtered summary exists without state, because Quickbase does not expose the filter for
