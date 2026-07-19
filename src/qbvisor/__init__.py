@@ -30,9 +30,12 @@ from .backup import (
     BackupManifest,
     BackupOptions,
     BackupTable,
+    BackupVerification,
 )
 from .client import QuickBaseClient
 from .exceptions import (
+    BackupConsistencyError,
+    BackupIntegrityError,
     QuickbaseBatchError,
     QuickbaseConfigurationError,
     QuickbaseConnectionError,
@@ -66,6 +69,9 @@ __all__ = [
     "BackupManifest",
     "BackupOptions",
     "BackupTable",
+    "BackupVerification",
+    "BackupConsistencyError",
+    "BackupIntegrityError",
     "QuickBaseTransport",
     "RetryPolicy",
     "QuickbaseError",

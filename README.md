@@ -110,6 +110,54 @@ except QuickbaseHTTPError as error:
 
 Request credentials and bodies are not included in transport logs or exception messages.
 
+## Application backups
+
+`backup_app()` creates a portable, versioned snapshot containing application metadata, events,
+roles, table schemas, relationships, report definitions, records, and file attachments. The
+snapshot is built in a private staging directory and published under the destination only after
+every requested artifact and the final manifest have been written.
+
+```python
+from qbvisor import BackupOptions, QuickBaseClient
+
+with QuickBaseClient() as qb:
+    backup = qb.backup_app(
+        "My App",
+        "backups",
+        options=BackupOptions(
+            attachment_versions="all",
+            page_size=1000,
+            max_attachment_concurrency=4,
+        ),
+    )
+
+verification = backup.verify()
+projects = backup.table_dataframe("Projects")
+print(backup.path, verification.artifact_count, projects.head())
+```
+
+Records are stored as JSON Lines keyed by stable field IDs. `table_dataframe()` applies the field
+labels captured in the same snapshot, preserving the normal analyst-facing workflow without making
+pandas the archive format. Attachment paths use table, record, field, and version IDs; the original
+filename and Quickbase version metadata remain in each table's `attachments.jsonl` index.
+
+`attachment_versions` accepts `"all"` (the default), `"latest"`, or `"none"`. Every stored file and
+metadata artifact has a SHA-256 digest and byte count in `manifest.json`. `verify()` recomputes those
+values, checks JSON/JSONL item counts, rejects untracked files and symbolic links, and validates the
+attachment index. Open an existing snapshot with `ApplicationBackup.open(path)`.
+
+Quickbase does not expose a transactional application snapshot. qbvisor records the UTC start and
+completion times and calls `records_modified_since()` after capture for every table. If changes are
+found, the completed manifest is marked `consistent: false` and lists the affected table IDs. Set
+`fail_on_changes=True` to discard that run and raise `BackupConsistencyError` instead. This is a
+conservative record-change check, not a database transaction: schema changes are not detected, and
+deleted-record detection depends on Quickbase's **Index record changes** setting.
+
+Backups contain application data, user/role metadata, and possibly sensitive attachments. They do
+not contain the API token or request headers, but the destination still needs access controls and a
+retention policy appropriate for the source application. Compression, encryption, retention,
+incremental capture, and restore automation are intentionally outside the first backup format.
+
 ## Application and schema inspection
 
 The client exposes Quickbase's current app-event, app-role, and field-usage endpoints without

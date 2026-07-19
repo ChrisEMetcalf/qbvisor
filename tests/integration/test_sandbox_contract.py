@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import uuid
 from pathlib import Path
@@ -18,6 +19,7 @@ from conftest import (
     SandboxContract,
 )
 
+from qbvisor import BackupOptions
 from qbvisor.client import QuickBaseClient
 from qbvisor.models import RelationshipSummary
 from qbvisor.transport import JSONValue, QuickBaseTransport, RetryPolicy
@@ -287,6 +289,39 @@ def test_attachment_downloads_preserve_documented_binary_bytes_and_skip_existing
     )
     assert len(second) == 1
     assert second[0]["status"] == "skipped"
+
+
+def test_application_backup_round_trips_persistent_records_and_attachments(
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+    tmp_path: Path,
+):
+    backup = sandbox_client.backup_app(
+        APP_NAME,
+        tmp_path,
+        options=BackupOptions(attachment_versions="all", page_size=2),
+    )
+
+    verification = backup.verify()
+    assert verification.artifact_count == len(backup.manifest.artifacts)
+    assert backup.manifest.source_app_id == sandbox_contract.app_id
+    assert backup.manifest.consistent is True
+
+    frame = backup.table_dataframe(sandbox_contract.records_table_id)
+    fixture_rows = frame[frame["Fixture Key"].str.startswith("qbvisor-")]
+    assert {"qbvisor-alpha", "qbvisor-beta", "qbvisor-gamma"}.issubset(
+        set(fixture_rows["Fixture Key"])
+    )
+
+    index_path = backup.path / "tables" / sandbox_contract.records_table_id / "attachments.jsonl"
+    entries = [json.loads(line) for line in index_path.read_text().splitlines()]
+    match = next(
+        entry
+        for entry in entries
+        if entry["record_id"] == sandbox_contract.record_ids["qbvisor-alpha"]
+        and entry["field_id"] == sandbox_contract.record_fields["Attachment"]
+    )
+    assert (backup.path / match["path"]).read_bytes() == ATTACHMENT_CONTENT
 
 
 class RecordingSession(requests.Session):

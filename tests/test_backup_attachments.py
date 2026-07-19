@@ -19,8 +19,10 @@ class FakeAsyncFileTransport:
         self.calls: list[str] = []
         self.active = 0
         self.max_active = 0
+        self.enter_count = 0
 
     async def __aenter__(self):
+        self.enter_count += 1
         return self
 
     async def __aexit__(self, *_: object) -> None:
@@ -210,3 +212,40 @@ def test_attachment_capture_rejects_unbounded_worker_configuration(tmp_path):
             max_concurrency=0,
             transport_factory=lambda _: FakeAsyncFileTransport({}),
         )
+
+
+def test_multiple_tables_share_one_async_transport_session(tmp_path):
+    seed_records(tmp_path)
+    workspace = BackupWorkspace(tmp_path)
+    workspace.write_json_lines("tables/tbl_notes/records.jsonl", "records", [])
+    original = schema()
+    second_table = CapturedTable(
+        id="tbl_notes",
+        name="Notes",
+        fields=({"id": 3, "label": "Record ID#", "fieldType": "recordid"},),
+        artifacts=("tables/tbl_notes/records.jsonl",),
+    )
+    multi_table_schema = CapturedSchema(
+        app_id=original.app_id,
+        app_name=original.app_name,
+        tables=(*original.tables, second_table),
+        artifacts=(*original.artifacts, "tables/tbl_notes/records.jsonl"),
+    )
+    transport = FakeAsyncFileTransport(
+        {
+            "files/tbl_projects/10/8/2": b"second",
+            "files/tbl_projects/11/8/1": b"eleven",
+        }
+    )
+
+    captured = capture_attachments(
+        SimpleNamespace(transport=SimpleNamespace()),
+        multi_table_schema,
+        BackupWorkspace(tmp_path),
+        mode="latest",
+        max_concurrency=2,
+        transport_factory=lambda _: transport,
+    )
+
+    assert transport.enter_count == 1
+    assert [table.attachment_count for table in captured.tables] == [2, 0]

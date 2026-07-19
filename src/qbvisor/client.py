@@ -16,6 +16,7 @@ from ._resources.fields import FieldResource
 from ._resources.relationships import RelationshipResource
 from ._resources.tables import TableResource
 from .async_transport import AsyncQuickBaseTransport
+from .backup import ApplicationBackup, BackupOptions
 from .exceptions import QuickbaseBatchError, QuickbaseResponseError
 from .helpers import sanitize_filenames
 from .log_runner import get_logger
@@ -69,6 +70,23 @@ class QuickBaseClient:
         """Close the transport created by this client."""
         if self._owns_transport:
             self.transport.close()
+
+    def backup_app(
+        self,
+        app_name: str,
+        output_dir: str | Path,
+        *,
+        options: BackupOptions | None = None,
+    ) -> ApplicationBackup:
+        """Create an atomic, versioned application backup under ``output_dir``."""
+        from ._backup.workflow import create_application_backup
+
+        return create_application_backup(
+            self,
+            app_name,
+            output_dir,
+            options=options or BackupOptions(),
+        )
 
     # ----------------
     # Private: Map friendly names to IDs

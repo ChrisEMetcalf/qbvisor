@@ -5,8 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 BACKUP_FORMAT = "qbvisor-application-backup"
 BACKUP_FORMAT_VERSION = 1
@@ -393,6 +396,14 @@ class BackupManifest:
 
 
 @dataclass(frozen=True, slots=True)
+class BackupVerification:
+    """Summary of a successful backup integrity verification."""
+
+    artifact_count: int
+    total_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
 class ApplicationBackup:
     """A completed application backup and its validated manifest."""
 
@@ -404,3 +415,22 @@ class ApplicationBackup:
             raise ValueError("backup path must be a pathlib.Path")
         if not isinstance(self.manifest, BackupManifest):
             raise ValueError("backup manifest must be a BackupManifest")
+
+    @classmethod
+    def open(cls, path: str | Path) -> ApplicationBackup:
+        """Open and validate a completed backup manifest without hashing its files."""
+        from ._backup.reader import open_backup
+
+        return open_backup(path)
+
+    def verify(self) -> BackupVerification:
+        """Recompute artifact integrity and validate archive cross-references."""
+        from ._backup.reader import verify_backup
+
+        return verify_backup(self)
+
+    def table_dataframe(self, table: str) -> pd.DataFrame:
+        """Load one backed-up table into a pandas DataFrame using captured labels."""
+        from ._backup.reader import table_dataframe
+
+        return table_dataframe(self, table)

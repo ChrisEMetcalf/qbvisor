@@ -207,32 +207,59 @@ async def _download_job(
 
 
 async def _capture_table_attachments(
-    client: AttachmentClient,
+    transport: AsyncFileTransport,
     table: CapturedTable,
     workspace: BackupWorkspace,
     mode: AttachmentVersionMode,
     max_concurrency: int,
     index_writer: JsonLinesArtifactWriter,
-    transport_factory: Callable[[QuickBaseTransport], AsyncFileTransport],
 ) -> int:
     jobs = iter(_attachment_jobs(table, workspace, mode))
     count = 0
+    while True:
+        batch: list[AttachmentJob] = []
+        for _ in range(max_concurrency):
+            try:
+                batch.append(next(jobs))
+            except StopIteration:
+                break
+        if not batch:
+            return count
+        results = await asyncio.gather(*(_download_job(transport, workspace, job) for job in batch))
+        for job, artifact in results:
+            index_writer.write(_index_entry(job, artifact))
+            count += 1
+
+
+async def _capture_all_attachments(
+    client: AttachmentClient,
+    schema: CapturedSchema,
+    workspace: BackupWorkspace,
+    mode: AttachmentVersionMode,
+    max_concurrency: int,
+    transport_factory: Callable[[QuickBaseTransport], AsyncFileTransport],
+) -> CapturedAttachments:
+    captured: list[CapturedAttachmentTable] = []
     async with transport_factory(client.transport) as transport:
-        while True:
-            batch: list[AttachmentJob] = []
-            for _ in range(max_concurrency):
-                try:
-                    batch.append(next(jobs))
-                except StopIteration:
-                    break
-            if not batch:
-                return count
-            results = await asyncio.gather(
-                *(_download_job(transport, workspace, job) for job in batch)
+        for table in schema.tables:
+            index_path = f"tables/{table.id}/attachments.jsonl"
+            with workspace.json_lines_writer(index_path, "attachment-index") as writer:
+                count = await _capture_table_attachments(
+                    transport,
+                    table,
+                    workspace,
+                    mode,
+                    max_concurrency,
+                    writer,
+                )
+            captured.append(
+                CapturedAttachmentTable(
+                    id=table.id,
+                    attachment_count=count,
+                    index_artifact=writer.artifact.path,
+                )
             )
-            for job, artifact in results:
-                index_writer.write(_index_entry(job, artifact))
-                count += 1
+    return CapturedAttachments(tables=tuple(captured))
 
 
 def capture_attachments(
@@ -249,25 +276,27 @@ def capture_attachments(
         raise ValueError(f"Unsupported attachment version mode: {mode}")
     if max_concurrency < 1:
         raise ValueError("max_concurrency must be at least 1")
+    if mode != "none":
+        return asyncio.run(
+            _capture_all_attachments(
+                client,
+                schema,
+                workspace,
+                mode,
+                max_concurrency,
+                transport_factory,
+            )
+        )
+
     captured: list[CapturedAttachmentTable] = []
     for table in schema.tables:
         index_path = f"tables/{table.id}/attachments.jsonl"
         with workspace.json_lines_writer(index_path, "attachment-index") as writer:
-            count = asyncio.run(
-                _capture_table_attachments(
-                    client,
-                    table,
-                    workspace,
-                    mode,
-                    max_concurrency,
-                    writer,
-                    transport_factory,
-                )
-            )
+            pass
         captured.append(
             CapturedAttachmentTable(
                 id=table.id,
-                attachment_count=count,
+                attachment_count=0,
                 index_artifact=writer.artifact.path,
             )
         )
