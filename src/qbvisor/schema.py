@@ -683,3 +683,27 @@ class SchemaPlan:
             if change.reason is not None:
                 lines.append(f"    reason: {change.reason}")
         return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SchemaApplyResult:
+    """Verified outcome of applying one reviewed declarative schema plan."""
+
+    plan: SchemaPlan
+    verification: SchemaPlan
+    state: SchemaState
+    state_written: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.plan, SchemaPlan):
+            raise ValueError("schema apply result plan must be a SchemaPlan")
+        if not isinstance(self.verification, SchemaPlan):
+            raise ValueError("schema apply verification must be a SchemaPlan")
+        if not isinstance(self.state, SchemaState):
+            raise ValueError("schema apply result state must be a SchemaState")
+        if not isinstance(self.state_written, bool):
+            raise ValueError("state_written must be a boolean")
+
+    @property
+    def quickbase_change_count(self) -> int:
+        return self.plan.quickbase_change_count

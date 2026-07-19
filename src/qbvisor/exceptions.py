@@ -111,6 +111,22 @@ class QuickbaseSchemaStateError(QuickbaseError):
         super().__init__(f"Invalid schema state at {self.path}: {detail}")
 
 
+class QuickbaseSchemaApplyError(QuickbaseError):
+    """Raised when a declarative schema plan cannot be applied safely."""
+
+
+class QuickbaseSchemaConflictError(QuickbaseSchemaApplyError):
+    """Raised when a schema plan contains unresolved conflicts."""
+
+
+class QuickbaseSchemaStalePlanError(QuickbaseSchemaApplyError):
+    """Raised when local state or Quickbase changed after a plan was reviewed."""
+
+
+class QuickbaseSchemaLockError(QuickbaseSchemaApplyError):
+    """Raised when another process is applying the same schema state."""
+
+
 class BackupConsistencyError(QuickbaseError):
     """Raised when records changed during a backup that requires consistency."""
 

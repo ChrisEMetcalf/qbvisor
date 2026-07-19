@@ -129,8 +129,9 @@ class SchemaPlanner:
         *,
         state_path: str | Path = DEFAULT_SCHEMA_STATE_PATH,
     ) -> SchemaPlan:
+        resolved_state_path = Path(state_path).resolve()
         self.spec = spec
-        self.state = load_schema_state(state_path)
+        self.state = load_schema_state(resolved_state_path)
         self.changes = []
 
         app_id, app_status, app_reason = self._plan_app()
@@ -147,7 +148,7 @@ class SchemaPlanner:
 
         return SchemaPlan(
             spec=spec,
-            state_path=Path(state_path),
+            state_path=resolved_state_path,
             state=self.state,
             changes=self.changes,
         )
