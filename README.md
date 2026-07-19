@@ -78,6 +78,39 @@ print(df.head())
 print(active_records.head())
 ```
 
+## Complete DataFrame and report reads
+
+`query_dataframe()` and `run_report()` return the complete requested result by default. They let
+Quickbase choose the first response size and continue only when response metadata says more rows
+remain. Pass `top` to set an explicit total maximum, or `skip` to begin at a specific offset:
+
+```python
+first_500 = qb.query_dataframe(
+    "My App",
+    "Projects",
+    ["Name", "Status"],
+    top=500,
+)
+
+remaining_report = qb.run_report(
+    "My App",
+    "Projects",
+    report_id=12,
+    skip=500,
+)
+```
+
+Unsorted, ungrouped DataFrame queries use Record ID# continuation so records cannot shift between
+fixed offsets. The client selects Record ID# internally and removes it when it was not requested.
+Sorted, grouped, explicitly offset, and report requests follow Quickbase's returned `skip`,
+`numRecords`, and `totalRecords` metadata because those result shapes cannot use a Record ID
+cursor without changing their meaning.
+
+Complete reads are intentionally materialized as pandas DataFrames. Use an explicit `top` when a
+bounded in-memory result is required. Reports and sorted or grouped queries do not provide
+point-in-time snapshots; changes made while multiple responses are being collected can affect
+later offset pages.
+
 ## Transport reliability
 
 `QuickBaseTransport` reuses one `requests.Session` and applies a 10-second connect timeout and a 120-second read timeout by default. GET requests and read-like POST operations retry connection failures, timeouts, and temporary gateway responses. Mutations are not replayed after an uncertain failure.

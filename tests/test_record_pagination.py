@@ -22,7 +22,7 @@ class FakeRecordClient:
         sort_by: Sequence[tuple[int, str]] | None = None,
         group_by: Sequence[int] | None = None,
         skip: int = 0,
-        top: int = 1000,
+        top: int | None = 1000,
     ) -> dict[str, Any]:
         self.calls.append(
             {
@@ -110,3 +110,24 @@ def test_zero_record_limit_does_not_query_quickbase():
         == []
     )
     assert client.calls == []
+
+
+def test_native_page_size_omits_top_and_continues_after_a_short_response():
+    client = FakeRecordClient(
+        [
+            response([record(10, "Alpha"), record(20, "Beta")], total_records=3),
+            response([record(30, "Gamma")], total_records=1),
+        ]
+    )
+
+    pages = list(
+        iter_record_pages_by_id(
+            client,
+            "tbl_projects",
+            select_fields=(3, 6),
+            page_size=None,
+        )
+    )
+
+    assert [len(page) for page in pages] == [2, 1]
+    assert [request["top"] for request in client.calls] == [None, None]

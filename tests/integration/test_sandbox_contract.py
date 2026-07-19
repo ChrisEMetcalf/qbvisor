@@ -172,6 +172,19 @@ def test_seed_query_and_dataframe_preserve_developer_facing_labels(
     ]
     assert pd.api.types.is_numeric_dtype(fixture_rows["Amount"])
 
+    complete_subset = sandbox_client.query_dataframe(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        ["Fixture Key", "Name"],
+        where="OR".join(
+            f"{{{sandbox_contract.record_fields['Fixture Key']}.EX.'{key}'}}"
+            for key in ("qbvisor-alpha", "qbvisor-beta", "qbvisor-gamma")
+        ),
+        top=2,
+    )
+    assert list(complete_subset.columns) == ["Fixture Key", "Name"]
+    assert len(complete_subset) == 2
+
 
 def test_formula_response_matches_documented_object_shape(
     sandbox_client: QuickBaseClient,

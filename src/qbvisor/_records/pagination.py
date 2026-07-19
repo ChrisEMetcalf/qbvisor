@@ -21,7 +21,7 @@ class RecordQueryClient(Protocol):
         sort_by: Sequence[tuple[int, str]] | None = None,
         group_by: Sequence[int] | None = None,
         skip: int = 0,
-        top: int = 1000,
+        top: int | None = 1000,
     ) -> dict[str, Any]: ...
 
 
@@ -97,13 +97,15 @@ def iter_record_pages_by_id(
     *,
     select_fields: Sequence[int],
     where: str | None = None,
-    page_size: int = 1000,
+    page_size: int | None = 1000,
     record_limit: int | None = None,
 ) -> Iterator[tuple[dict[str, Any], ...]]:
     """Yield complete record pages using the immutable Record ID# field as a cursor."""
     field_ids = _field_ids(select_fields)
-    if not isinstance(page_size, int) or isinstance(page_size, bool) or not 1 <= page_size <= 1000:
-        raise ValueError("page_size must be an integer between 1 and 1000")
+    if page_size is not None and (
+        not isinstance(page_size, int) or isinstance(page_size, bool) or not 1 <= page_size <= 1000
+    ):
+        raise ValueError("page_size must be an integer between 1 and 1000 or None")
     if record_limit is not None and (
         not isinstance(record_limit, int) or isinstance(record_limit, bool) or record_limit < 0
     ):
@@ -116,7 +118,8 @@ def iter_record_pages_by_id(
     while record_limit is None or yielded_records < record_limit:
         request_size = page_size
         if record_limit is not None:
-            request_size = min(page_size, record_limit - yielded_records)
+            remaining_limit = record_limit - yielded_records
+            request_size = remaining_limit if page_size is None else min(page_size, remaining_limit)
         response = client._query_records_by_ids(
             table_id,
             select_fields=field_ids,
@@ -143,7 +146,8 @@ def iter_record_pages_by_id(
         _validate_response_fields(response, metadata, field_ids)
         num_records = required_count(metadata, "numRecords", path="records/query")
         total_records = required_count(metadata, "totalRecords", path="records/query")
-        if num_records != len(data) or num_records > total_records or num_records > request_size:
+        exceeds_request = request_size is not None and num_records > request_size
+        if num_records != len(data) or num_records > total_records or exceeds_request:
             raise QuickbaseResponseError(
                 "POST",
                 "records/query",

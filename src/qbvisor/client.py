@@ -829,10 +829,13 @@ class QuickBaseClient:
         sort_by: Sequence[tuple[int, str]] | None = None,
         group_by: Sequence[int] | None = None,
         skip: int = 0,
-        top: int = 1000,
+        top: int | None = 1000,
     ) -> dict[str, Any]:
         """Query a resolved table directly; backup pagination avoids repeated metadata lookups."""
-        body: dict[str, Any] = {"from": table_id, "options": {"skip": skip, "top": top}}
+        options: dict[str, Any] = {"skip": skip}
+        if top is not None:
+            options["top"] = top
+        body: dict[str, Any] = {"from": table_id, "options": options}
         if select_fields:
             body["select"] = list(select_fields)
         if where:
@@ -890,7 +893,7 @@ class QuickBaseClient:
         sort_by: list[tuple[str, str]] | None = None,  # e.g. [('Date', 'ASC'), ('Name', 'DESC')]
         group_by: list[str] | None = None,  # e.g. ['Category']
         skip: int = 0,
-        top: int = 1000,
+        top: int | None = None,
     ) -> pd.DataFrame:
         """
         Query records and return as a DataFrame: POST /v1/records/query
@@ -903,50 +906,81 @@ class QuickBaseClient:
             sort_by (Optional[List[Tuple[str, str]]]): Field labels and sort directions.
             group_by (Optional[List[str]]): Field labels to group by.
             skip (int): Number of records to skip. Default is 0.
-            top (int): Number of records to return. Default is 1000.
+            top (Optional[int]): Maximum total records to return. By default, the complete query is returned.
 
         Returns:
             pd.DataFrame: DataFrame containing the queried records.
         """
+        if not isinstance(skip, int) or isinstance(skip, bool) or skip < 0:
+            raise ValueError("skip must be a non-negative integer")
+        if top is not None and (not isinstance(top, int) or isinstance(top, bool) or top < 0):
+            raise ValueError("top must be a non-negative integer or None")
+
         app_id, table_id = self._ids(app_name, table_name)
 
-        # Field metadata
         def get_id(label: str) -> int:
             return self.meta.get_field_id(app_id, table_id, label)
 
-        body: dict[str, Any] = {
-            "from": table_id,
-            "select": [get_id(label) for label in select_fields],
-            "options": {"skip": skip, "top": top},
-        }
+        selected_fields = [(label, get_id(label)) for label in select_fields]
+        selected_ids = [field_id for _, field_id in selected_fields]
+        resolved_sort = [(get_id(label), order) for label, order in sort_by] if sort_by else None
+        resolved_group = [get_id(label) for label in group_by] if group_by else None
 
-        if where:
-            body["where"] = where
-
-        if sort_by:
-            body["sortBy"] = [
-                {"fieldId": get_id(label), "order": order.upper()} for label, order in sort_by
-            ]
-
-        if group_by:
-            body["groupBy"] = [
-                {"fieldId": get_id(label), "grouping": "equal-values"} for label in group_by
-            ]
-
-        # Make the request
-        resp = self._request(
-            method="POST",
-            path="records/query",
-            json_body=body,
-            retry_policy=RetryPolicy.SAFE,
+        can_use_keyset = (
+            bool(selected_ids)
+            and len(set(selected_ids)) == len(selected_ids)
+            and skip == 0
+            and not resolved_sort
+            and not resolved_group
         )
-        data = resp.get("data", [])
-        fields = resp.get("fields", [])
-        cols = [f["label"] for f in fields]
-        rows = [
-            {f["label"]: rec.get(str(f["id"]), {}).get("value") for f in fields} for rec in data
-        ]
-        return pd.DataFrame(rows, columns=cols)
+        if can_use_keyset:
+            scan_ids = list(selected_ids)
+            if 3 not in scan_ids:
+                scan_ids.append(3)
+            keyset_rows = [
+                {
+                    label: record.get(str(field_id), {}).get("value")
+                    for label, field_id in selected_fields
+                }
+                for page in iter_record_pages_by_id(
+                    self,
+                    table_id,
+                    select_fields=scan_ids,
+                    where=where,
+                    page_size=None,
+                    record_limit=top if top is not None and top > 0 else None,
+                )
+                for record in page
+            ]
+            return pd.DataFrame(keyset_rows, columns=select_fields)
+
+        def fetch_page(page_skip: int, page_top: int | None) -> dict[str, Any]:
+            return self._query_records_by_ids(
+                table_id,
+                select_fields=selected_ids,
+                where=where,
+                sort_by=resolved_sort,
+                group_by=resolved_group,
+                skip=page_skip,
+                top=page_top,
+            )
+
+        paged_rows: list[dict[str, Any]] = []
+        columns: list[str] | None = None
+        for response in iter_intelligent_pages(
+            fetch_page,
+            path="records/query",
+            skip=skip,
+            top=top,
+        ):
+            fields = response["fields"]
+            if columns is None:
+                columns = [field["label"] for field in fields]
+            paged_rows.extend(
+                {field["label"]: record.get(str(field["id"]), {}).get("value") for field in fields}
+                for record in response["data"]
+            )
+        return pd.DataFrame(paged_rows, columns=columns)
 
     # ----------------
     # CSV Download
