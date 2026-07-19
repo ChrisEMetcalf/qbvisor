@@ -741,24 +741,41 @@ class QuickBaseClient:
         def get_id(label: str) -> int:
             return self.meta.get_field_id(app_id, table_id, label)
 
+        return self._query_records_by_ids(
+            table_id,
+            select_fields=[get_id(label) for label in select_fields] if select_fields else None,
+            where=where,
+            sort_by=[(get_id(label), order) for label, order in sort_by] if sort_by else None,
+            group_by=[get_id(label) for label in group_by] if group_by else None,
+            skip=skip,
+            top=top,
+        )
+
+    def _query_records_by_ids(
+        self,
+        table_id: str,
+        *,
+        select_fields: Sequence[int] | None = None,
+        where: str | None = None,
+        sort_by: Sequence[tuple[int, str]] | None = None,
+        group_by: Sequence[int] | None = None,
+        skip: int = 0,
+        top: int = 1000,
+    ) -> dict[str, Any]:
+        """Query a resolved table directly; backup pagination avoids repeated metadata lookups."""
         body: dict[str, Any] = {"from": table_id, "options": {"skip": skip, "top": top}}
-
         if select_fields:
-            body["select"] = [get_id(label) for label in select_fields]
-
+            body["select"] = list(select_fields)
         if where:
             body["where"] = where
-
         if sort_by:
             body["sortBy"] = [
-                {"fieldId": get_id(label), "order": order.upper()} for label, order in sort_by
+                {"fieldId": field_id, "order": order.upper()} for field_id, order in sort_by
             ]
-
         if group_by:
             body["groupBy"] = [
-                {"fieldId": get_id(label), "grouping": "equal-values"} for label in group_by
+                {"fieldId": field_id, "grouping": "equal-values"} for field_id in group_by
             ]
-
         return self._request(
             method="POST",
             path="records/query",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import uuid4
@@ -52,6 +53,52 @@ class BackupWorkspace:
             kind=kind,
             sha256=hashlib.sha256(content).hexdigest(),
             bytes=len(content),
+            item_count=item_count,
+        )
+        self._register(artifact)
+        return artifact
+
+    def write_json_lines(
+        self,
+        relative_path: str,
+        kind: BackupArtifactKind,
+        items: Iterable[Any],
+    ) -> BackupArtifact:
+        """Atomically stream deterministic JSON Lines without retaining all items."""
+        destination = self._destination(relative_path)
+        if any(existing.path == relative_path for existing in self._artifacts):
+            raise ValueError(f"backup artifact already exists: {relative_path}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name(f".{destination.name}.{uuid4().hex}.tmp")
+        digest = hashlib.sha256()
+        byte_count = 0
+        item_count = 0
+        try:
+            with temporary.open("xb") as stream:
+                for item in items:
+                    line = (
+                        json.dumps(
+                            item,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                            sort_keys=True,
+                            allow_nan=False,
+                        )
+                        + "\n"
+                    ).encode("utf-8")
+                    stream.write(line)
+                    digest.update(line)
+                    byte_count += len(line)
+                    item_count += 1
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+        artifact = BackupArtifact(
+            path=relative_path,
+            kind=kind,
+            sha256=digest.hexdigest(),
+            bytes=byte_count,
             item_count=item_count,
         )
         self._register(artifact)
