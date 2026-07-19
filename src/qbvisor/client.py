@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from ._attachments import latest_attachment
 from ._pagination import iter_intelligent_pages
 from ._records.pagination import iter_record_pages_by_id
+from ._records.upsert import normalize_upsert_response
 from ._resources.apps import AppResource
 from ._resources.fields import FieldResource
 from ._resources.relationships import RelationshipResource
@@ -710,7 +711,7 @@ class QuickBaseClient:
             fields_to_return (Optional[List[str]]): Field labels to return in response (optional).
 
         Returns:
-            dict: Structured API response with success flag and metadata.
+            dict: Validated write outcome with returned data, record ID groups, and line errors.
         """
         app_id, table_id = self._ids(app_name, table_name)
 
@@ -737,22 +738,7 @@ class QuickBaseClient:
         # Make the request
         resp = self._request(method="POST", path="records", json_body=body)
 
-        metadata = resp.get("metadata", {})
-
-        if "lineErrors" in metadata:
-            return {
-                "success": False,
-                "partial": True,
-                "lineErrors": metadata.get("lineErrors", {}),
-                "createdRecordIds": metadata.get("createdRecordIds", []),
-                "totalProcessed": metadata.get("totalNumberOfRecordsProcessed", 0),
-            }
-
-        return {
-            "success": True,
-            "createdRecordIds": metadata.get("createdRecordIds", []),
-            "totalProcessed": metadata.get("totalNumberOfRecordsProcessed", 0),
-        }
+        return normalize_upsert_response(resp, record_count=len(records))
 
     def delete_records(self, app_name: str, table_name: str, where: str | list[int]) -> int:
         """

@@ -264,6 +264,125 @@ def test_records_modified_since_accepts_a_current_fractional_timestamp(
     assert response["count"] == 0
 
 
+@pytest.mark.sandbox_mutation
+def test_upsert_results_distinguish_created_updated_and_unchanged_records(
+    sandbox_client: QuickBaseClient,
+    sandbox_transport: QuickBaseTransport,
+    sandbox_contract: SandboxContract,
+):
+    if os.getenv(MUTATION_ENV) != "1":
+        pytest.skip(f"Set {MUTATION_ENV}=1 to run mutation contract tests")
+
+    fixture_key = f"qbvisor-upsert-contract-{uuid.uuid4().hex[:10]}"
+    key_fid = sandbox_contract.record_fields["Fixture Key"]
+    status_fid = sandbox_contract.record_fields["Status"]
+    try:
+        created = sandbox_client.upsert_records(
+            APP_NAME,
+            sandbox_contract.records_table_id,
+            [{"Fixture Key": fixture_key, "Status": "Ready"}],
+            merge_field_label="Fixture Key",
+            fields_to_return=["Fixture Key", "Status"],
+        )
+
+        assert created["success"] is True
+        assert len(created["createdRecordIds"]) == 1
+        assert created["updatedRecordIds"] == []
+        assert created["unchangedRecordIds"] == []
+        assert created["totalProcessed"] == 1
+        record_id = int(created["createdRecordIds"][0])
+        assert created["data"] == [
+            {
+                "3": {"value": record_id},
+                str(key_fid): {"value": fixture_key},
+                str(status_fid): {"value": "Ready"},
+            }
+        ]
+
+        unchanged = sandbox_client.upsert_records(
+            APP_NAME,
+            sandbox_contract.records_table_id,
+            [{"Fixture Key": fixture_key, "Status": "Ready"}],
+            merge_field_label="Fixture Key",
+            fields_to_return=["Fixture Key", "Status"],
+        )
+
+        assert unchanged["success"] is True
+        assert unchanged["createdRecordIds"] == []
+        assert unchanged["updatedRecordIds"] == []
+        assert unchanged["unchangedRecordIds"] == [record_id]
+        assert unchanged["data"] == created["data"]
+
+        updated = sandbox_client.upsert_records(
+            APP_NAME,
+            sandbox_contract.records_table_id,
+            [{"Fixture Key": fixture_key, "Status": "Running"}],
+            merge_field_label="Fixture Key",
+            fields_to_return=["Fixture Key", "Status"],
+        )
+
+        assert updated["success"] is True
+        assert updated["createdRecordIds"] == []
+        assert updated["updatedRecordIds"] == [record_id]
+        assert updated["unchangedRecordIds"] == []
+        assert updated["data"][0][str(status_fid)]["value"] == "Running"
+    finally:
+        records = _query_keys(sandbox_transport, sandbox_contract)
+        if fixture_key in records:
+            sandbox_client.delete_records(
+                APP_NAME,
+                sandbox_contract.records_table_id,
+                [int(records[fixture_key]["3"]["value"])],
+            )
+
+
+@pytest.mark.sandbox_mutation
+def test_upsert_results_preserve_partial_line_errors_and_successful_records(
+    sandbox_client: QuickBaseClient,
+    sandbox_transport: QuickBaseTransport,
+    sandbox_contract: SandboxContract,
+):
+    if os.getenv(MUTATION_ENV) != "1":
+        pytest.skip(f"Set {MUTATION_ENV}=1 to run mutation contract tests")
+
+    valid_key = f"qbvisor-upsert-valid-{uuid.uuid4().hex[:10]}"
+    invalid_key = f"qbvisor-upsert-invalid-{uuid.uuid4().hex[:10]}"
+    created_ids: list[int] = []
+    try:
+        result = sandbox_client.upsert_records(
+            APP_NAME,
+            sandbox_contract.records_table_id,
+            [
+                {"Fixture Key": valid_key, "Status": "Complete"},
+                {"Fixture Key": invalid_key, "Status": "Not a configured choice"},
+            ],
+            merge_field_label="Fixture Key",
+            fields_to_return=["Fixture Key", "Status"],
+        )
+
+        created_ids = result["createdRecordIds"]
+        assert result["success"] is False
+        assert result["partial"] is True
+        assert result["totalProcessed"] == 2
+        assert set(result["lineErrors"]) == {"2"}
+        assert result["lineErrors"]["2"]
+        assert len(created_ids) == 1
+        assert result["updatedRecordIds"] == []
+        assert result["unchangedRecordIds"] == []
+        assert all(isinstance(record, dict) for record in result["data"])
+    finally:
+        records = _query_keys(sandbox_transport, sandbox_contract)
+        cleanup_ids = [
+            int(records[key]["3"]["value"]) for key in (valid_key, invalid_key) if key in records
+        ]
+        if cleanup_ids:
+            sandbox_client.delete_records(
+                APP_NAME,
+                sandbox_contract.records_table_id,
+                cleanup_ids,
+            )
+
+
 def test_default_report_contract_when_table_has_reports(
     sandbox_client: QuickBaseClient,
     sandbox_contract: SandboxContract,
