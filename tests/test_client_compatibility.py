@@ -8,6 +8,8 @@ import pytest
 
 import qbvisor.client as client_module
 from qbvisor._resources.apps import AppResource
+from qbvisor._resources.fields import FieldResource
+from qbvisor._resources.relationships import RelationshipResource
 from qbvisor._resources.tables import TableResource
 from qbvisor.client import QuickBaseClient
 from qbvisor.exceptions import QuickbaseResponseError
@@ -85,10 +87,13 @@ def client() -> QuickBaseClient:
     instance.transport = SimpleNamespace(
         base_url="https://api.quickbase.com/v1",
         headers={"Authorization": "QB-USER-TOKEN test"},
+        get=Mock(),
     )
     instance.logger = Mock()
     instance._request = Mock()
     instance._apps = AppResource(instance)
+    instance._fields = FieldResource(instance)
+    instance._relationships = RelationshipResource(instance)
     instance._tables = TableResource(instance)
     return instance
 
@@ -103,6 +108,8 @@ def test_client_accepts_caller_owned_transport(monkeypatch):
     assert instance.transport is injected_transport
     assert instance.meta.transport is injected_transport
     assert instance._apps.meta is instance.meta
+    assert instance._fields.meta is instance.meta
+    assert instance._relationships.meta is instance.meta
     assert instance._tables.meta is instance.meta
     injected_transport.close.assert_not_called()
 
@@ -372,6 +379,17 @@ def test_field_usage_rejects_invalid_pagination(client, kwargs, message):
     client._request.assert_not_called()
 
 
+def test_field_resource_preserves_existing_id_and_direct_get_utilities(client):
+    client.transport.get.return_value = {"id": 7, "label": "Status"}
+
+    assert client.get_field_id("app_operations", "tbl_projects", "Status") == 7
+    assert client.get_field("app_operations", "Projects", 7) == {"id": 7, "label": "Status"}
+    client.transport.get.assert_called_once_with(
+        "fields/7",
+        params={"tableId": "tbl_projects"},
+    )
+
+
 def test_relationship_mutations_match_documented_paths_and_body(client):
     client._request.return_value = {"id": 9}
 
@@ -396,6 +414,24 @@ def test_relationship_mutations_match_documented_paths_and_body(client):
     client._request.assert_called_once_with(
         method="DELETE",
         path="tables/tbl_projects/relationship/7",
+    )
+
+
+def test_relationship_resource_preserves_collection_response(client):
+    client._request.return_value = {
+        "relationships": [
+            {"id": 7, "parentTableId": "tbl_customers", "childTableId": "tbl_projects"}
+        ]
+    }
+
+    relationships = client.get_all_relationships("Operations", "Projects")
+
+    assert relationships == [
+        {"id": 7, "parentTableId": "tbl_customers", "childTableId": "tbl_projects"}
+    ]
+    client._request.assert_called_once_with(
+        method="GET",
+        path="tables/tbl_projects/relationships",
     )
 
 
