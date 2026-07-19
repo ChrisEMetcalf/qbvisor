@@ -29,6 +29,14 @@ Existing public method names and call signatures should remain stable when pract
 
 `QuickBaseClient` is the supported high-level client. Preserve its public method names and call signatures unless a documented major release provides a migration path.
 
+## Client architecture
+
+`QuickBaseClient` is the stable public facade. Private modules under `qbvisor._resources` own request construction for apps, tables, fields, and relationships. These resource classes are implementation details: do not export them from `qbvisor`, document them as public interfaces, or require callers to construct them.
+
+Public client methods should remain thin delegates while preserving their established signature, return shape, retry policy, error behavior, and metadata-cache effects. Resource services receive shared transport and metadata behavior through `ClientContext`; they must continue using the centralized client request path rather than creating sessions or duplicating error handling.
+
+When moving an existing operation across this boundary, add a compatibility test for its exact request path, parameters, body, and documented top-level response shape. Schema mutations also require focused verification of label-to-ID resolution and cache invalidation.
+
 ## Pull requests
 
 Keep each pull request focused on one reviewable change. Describe:

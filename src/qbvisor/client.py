@@ -11,6 +11,10 @@ import aiofiles
 import pandas as pd
 from dotenv import load_dotenv
 
+from ._resources.apps import AppResource
+from ._resources.fields import FieldResource
+from ._resources.relationships import RelationshipResource
+from ._resources.tables import TableResource
 from .async_transport import AsyncQuickBaseTransport
 from .exceptions import QuickbaseBatchError, QuickbaseResponseError
 from .helpers import sanitize_filenames
@@ -50,6 +54,10 @@ class QuickBaseClient:
         self.transport = transport if transport is not None else QuickBaseTransport()
         self.meta = QuickBaseMetaCache(self.transport)
         self.logger = get_logger(__name__)
+        self._apps = AppResource(self)
+        self._fields = FieldResource(self)
+        self._relationships = RelationshipResource(self)
+        self._tables = TableResource(self)
 
     def __enter__(self) -> "QuickBaseClient":
         return self
@@ -169,41 +177,27 @@ class QuickBaseClient:
         Returns:
             dict: The created app's metadata.
         """
-        body = {"name": name, "assignToken": assign_token}
-        if description:
-            body["description"] = description
-        if variables:
-            body["variables"] = variables
-        if security_properties:
-            body["securityProperties"] = security_properties
-
-        return self._request(method="POST", path="apps", json_body=body)
+        return self._apps.create(
+            name,
+            description=description,
+            assign_token=assign_token,
+            variables=variables,
+            security_properties=security_properties,
+        )
 
     def get_app(self, app_name: str) -> dict[str, Any]:
         """
         Get app metadata: GET /v1/apps/{appId}
         """
-        app_id, _ = self._ids(app_name)
-
-        return self._request(method="GET", path=f"apps/{app_id}", params={"appId": app_id})
+        return self._apps.get(app_name)
 
     def get_app_events(self, app_name: str) -> list[dict[str, Any]]:
         """List events configured in an app: GET /v1/apps/{appId}/events."""
-        app_id, _ = self._ids(app_name)
-        return self._request(
-            method="GET",
-            path=f"apps/{app_id}/events",
-            response_type=list,
-        )
+        return self._apps.events(app_name)
 
     def get_app_roles(self, app_name: str) -> list[dict[str, Any]]:
         """List roles configured in an app: GET /v1/apps/{appId}/roles."""
-        app_id, _ = self._ids(app_name)
-        return self._request(
-            method="GET",
-            path=f"apps/{app_id}/roles",
-            response_type=list,
-        )
+        return self._apps.roles(app_name)
 
     def update_app(
         self,
@@ -226,21 +220,13 @@ class QuickBaseClient:
         Returns:
             dict: The updated app's metadata.
         """
-        app_id, _ = self._ids(app_name)
-
-        body: dict[str, Any] = {}
-        if new_name:
-            body["name"] = new_name
-        if description:
-            body["description"] = description
-        if variables:
-            body["variables"] = variables
-        if security_properties:
-            body["securityProperties"] = security_properties
-
-        if not body:
-            raise ValueError("No update parameters provided.")
-        return self._request(method="POST", path=f"apps/{app_id}", json_body=body)
+        return self._apps.update(
+            app_name,
+            new_name=new_name,
+            description=description,
+            variables=variables,
+            security_properties=security_properties,
+        )
 
     def delete_app(self, app_name: str) -> dict[str, Any]:
         """
@@ -252,9 +238,7 @@ class QuickBaseClient:
         Returns:
             dict: The deleted app's App ID.
         """
-        app_id, _ = self._ids(app_name)
-
-        return self._request(method="DELETE", path=f"apps/{app_id}", params={"appId": app_id})
+        return self._apps.delete(app_name)
 
     def copy_app(
         self,
@@ -272,10 +256,12 @@ class QuickBaseClient:
             description (str, optional): A description for the new application.
             properties (dict, optional): Additional properties for the new application.
         """
-        app_id, _ = self._ids(app_name)
-
-        body = {"name": new_app_name, "description": description, "properties": properties}
-        return self._request(method="POST", path=f"apps/{app_id}/copy", json_body=body)
+        return self._apps.copy(
+            app_name,
+            new_app_name,
+            description=description,
+            properties=properties,
+        )
 
     # ----------------
     # Table Methods
@@ -301,16 +287,13 @@ class QuickBaseClient:
         Returns:
             dict: The created table's metadata.
         """
-        app_id, _ = self._ids(app_name)
-
-        body = {"name": table_name}
-        if description is not None:
-            body["description"] = description
-        if singular_record_name is not None:
-            body["singleRecordName"] = singular_record_name
-        if plural_record_name is not None:
-            body["pluralRecordName"] = plural_record_name
-        return self._request(method="POST", path="tables", params={"appId": app_id}, json_body=body)
+        return self._tables.create(
+            app_name,
+            table_name,
+            description=description,
+            singular_record_name=singular_record_name,
+            plural_record_name=plural_record_name,
+        )
 
     def get_tables_for_app(self, app_name: str) -> list[dict[str, Any]]:
         """
@@ -322,11 +305,7 @@ class QuickBaseClient:
         Returns:
             list: A list of dictionaries containing metadata for each table in the app.
         """
-        app_id, _ = self._ids(app_name)
-
-        return self._request(
-            method="GET", path="tables", params={"appId": app_id}, response_type=list
-        )
+        return self._tables.list(app_name)
 
     def get_table(
         self,
@@ -343,9 +322,7 @@ class QuickBaseClient:
         Returns:
             dict: The table's metadata.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        return self._request(method="GET", path=f"tables/{table_id}", params={"appId": app_id})
+        return self._tables.get(app_name, table_name)
 
     def update_table(
         self,
@@ -368,23 +345,12 @@ class QuickBaseClient:
         Returns:
             dict: The updated table's metadata.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        body: dict[str, Any] = {}
-        if new_table_name:
-            body["name"] = new_table_name
-        if singular_record_name:
-            body["singleRecordName"] = singular_record_name
-        if plural_record_name:
-            body["pluralRecordName"] = plural_record_name
-
-        if not body:
-            raise ValueError(
-                "Must specify at least one field to update (new_table_name, singular_record_name, or plural_record_name)."
-            )
-
-        return self._request(
-            method="POST", path=f"tables/{table_id}", params={"appId": app_id}, json_body=body
+        return self._tables.update(
+            app_name,
+            table_name,
+            new_table_name=new_table_name,
+            singular_record_name=singular_record_name,
+            plural_record_name=plural_record_name,
         )
 
     def delete_table(self, app_name: str, table_name: str) -> dict[str, Any]:
@@ -398,9 +364,7 @@ class QuickBaseClient:
         Returns:
             dict: The deleted table's Table ID.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        return self._request(method="DELETE", path=f"tables/{table_id}", params={"appId": app_id})
+        return self._tables.delete(app_name, table_name)
 
     def get_all_relationships(self, app_name: str, table_name: str) -> list[dict[str, Any]]:
         """
@@ -413,10 +377,7 @@ class QuickBaseClient:
         Returns:
             list: A list of dictionaries containing metadata for each relationship in the table.
         """
-        _, table_id = self._ids(app_name, table_name)
-
-        resp = self._request(method="GET", path=f"tables/{table_id}/relationships")
-        return resp.get("relationships", [])
+        return self._relationships.get_all(app_name, table_name)
 
     def create_relationship(
         self,
@@ -441,20 +402,13 @@ class QuickBaseClient:
         Returns:
             dict: The created relationship metadata.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        parent_id = self.meta.get_table_id(app_id, parent_table_name)
-        body: dict[str, Any] = {"parentTableId": parent_id}
-        if foreign_key_label:
-            body["foreignKeyField"] = {"label": foreign_key_label}
-        if lookup_field_ids:
-            body["lookupFieldIds"] = lookup_field_ids
-        if summary_fields:
-            body["summaryFields"] = summary_fields
-        return self._request(
-            method="POST",
-            path=f"tables/{table_id}/relationship",
-            json_body=body,
+        return self._relationships.create(
+            app_name,
+            table_name,
+            parent_table_name,
+            foreign_key_label=foreign_key_label,
+            lookup_field_ids=lookup_field_ids,
+            summary_fields=summary_fields,
         )
 
     def update_relationship(
@@ -467,64 +421,13 @@ class QuickBaseClient:
         summary_fields: Sequence[RelationshipSummary] | None = None,
     ) -> dict[str, Any]:
         """Add lookup or summary fields to an existing table relationship."""
-        if not lookup_fields and not summary_fields:
-            raise ValueError("Provide at least one lookup field or summary field")
-
-        app_id, child_table_id = self._ids(app_name, table_name)
-        relationship_id = (
-            relationship
-            if isinstance(relationship, int)
-            else self.meta.get_field_id(app_id, child_table_id, relationship)
+        return self._relationships.update(
+            app_name,
+            table_name,
+            relationship,
+            lookup_fields=lookup_fields,
+            summary_fields=summary_fields,
         )
-        body: dict[str, Any] = {}
-
-        if lookup_fields:
-            parent_table_id: str | None = None
-            if any(isinstance(field, str) for field in lookup_fields):
-                relationships = self.get_all_relationships(app_name, table_name)
-                match = next(
-                    (item for item in relationships if item.get("id") == relationship_id),
-                    None,
-                )
-                if match is None or not isinstance(match.get("parentTableId"), str):
-                    raise ValueError(f"Relationship {relationship_id} was not found")
-                parent_table_id = match["parentTableId"]
-            body["lookupFieldIds"] = [
-                field
-                if isinstance(field, int)
-                else self.meta.get_field_id(app_id, cast(str, parent_table_id), field)
-                for field in lookup_fields
-            ]
-
-        if summary_fields:
-            summaries: list[dict[str, Any]] = []
-            for summary in summary_fields:
-                definition: dict[str, Any] = {
-                    "accumulationType": summary.accumulation_type,
-                }
-                if summary.field is not None:
-                    definition["summaryFid"] = (
-                        summary.field
-                        if isinstance(summary.field, int)
-                        else self.meta.get_field_id(app_id, child_table_id, summary.field)
-                    )
-                if summary.label is not None:
-                    definition["label"] = summary.label
-                if summary.where is not None:
-                    definition["where"] = summary.where
-                summaries.append(definition)
-            body["summaryFields"] = summaries
-
-        response = self._request(
-            method="POST",
-            path=f"tables/{child_table_id}/relationship/{relationship_id}",
-            json_body=body,
-        )
-        self.meta.invalidate_fields(app_id, child_table_id)
-        parent_id = response.get("parentTableId")
-        if isinstance(parent_id, str):
-            self.meta.invalidate_fields(app_id, parent_id)
-        return response
 
     def delete_relationship(
         self,
@@ -543,12 +446,7 @@ class QuickBaseClient:
         Returns:
             dict: The relationshipId that was deleted.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        rel_id = self.meta.get_field_id(app_id, table_id, related_field)
-        resp = self._request(method="DELETE", path=f"tables/{table_id}/relationship/{rel_id}")
-
-        return resp.get("relationshipId", None)
+        return self._relationships.delete(app_name, table_name, related_field)
 
     # ----------------
     # Report Methods
@@ -647,12 +545,7 @@ class QuickBaseClient:
         Returns:
             dict: Created field metadata.
         """
-        _, table_id = self._ids(app_name, table_name)
-
-        body = {"label": label, "fieldType": field_type}
-        return self._request(
-            method="POST", path="fields", params={"tableId": table_id}, json_body=body
-        )
+        return self._fields.create(app_name, table_name, label, field_type)
 
     def delete_fields(
         self, app_name: str, table_name: str, field_labels: list[str]
@@ -668,16 +561,7 @@ class QuickBaseClient:
         Returns:
             dict: Response from the API.
         """
-        app_id, table_id = self._ids(app_name, table_name)
-
-        fmap = self.meta.get_field_map(app_id, table_id)
-
-        # Lookup field IDs based on the provided labels
-        field_ids = [fmap[label]["id"] for label in field_labels]
-        body = {"fieldIds": field_ids}
-        return self._request(
-            method="DELETE", path="fields", params={"tableId": table_id}, json_body=body
-        )
+        return self._fields.delete(app_name, table_name, field_labels)
 
     def get_fields_usage(
         self,
@@ -688,23 +572,7 @@ class QuickBaseClient:
         top: int | None = None,
     ) -> list[dict[str, Any]]:
         """Return usage statistics for fields in a table: GET /v1/fields/usage."""
-        if skip is not None and skip < 0:
-            raise ValueError("skip cannot be negative")
-        if top is not None and top < 1:
-            raise ValueError("top must be at least 1")
-
-        _, table_id = self._ids(app_name, table_name)
-        params: dict[str, Any] = {"tableId": table_id}
-        if skip is not None:
-            params["skip"] = skip
-        if top is not None:
-            params["top"] = top
-        return self._request(
-            method="GET",
-            path="fields/usage",
-            params=params,
-            response_type=list,
-        )
+        return self._fields.usage(app_name, table_name, skip=skip, top=top)
 
     def get_field_usage(
         self,
@@ -713,16 +581,7 @@ class QuickBaseClient:
         field: str | int,
     ) -> list[dict[str, Any]]:
         """Return usage statistics for one field: GET /v1/fields/usage/{fieldId}."""
-        app_id, table_id = self._ids(app_name, table_name)
-        field_id = (
-            field if isinstance(field, int) else self.meta.get_field_id(app_id, table_id, field)
-        )
-        return self._request(
-            method="GET",
-            path=f"fields/usage/{field_id}",
-            params={"tableId": table_id},
-            response_type=list,
-        )
+        return self._fields.usage_for_field(app_name, table_name, field)
 
     # ----------------
     # Formula Methods
@@ -1554,15 +1413,13 @@ class QuickBaseClient:
     # Utility
     # ----------------
     def get_field_id(self, app_id: str, table_id: str, field_label: str) -> int:
-        return self.meta.get_field_id(app_id, table_id, field_label)
+        return self._fields.get_id(app_id, table_id, field_label)
 
     def get_table_id(self, app_id: str, table_id: str) -> str:
-        return self.meta.get_table_id(app_id, table_id)
+        return self._tables.get_id(app_id, table_id)
 
     def get_field(self, app_id, table_id, field_id):
-        return self.transport.get(
-            f"fields/{field_id}", params={"tableId": self.meta.get_table_id(app_id, table_id)}
-        )
+        return self._fields.get(app_id, table_id, field_id)
 
     # ----------------
     # Config Debugging
