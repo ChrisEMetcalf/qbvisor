@@ -388,9 +388,24 @@ request. Malformed or incomplete success responses raise `QuickbaseResponseError
 
 Record mutations are not automatically retried after uncertain connection failures. Use a stable,
 unique `merge_field_label` when a caller may retry an operation; retrying append-only writes can
-create duplicate records. `upsert_records()` currently sends one request and therefore remains
-subject to Quickbase's 40 MB upsert payload limit. Payload-aware batching is intentionally handled
-as a separate feature because several requests cannot provide transaction-level atomicity.
+create duplicate records.
+
+Before sending the first mutation, `upsert_records()` measures the exact UTF-8 JSON body that
+Requests will send and validates every input record. Normal workloads retain one request. Inputs
+larger than Quickbase's 40 MB payload limit are split into the fewest sequential requests that fit;
+merge-field and return-field options are included in every size calculation and request.
+
+Successful batch results are combined in input order. Quickbase reports `lineErrors` relative to
+each request, but qbvisor converts them back to one-based positions in the original `records` list.
+A normal partial `207` does not stop later batches because Quickbase has completed that request.
+
+Several mutation requests cannot provide transaction-level atomicity. If a later batch fails,
+`QuickbaseBatchError.results` identifies every completed range and the failed or uncertain range.
+Definitive HTTP errors below 500 use `status="failed"`; timeouts, connection failures, server
+failures, and invalid success responses use `status="uncertain"` because Quickbase may have
+committed that range. The original exception remains available in `QuickbaseBatchError.errors`. If
+the first request fails, qbvisor raises that original exception directly because no earlier batch
+needs reconciliation.
 
 ## Record exports and concurrent attachments
 
