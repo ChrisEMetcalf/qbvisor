@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from inspect import signature
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
@@ -670,11 +671,24 @@ def test_delete_file_rejects_a_negative_version_before_resolving_ids(client):
 
 def test_query_dataframe_uses_quickbase_labels_as_columns(client):
     client._request.return_value = {
-        "fields": [{"id": 6, "label": "Name"}, {"id": 7, "label": "Status"}],
-        "data": [
-            {"6": {"value": "Migration"}, "7": {"value": "Active"}},
-            {"6": {"value": "Backup"}, "7": {"value": "Queued"}},
+        "fields": [
+            {"id": 6, "label": "Name"},
+            {"id": 7, "label": "Status"},
+            {"id": 3, "label": "Record ID#"},
         ],
+        "data": [
+            {
+                "3": {"value": 10},
+                "6": {"value": "Migration"},
+                "7": {"value": "Active"},
+            },
+            {
+                "3": {"value": 20},
+                "6": {"value": "Backup"},
+                "7": {"value": "Queued"},
+            },
+        ],
+        "metadata": {"numFields": 3, "numRecords": 2, "totalRecords": 2, "skip": 0},
     }
 
     result = client.query_dataframe("Operations", "Projects", ["Name", "Status"])
@@ -691,17 +705,233 @@ def test_query_dataframe_uses_quickbase_labels_as_columns(client):
         path="records/query",
         json_body={
             "from": "tbl_projects",
-            "select": [6, 7],
-            "options": {"skip": 0, "top": 1000},
+            "select": [6, 7, 3],
+            "sortBy": [{"fieldId": 3, "order": "ASC"}],
+            "options": {"skip": 0},
         },
         retry_policy=RetryPolicy.SAFE,
     )
 
 
-def test_run_report_marks_read_like_post_as_safe(client):
+def test_query_dataframe_uses_record_id_continuation_for_complete_unsorted_queries(client):
+    client._request.side_effect = [
+        {
+            "fields": [
+                {"id": 6, "label": "Name"},
+                {"id": 3, "label": "Record ID#"},
+            ],
+            "data": [
+                {"3": {"value": 10}, "6": {"value": "Migration"}},
+                {"3": {"value": 20}, "6": {"value": "Backup"}},
+            ],
+            "metadata": {"numFields": 2, "numRecords": 2, "totalRecords": 3},
+        },
+        {
+            "fields": [
+                {"id": 6, "label": "Name"},
+                {"id": 3, "label": "Record ID#"},
+            ],
+            "data": [{"3": {"value": 30}, "6": {"value": "Rebuild"}}],
+            "metadata": {"numFields": 2, "numRecords": 1, "totalRecords": 1},
+        },
+    ]
+
+    result = client.query_dataframe(
+        "Operations",
+        "Projects",
+        ["Name"],
+        where="{7.EX.'Active'}OR{7.EX.'Queued'}",
+    )
+
+    pd.testing.assert_frame_equal(
+        result,
+        pd.DataFrame([{"Name": "Migration"}, {"Name": "Backup"}, {"Name": "Rebuild"}]),
+    )
+    assert client._request.call_args_list == [
+        call(
+            method="POST",
+            path="records/query",
+            json_body={
+                "from": "tbl_projects",
+                "select": [6, 3],
+                "where": "{7.EX.'Active'}OR{7.EX.'Queued'}",
+                "sortBy": [{"fieldId": 3, "order": "ASC"}],
+                "options": {"skip": 0},
+            },
+            retry_policy=RetryPolicy.SAFE,
+        ),
+        call(
+            method="POST",
+            path="records/query",
+            json_body={
+                "from": "tbl_projects",
+                "select": [6, 3],
+                "where": "({7.EX.'Active'}OR{7.EX.'Queued'})AND{3.GT.20}",
+                "sortBy": [{"fieldId": 3, "order": "ASC"}],
+                "options": {"skip": 0},
+            },
+            retry_policy=RetryPolicy.SAFE,
+        ),
+    ]
+
+
+def test_query_dataframe_preserves_sorting_with_intelligent_offset_pages(client):
+    fields = [{"id": 6, "label": "Name"}, {"id": 7, "label": "Status"}]
+    client._request.side_effect = [
+        {
+            "fields": fields,
+            "data": [
+                {"6": {"value": "Alpha"}, "7": {"value": "Open"}},
+                {"6": {"value": "Beta"}, "7": {"value": "Open"}},
+            ],
+            "metadata": {"numFields": 2, "numRecords": 2, "totalRecords": 3, "skip": 0},
+        },
+        {
+            "fields": fields,
+            "data": [{"6": {"value": "Gamma"}, "7": {"value": "Open"}}],
+            "metadata": {"numFields": 2, "numRecords": 1, "totalRecords": 3, "skip": 2},
+        },
+    ]
+
+    result = client.query_dataframe(
+        "Operations",
+        "Projects",
+        ["Name", "Status"],
+        sort_by=[("Name", "ASC")],
+    )
+
+    assert list(result["Name"]) == ["Alpha", "Beta", "Gamma"]
+    assert client._request.call_args_list == [
+        call(
+            method="POST",
+            path="records/query",
+            json_body={
+                "from": "tbl_projects",
+                "select": [6, 7],
+                "sortBy": [{"fieldId": 6, "order": "ASC"}],
+                "options": {"skip": 0},
+            },
+            retry_policy=RetryPolicy.SAFE,
+        ),
+        call(
+            method="POST",
+            path="records/query",
+            json_body={
+                "from": "tbl_projects",
+                "select": [6, 7],
+                "sortBy": [{"fieldId": 6, "order": "ASC"}],
+                "options": {"skip": 2},
+            },
+            retry_policy=RetryPolicy.SAFE,
+        ),
+    ]
+
+
+def test_query_dataframe_preserves_grouped_query_semantics(client):
+    client._request.return_value = {
+        "fields": [{"id": 7, "label": "Status"}],
+        "data": [{"7": {"value": "Open"}}, {"7": {"value": "Complete"}}],
+        "metadata": {"numFields": 1, "numRecords": 2, "totalRecords": 2, "skip": 0},
+    }
+
+    result = client.query_dataframe(
+        "Operations",
+        "Projects",
+        ["Status"],
+        group_by=["Status"],
+    )
+
+    assert list(result["Status"]) == ["Open", "Complete"]
+    client._request.assert_called_once_with(
+        method="POST",
+        path="records/query",
+        json_body={
+            "from": "tbl_projects",
+            "select": [7],
+            "groupBy": [{"fieldId": 7, "grouping": "equal-values"}],
+            "options": {"skip": 0},
+        },
+        retry_policy=RetryPolicy.SAFE,
+    )
+
+
+def test_query_dataframe_treats_explicit_top_as_a_total_keyset_limit(client):
+    client._request.side_effect = [
+        {
+            "fields": [{"id": 6, "label": "Name"}, {"id": 3, "label": "Record ID#"}],
+            "data": [
+                {"3": {"value": 10}, "6": {"value": "Alpha"}},
+                {"3": {"value": 20}, "6": {"value": "Beta"}},
+            ],
+            "metadata": {"numFields": 2, "numRecords": 2, "totalRecords": 5},
+        },
+        {
+            "fields": [{"id": 6, "label": "Name"}, {"id": 3, "label": "Record ID#"}],
+            "data": [{"3": {"value": 30}, "6": {"value": "Gamma"}}],
+            "metadata": {"numFields": 2, "numRecords": 1, "totalRecords": 3},
+        },
+    ]
+
+    result = client.query_dataframe("Operations", "Projects", ["Name"], top=3)
+
+    assert list(result["Name"]) == ["Alpha", "Beta", "Gamma"]
+    assert [
+        request.kwargs["json_body"]["options"]["top"] for request in client._request.call_args_list
+    ] == [3, 1]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"skip": -1}, "skip must be a non-negative integer"),
+        ({"top": -1}, "top must be a non-negative integer or None"),
+        ({"top": True}, "top must be a non-negative integer or None"),
+    ],
+)
+def test_query_dataframe_rejects_invalid_pagination_configuration(client, kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        client.query_dataframe("Operations", "Projects", ["Name"], **kwargs)
+
+    client._request.assert_not_called()
+
+
+def test_dataframe_and_report_parameter_order_remains_compatible():
+    dataframe_parameters = list(signature(QuickBaseClient.query_dataframe).parameters)
+    report_parameters = list(signature(QuickBaseClient.run_report).parameters)
+
+    assert dataframe_parameters == [
+        "self",
+        "app_name",
+        "table_name",
+        "select_fields",
+        "where",
+        "sort_by",
+        "group_by",
+        "skip",
+        "top",
+    ]
+    assert report_parameters == [
+        "self",
+        "app_name",
+        "table_name",
+        "report_id",
+        "skip",
+        "top",
+    ]
+    assert signature(QuickBaseClient.query_dataframe).parameters["top"].default is None
+    assert signature(QuickBaseClient.run_report).parameters["top"].default is None
+
+
+def test_run_report_uses_quickbase_native_response_size_by_default(client):
     client._request.return_value = {
         "fields": [{"id": 6, "label": "Name"}],
         "data": [{"6": {"value": "Migration"}}],
+        "metadata": {
+            "numFields": 1,
+            "numRecords": 1,
+            "totalRecords": 1,
+            "skip": 0,
+        },
     }
 
     result = client.run_report("Operations", "Projects", 12)
@@ -710,9 +940,106 @@ def test_run_report_marks_read_like_post_as_safe(client):
     client._request.assert_called_once_with(
         method="POST",
         path="reports/12/run",
-        params={"tableId": "tbl_projects", "skip": 0, "top": 1000},
+        params={"tableId": "tbl_projects"},
         retry_policy=RetryPolicy.SAFE,
     )
+
+
+def test_run_report_continues_when_quickbase_shortens_the_native_response(client):
+    client._request.side_effect = [
+        {
+            "fields": [{"id": 6, "label": "Name"}],
+            "data": [
+                {"6": {"value": "Migration"}},
+                {"6": {"value": "Backup"}},
+            ],
+            "metadata": {
+                "numFields": 1,
+                "numRecords": 2,
+                "totalRecords": 3,
+                "skip": 0,
+            },
+        },
+        {
+            "fields": [{"id": 6, "label": "Name"}],
+            "data": [{"6": {"value": "Rebuild"}}],
+            "metadata": {
+                "numFields": 1,
+                "numRecords": 1,
+                "totalRecords": 3,
+                "skip": 2,
+            },
+        },
+    ]
+
+    result = client.run_report("Operations", "Projects", 12)
+
+    pd.testing.assert_frame_equal(
+        result,
+        pd.DataFrame([{"Name": "Migration"}, {"Name": "Backup"}, {"Name": "Rebuild"}]),
+    )
+    assert client._request.call_args_list == [
+        call(
+            method="POST",
+            path="reports/12/run",
+            params={"tableId": "tbl_projects"},
+            retry_policy=RetryPolicy.SAFE,
+        ),
+        call(
+            method="POST",
+            path="reports/12/run",
+            params={"tableId": "tbl_projects", "skip": 2},
+            retry_policy=RetryPolicy.SAFE,
+        ),
+    ]
+
+
+def test_run_report_treats_explicit_top_as_a_total_limit(client):
+    client._request.side_effect = [
+        {
+            "fields": [{"id": 6, "label": "Name"}],
+            "data": [
+                {"6": {"value": "Migration"}},
+                {"6": {"value": "Backup"}},
+            ],
+            "metadata": {
+                "numFields": 1,
+                "numRecords": 2,
+                "totalRecords": 5,
+                "skip": 1,
+                "top": 3,
+            },
+        },
+        {
+            "fields": [{"id": 6, "label": "Name"}],
+            "data": [{"6": {"value": "Rebuild"}}],
+            "metadata": {
+                "numFields": 1,
+                "numRecords": 1,
+                "totalRecords": 5,
+                "skip": 3,
+                "top": 1,
+            },
+        },
+    ]
+
+    result = client.run_report("Operations", "Projects", 12, skip=1, top=3)
+
+    assert list(result["Name"]) == ["Migration", "Backup", "Rebuild"]
+    assert client._request.call_args_list == [
+        call(
+            method="POST",
+            path="reports/12/run",
+            params={"tableId": "tbl_projects", "skip": 1, "top": 3},
+            retry_policy=RetryPolicy.SAFE,
+        ),
+        call(
+            method="POST",
+            path="reports/12/run",
+            params={"tableId": "tbl_projects", "skip": 3, "top": 1},
+            retry_policy=RetryPolicy.SAFE,
+        ),
+    ]
 
 
 def test_run_formula_marks_read_like_post_as_safe(client):
