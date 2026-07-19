@@ -5,6 +5,7 @@ import pytest
 from qbvisor import (
     AppSpec,
     FieldSpec,
+    FormulaSpec,
     RelationshipSpec,
     SchemaState,
     StateResource,
@@ -90,6 +91,164 @@ def test_field_properties_are_frozen_json_values():
     assert field.properties is not None
     with pytest.raises(TypeError):
         field.properties["choices"] = ()  # type: ignore[index]
+
+
+def test_formula_specs_preserve_quickbase_syntax_and_normalize_dependencies():
+    formula = FormulaSpec(
+        expression="// calculate invoice amount\n[Quantity] * [Unit Price]\n",
+        depends_on=(
+            "tables.invoices.fields.quantity",
+            "tables.invoices.fields.unit_price",
+        ),
+    )
+    field = FieldSpec(
+        key="amount",
+        label="Amount",
+        field_type="currency",
+        formula=formula,
+        properties={"decimalPlaces": 2},
+    )
+
+    assert formula.expression == "// calculate invoice amount\n[Quantity] * [Unit Price]"
+    assert formula.depends_on == (
+        "tables.invoices.fields.quantity",
+        "tables.invoices.fields.unit_price",
+    )
+    assert field.formula is formula
+
+
+@pytest.mark.parametrize(
+    "field_type",
+    [
+        "text",
+        "rich-text",
+        "numeric",
+        "currency",
+        "rating",
+        "percent",
+        "date",
+        "datetime",
+        "timeofday",
+        "duration",
+        "checkbox",
+        "phone",
+        "email",
+        "url",
+        "user",
+        "multitext",
+    ],
+)
+def test_formula_specs_accept_live_verified_json_field_types(field_type):
+    field = FieldSpec(
+        key="derived",
+        label="Derived",
+        field_type=field_type,
+        formula=FormulaSpec(expression="1"),
+    )
+
+    assert field.formula is not None
+
+
+@pytest.mark.parametrize(
+    "field_type",
+    [
+        "text-multiple-choice",
+        "text-multi-line",
+        "multiuser",
+        "address",
+        "file",
+        "timestamp",
+        "workdate",
+    ],
+)
+def test_formula_specs_reject_field_types_not_supported_by_json_api(field_type):
+    with pytest.raises(ValueError, match="JSON formula fields do not support"):
+        FieldSpec(
+            key="derived",
+            label="Derived",
+            field_type=field_type,
+            formula=FormulaSpec(expression="1"),
+        )
+
+
+def test_formula_specs_reject_invalid_expressions_dependencies_and_property_escape_hatch():
+    with pytest.raises(ValueError, match="non-empty"):
+        FormulaSpec(expression="  \n")
+    with pytest.raises(ValueError, match="102,400"):
+        FormulaSpec(expression="x" * 102_401)
+    with pytest.raises(ValueError, match="must be a sequence"):
+        FormulaSpec(expression="1", depends_on="tables.items.fields.amount")
+    with pytest.raises(ValueError, match="table field, relationship, lookup, or summary"):
+        FormulaSpec(expression="1", depends_on=("fields.amount",))
+    with pytest.raises(ValueError, match="duplicate"):
+        FormulaSpec(
+            expression="1",
+            depends_on=("tables.items.fields.amount", "tables.items.fields.amount"),
+        )
+    with pytest.raises(ValueError, match="FormulaSpec"):
+        FieldSpec(
+            key="derived",
+            label="Derived",
+            field_type="numeric",
+            formula="1 + 1",  # type: ignore[arg-type]
+        )
+    with pytest.raises(ValueError, match="not properties"):
+        FieldSpec(
+            key="derived",
+            label="Derived",
+            field_type="numeric",
+            formula=FormulaSpec(expression="1 + 1"),
+            properties={"formula": "1 + 1"},
+        )
+
+
+def test_app_specs_validate_formula_dependency_addresses():
+    valid = AppSpec(
+        key="billing",
+        name="Billing",
+        tables=[
+            TableSpec(
+                key="invoices",
+                name="Invoices",
+                fields=[
+                    FieldSpec(key="quantity", label="Quantity", field_type="numeric"),
+                    FieldSpec(
+                        key="amount",
+                        label="Amount",
+                        field_type="numeric",
+                        formula=FormulaSpec(
+                            expression="[Quantity] * 2",
+                            depends_on=("tables.invoices.fields.quantity",),
+                        ),
+                    ),
+                ],
+            )
+        ],
+    )
+    assert valid.tables[0].fields[1].formula is not None
+
+    with pytest.raises(ValueError, match="unknown schema dependencies"):
+        AppSpec(
+            key="billing",
+            name="Billing",
+            tables=[
+                TableSpec(
+                    key="invoices",
+                    name="Invoices",
+                    fields=[
+                        FieldSpec(
+                            key="amount",
+                            label="Amount",
+                            field_type="numeric",
+                            formula=FormulaSpec(
+                                expression="[Missing] * 2",
+                                depends_on=("tables.invoices.fields.missing",),
+                            ),
+                        )
+                    ],
+                )
+            ],
+        )
 
 
 @pytest.mark.parametrize(

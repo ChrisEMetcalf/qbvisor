@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from math import isfinite
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, get_args
 from uuid import UUID, uuid4
 
 from .models import RelationshipAccumulation
@@ -28,8 +28,33 @@ SchemaResourceKind = Literal[
 ]
 SchemaAction = Literal["create", "update", "unchanged", "conflict"]
 SchemaStateAction = Literal["none", "bind"]
+FormulaFieldType = Literal[
+    "text",
+    "rich-text",
+    "numeric",
+    "currency",
+    "rating",
+    "percent",
+    "date",
+    "datetime",
+    "timeofday",
+    "duration",
+    "checkbox",
+    "phone",
+    "email",
+    "url",
+    "user",
+    "multitext",
+]
 
 _RESOURCE_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
+_FORMULA_DEPENDENCY = re.compile(
+    r"^(?:tables\.[a-z][a-z0-9_]*\.fields\.[a-z][a-z0-9_]*|"
+    r"relationships\.[a-z][a-z0-9_]*(?:"
+    r"\.lookups\.[a-z][a-z0-9_]*|\.summaries\.[a-z][a-z0-9_]*)?)$"
+)
+_FORMULA_FIELD_TYPES = frozenset(get_args(FormulaFieldType))
+_FORMULA_CHARACTER_LIMIT = 102_400
 _ACCUMULATION_TYPES = frozenset(
     {
         "AVG",
@@ -108,6 +133,21 @@ def _string_tuple(value: Sequence[str], field_name: str) -> tuple[str, ...]:
     return items
 
 
+def _formula_dependency_tuple(value: Sequence[str]) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError("formula dependencies must be a sequence of schema resource addresses")
+    items = tuple(value)
+    if not all(
+        isinstance(item, str) and _FORMULA_DEPENDENCY.fullmatch(item) is not None for item in items
+    ):
+        raise ValueError(
+            "formula dependencies must address a table field, relationship, lookup, or summary"
+        )
+    if len(set(items)) != len(items):
+        raise ValueError("formula dependencies cannot contain duplicate resource addresses")
+    return items
+
+
 def _optional_mapping(
     value: Mapping[str, Any] | None,
     field_name: str,
@@ -155,6 +195,27 @@ def _unique_specs(specs: Sequence[Any], resource_name: str, name_attribute: str)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class FormulaSpec:
+    """Raw Quickbase formula text and its declared schema dependencies."""
+
+    expression: str
+    depends_on: Sequence[str] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.expression, str):
+            raise ValueError("formula expression must be a string")
+        expression = self.expression.rstrip()
+        if not expression:
+            raise ValueError("formula expression must be non-empty")
+        if len(expression) > _FORMULA_CHARACTER_LIMIT:
+            raise ValueError(
+                f"formula expression cannot exceed {_FORMULA_CHARACTER_LIMIT:,} characters"
+            )
+        object.__setattr__(self, "expression", expression)
+        object.__setattr__(self, "depends_on", _formula_dependency_tuple(self.depends_on))
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class FieldSpec:
     """Desired state for one Quickbase field."""
 
@@ -170,6 +231,7 @@ class FieldSpec:
     add_to_forms: bool | None = None
     bold: bool | None = None
     properties: Mapping[str, Any] | None = None
+    formula: FormulaSpec | None = None
 
     def __post_init__(self) -> None:
         _validate_key(self.key, "field key")
@@ -189,7 +251,19 @@ class FieldSpec:
             value = getattr(self, field_name)
             if value is not None and not isinstance(value, bool):
                 raise ValueError(f"{field_name} must be a boolean or None")
-        object.__setattr__(self, "properties", _optional_mapping(self.properties, "properties"))
+        properties = _optional_mapping(self.properties, "properties")
+        if self.formula is not None:
+            if not isinstance(self.formula, FormulaSpec):
+                raise ValueError("formula must be a FormulaSpec or None")
+            if self.field_type not in _FORMULA_FIELD_TYPES:
+                raise ValueError(
+                    f"Quickbase JSON formula fields do not support field_type {self.field_type!r}"
+                )
+            if properties is not None and "formula" in properties:
+                raise ValueError(
+                    "formula must be configured with FormulaSpec, not properties['formula']"
+                )
+        object.__setattr__(self, "properties", properties)
 
     def address(self, app_key: str, table_key: str) -> str:
         _validate_key(app_key, "app key")
@@ -387,6 +461,31 @@ class AppSpec:
                     f"other managed child fields: {sorted(collisions)}"
                 )
             relationship_labels_by_child[relationship.child_table].update(folded_generated)
+        dependency_addresses = {
+            f"tables.{table.key}.fields.{field_spec.key}"
+            for table in tables
+            for field_spec in table.fields
+        }
+        for relationship in relationships:
+            dependency_addresses.add(f"relationships.{relationship.key}")
+            dependency_addresses.update(
+                f"relationships.{relationship.key}.lookups.{field_key}"
+                for field_key in relationship.lookup_fields
+            )
+            dependency_addresses.update(
+                f"relationships.{relationship.key}.summaries.{summary.key}"
+                for summary in relationship.summary_fields
+            )
+        for table in tables:
+            for field_spec in table.fields:
+                if field_spec.formula is None:
+                    continue
+                missing_dependencies = set(field_spec.formula.depends_on) - dependency_addresses
+                if missing_dependencies:
+                    raise ValueError(
+                        f"formula field {table.key}.{field_spec.key} references unknown schema "
+                        f"dependencies: {sorted(missing_dependencies)}"
+                    )
         object.__setattr__(self, "variables", variables)
         object.__setattr__(self, "security_properties", security)
         object.__setattr__(self, "tables", tables)
