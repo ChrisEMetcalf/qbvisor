@@ -11,6 +11,7 @@ import aiofiles
 import pandas as pd
 from dotenv import load_dotenv
 
+from ._records.pagination import iter_record_pages_by_id
 from ._resources.apps import AppResource
 from ._resources.fields import FieldResource
 from ._resources.relationships import RelationshipResource
@@ -926,65 +927,8 @@ class QuickBaseClient:
         return pd.DataFrame(rows, columns=cols)
 
     # ----------------
-    # Async CSV Download
+    # CSV Download
     # ----------------
-    async def _fetch_chunk(
-        self,
-        transport: AsyncQuickBaseTransport,
-        body: dict[str, Any],
-        offset: int,
-    ) -> list[dict[str, Any]]:
-        payload = await transport.post_json(
-            "records/query",
-            json_body=body,
-            headers={"Accept-Encoding": "gzip"},
-            retry_policy=RetryPolicy.SAFE,
-        )
-        if not isinstance(payload, dict):
-            raise QuickbaseResponseError(
-                "POST",
-                "records/query",
-                expected="JSON object",
-                actual=type(payload).__name__,
-            )
-        payload_object = cast(dict[str, Any], payload)
-        rows = [
-            {
-                f["label"]: record.get(str(f["id"]), {}).get("value")
-                for f in payload_object.get("fields", [])
-            }
-            for record in payload_object.get("data", [])
-        ]
-        self.logger.info(f"Chunk at offset {offset}: {len(rows)} rows")
-        return rows
-
-    async def _gather_chunks(
-        self,
-        table_id: str,
-        field_ids: list[int],
-        where: str,
-        batch_params: list[tuple[int, int]],
-        max_concurrency: int,
-    ) -> list[list[dict[str, Any]]]:
-        sem = asyncio.Semaphore(max_concurrency)
-        async with AsyncQuickBaseTransport(self.transport) as transport:
-            tasks = []
-            for offset, top in batch_params:
-                body = {
-                    "from": table_id,
-                    "select": field_ids,
-                    "where": where,
-                    "options": {"skip": offset, "top": top},
-                }
-
-                async def task(off, b=body):
-                    async with sem:
-                        return await self._fetch_chunk(transport, b, off)
-
-                tasks.append(task(offset))
-            self.logger.info(f"Dispatching {len(tasks)} chunk tasks")
-            return await asyncio.gather(*tasks)
-
     def download_records_to_csv(
         self,
         app_name: str,
@@ -996,17 +940,16 @@ class QuickBaseClient:
         max_concurrency: int = 4,
     ) -> str:
         """
-        Download all records matching a query into a CSV by fetching in parallel:
-        POST /v1/records/query in chunks.
+        Download all records matching a query into a CSV using stable Record ID# pages.
 
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
             output_dir (str): Directory to save the CSV file.
             where (str): Quickbase formula query string. Default is "{3.GT.'0'}" (all records).
-            chunk_size (int): Number of records to fetch in each chunk. Default is 1000.
+            chunk_size (int): Number of records to fetch per page, capped at 1000.
             record_limit (Optional[int]): Maximum number of records to download. Default is None (all records).
-            max_concurrency (int): Max number of concurrent requests. Default is 4. Recommended to keep low to avoid rate limits.
+            max_concurrency (int): Retained for compatibility. Record pages are fetched sequentially.
 
         Returns:
             str: Path to the saved CSV file, or an empty string if no records found.
@@ -1020,10 +963,11 @@ class QuickBaseClient:
 
         app_id, table_id = self._ids(app_name, table_name)
 
-        # Build field list and figure out total rows
+        # Preserve metadata field order so every page produces the same CSV columns.
         fmap = self.meta.get_field_map(app_id, table_id)
-        fids = [info["id"] for info in fmap.values()]
-        size = self.meta.get_table(app_id, table_id)["size"]
+        field_columns = [(label, int(info["id"])) for label, info in fmap.items()]
+        field_labels = [label for label, _ in field_columns]
+        fids = [field_id for _, field_id in field_columns]
         tbl_info = self.meta.get_table(app_id, table_id)
         app_key = self.meta.normalize_app(app_id)
         friendly_name = next(
@@ -1034,31 +978,50 @@ class QuickBaseClient:
             ),
             table_id,
         )
-        total = min(size, record_limit) if record_limit is not None else size
-
-        # Prepare batches
-        request_size = min(chunk_size, 1000)
-        batches = [
-            (offset, min(request_size, total - offset)) for offset in range(0, total, request_size)
-        ]
-
-        # Run the async fetch
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-        all_chunks = asyncio.run(
-            self._gather_chunks(table_id, fids, where, batches, max_concurrency)
-        )
-
-        # Flatten the list of chunks and write to CSV
-        records = [r for chunk in all_chunks for r in chunk]
-        if not records:
-            self.logger.warning("No records for filter.")
-            return ""
-
-        df = pd.DataFrame(records)
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y-%m-%d")
-        out_csv = Path(output_dir) / f"{friendly_name}_{ts}.csv"
-        df.to_csv(out_csv, index=False)
-        self.logger.info(f"Wrote {len(df)} records to {out_csv}")
+        out_csv = output_path / f"{friendly_name}_{ts}.csv"
+        temp_csv = output_path / f".{out_csv.name}.{uuid4().hex}.tmp"
+
+        records_written = 0
+        try:
+            for page in iter_record_pages_by_id(
+                self,
+                table_id,
+                select_fields=fids,
+                where=where,
+                page_size=min(chunk_size, 1000),
+                record_limit=record_limit,
+            ):
+                rows = [
+                    {
+                        label: record.get(str(field_id), {}).get("value")
+                        for label, field_id in field_columns
+                    }
+                    for record in page
+                ]
+                frame = pd.DataFrame(rows, columns=field_labels)
+                first_page = records_written == 0
+                frame.to_csv(
+                    temp_csv,
+                    mode="w" if first_page else "a",
+                    header=first_page,
+                    index=False,
+                )
+                records_written += len(frame)
+                self.logger.info(f"Wrote CSV page with {len(frame)} records")
+
+            if not records_written:
+                self.logger.warning("No records for filter.")
+                return ""
+
+            temp_csv.replace(out_csv)
+        except BaseException:
+            temp_csv.unlink(missing_ok=True)
+            raise
+
+        self.logger.info(f"Wrote {records_written} records to {out_csv}")
         return str(out_csv)
 
     # ----------------

@@ -328,12 +328,15 @@ an uncertain connection, timeout, or gateway failure.
 deleted = qb.delete_file("My App", "Projects", record_id=42, field="Attachment", version_number=2)
 ```
 
-## Concurrent exports and attachments
+## Record exports and concurrent attachments
 
-`download_records_to_csv()` reads records concurrently in Quickbase's maximum 1,000-record
-pages. `chunk_size` controls each page and is capped at 1,000 without skipping offsets;
-`max_concurrency` bounds the number of requests in flight. Query pages use the same timeout,
-rate-limit, retry, exception, and diagnostic rules as other read operations.
+`download_records_to_csv()` scans records in stable Record ID# order and writes each page to a
+temporary CSV before moving the completed export into place. `chunk_size` controls each page and
+is capped at Quickbase's 1,000-record maximum. `record_limit` is exact. The existing
+`max_concurrency` argument remains accepted for compatibility, but record pages are fetched
+sequentially so inserts or deletes cannot cause fixed offsets to skip or duplicate records. Query
+pages use the same timeout, rate-limit, retry, exception, and diagnostic rules as other read
+operations.
 
 The existing `download_attachments_async()` and `download_table_attachments_async()` names are
 preserved for compatibility. They are synchronous entry points that use bounded asynchronous I/O
