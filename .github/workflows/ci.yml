@@ -71,7 +71,20 @@ jobs:
       - name: Build package
         run: uv build
 
+      - name: Validate distribution metadata and contents
+        run: |
+          uv run --frozen twine check --strict dist/*
+          uv run --frozen python scripts/verify_distribution.py dist
+
       - name: Verify wheel installation
         run: |
           wheel_path="$(find dist -name '*.whl' -print -quit)"
-          uv run --isolated --no-project --with "$wheel_path" python -c "import qbvisor"
+          uv run --isolated --no-project --with "$wheel_path" \
+            python -c "import qbvisor; print(qbvisor.__version__)"
+
+      - name: Verify installed type information
+        run: |
+          wheel_path="$(find dist -name '*.whl' -print -quit)"
+          mypy_version="$(uv run --frozen mypy --version | awk '{print $2}')"
+          uv run --isolated --no-project --with "$wheel_path" --with "mypy==$mypy_version" \
+            mypy --config-file=/dev/null --strict tests/typing/installed_package.py

@@ -21,6 +21,8 @@ uv run ruff format --check .
 uv run mypy src/qbvisor
 uv run pytest
 uv build
+uv run twine check --strict dist/*
+uv run python scripts/verify_distribution.py dist
 ```
 
 ## Compatibility
