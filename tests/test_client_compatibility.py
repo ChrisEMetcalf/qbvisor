@@ -195,6 +195,22 @@ def test_app_events_and_roles_use_documented_array_responses(client):
     ]
 
 
+def test_list_fields_preserves_complete_metadata_and_permissions(client):
+    client._request.return_value = [
+        {"id": 6, "label": "Name", "fieldType": "text", "permissions": []}
+    ]
+
+    result = client.get_fields_for_table("Operations", "Projects")
+
+    assert result[0]["permissions"] == []
+    client._request.assert_called_once_with(
+        method="GET",
+        path="fields",
+        params={"tableId": "tbl_projects", "includeFieldPerms": "true"},
+        response_type=list,
+    )
+
+
 def test_app_resource_preserves_get_update_copy_and_delete_requests(client):
     client._request.side_effect = [
         {"id": "app_operations"},

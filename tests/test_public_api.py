@@ -4,6 +4,13 @@ import qbvisor
 def test_existing_public_exports_remain_available():
     expected_exports = {
         "QuickBaseClient",
+        "ApplicationBackup",
+        "BackupManifest",
+        "BackupOptions",
+        "BackupArtifactKind",
+        "BackupVerification",
+        "BackupConsistencyError",
+        "BackupIntegrityError",
         "QuickBaseTransport",
         "QuickbaseBatchError",
         "RetryPolicy",

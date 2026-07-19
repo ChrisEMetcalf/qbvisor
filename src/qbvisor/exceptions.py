@@ -99,3 +99,20 @@ class QuickbaseResponseError(QuickbaseError):
         else:
             message = f"{method} {path} returned an invalid JSON response"
         super().__init__(f"{message}{ray}")
+
+
+class BackupConsistencyError(QuickbaseError):
+    """Raised when records changed during a backup that requires consistency."""
+
+    def __init__(self, changed_tables: tuple[str, ...]):
+        self.changed_tables = changed_tables
+        joined = ", ".join(changed_tables)
+        super().__init__(f"Records changed during the backup in table(s): {joined}")
+
+
+class BackupIntegrityError(QuickbaseError):
+    """Raised when a completed backup fails integrity verification."""
+
+    def __init__(self, issues: tuple[str, ...]):
+        self.issues = issues
+        super().__init__(f"Backup integrity verification failed: {'; '.join(issues)}")

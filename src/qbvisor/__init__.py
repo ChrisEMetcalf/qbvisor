@@ -20,8 +20,22 @@ for dotenv_path in possible_paths:
         load_dotenv(dotenv_path=dotenv_path)
         break
 
+from .backup import (
+    BACKUP_FORMAT,
+    BACKUP_FORMAT_VERSION,
+    ApplicationBackup,
+    AttachmentVersionMode,
+    BackupArtifact,
+    BackupArtifactKind,
+    BackupManifest,
+    BackupOptions,
+    BackupTable,
+    BackupVerification,
+)
 from .client import QuickBaseClient
 from .exceptions import (
+    BackupConsistencyError,
+    BackupIntegrityError,
     QuickbaseBatchError,
     QuickbaseConfigurationError,
     QuickbaseConnectionError,
@@ -46,6 +60,18 @@ from .transport import QuickBaseTransport, RetryPolicy
 
 __all__ = [
     "QuickBaseClient",
+    "BACKUP_FORMAT",
+    "BACKUP_FORMAT_VERSION",
+    "ApplicationBackup",
+    "AttachmentVersionMode",
+    "BackupArtifact",
+    "BackupArtifactKind",
+    "BackupManifest",
+    "BackupOptions",
+    "BackupTable",
+    "BackupVerification",
+    "BackupConsistencyError",
+    "BackupIntegrityError",
     "QuickBaseTransport",
     "RetryPolicy",
     "QuickbaseError",

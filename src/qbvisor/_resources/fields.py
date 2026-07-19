@@ -23,6 +23,14 @@ class FieldResource(BaseResource):
             json_body={"label": label, "fieldType": field_type},
         )
 
+    def list_for_table(self, app_name: str, table_name: str) -> list[dict[str, Any]]:
+        _, table_id = self._ids(app_name, table_name)
+        return self._request_array(
+            method="GET",
+            path="fields",
+            params={"tableId": table_id, "includeFieldPerms": "true"},
+        )
+
     def delete(
         self,
         app_name: str,
