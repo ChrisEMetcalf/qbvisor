@@ -584,7 +584,15 @@ def test_records_modified_since_normalizes_time_and_resolves_field_labels(client
     result = client.records_modified_since(
         "Operations",
         "Projects",
-        datetime(2026, 7, 18, 12, 30, tzinfo=timezone(timedelta(hours=-5))),
+        datetime(
+            2026,
+            7,
+            18,
+            12,
+            30,
+            microsecond=987_654,
+            tzinfo=timezone(timedelta(hours=-5)),
+        ),
         field_list=["Name", 7],
         include_details=True,
     )
@@ -606,7 +614,7 @@ def test_records_modified_since_normalizes_time_and_resolves_field_labels(client
 def test_records_modified_since_accepts_a_utc_string(client):
     client._request.return_value = {"count": 0}
 
-    client.records_modified_since("Operations", "Projects", "2026-07-18T17:30:00Z")
+    client.records_modified_since("Operations", "Projects", "2026-07-18T17:30:00.999999Z")
 
     client._request.assert_called_once_with(
         method="POST",

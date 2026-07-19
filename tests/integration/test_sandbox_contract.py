@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
@@ -235,6 +236,19 @@ def test_records_modified_since_returns_persistent_fixture_changes(
     changed_record_ids = {change["recordId"] for change in changes}
     assert set(sandbox_contract.record_ids.values()).issubset(changed_record_ids)
     assert all(change["changeType"] in {"CREATE", "MODIFY", "DELETE"} for change in changes)
+
+
+def test_records_modified_since_accepts_a_current_fractional_timestamp(
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+):
+    response = sandbox_client.records_modified_since(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        datetime.now(UTC),
+    )
+
+    assert response["count"] == 0
 
 
 def test_default_report_contract_when_table_has_reports(
