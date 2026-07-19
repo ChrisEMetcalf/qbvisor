@@ -43,6 +43,7 @@ def application_spec() -> AppSpec:
                 lookup_fields=["name"],
                 summary_fields=[
                     SummaryFieldSpec(
+                        key="total_hours",
                         accumulation_type="SUM",
                         field="hours",
                         label="Total Hours",
@@ -65,6 +66,13 @@ def test_declarative_specs_normalize_sequences_and_build_stable_addresses():
     )
     assert spec.relationships[0].address(spec.key) == (
         "apps.operations.relationships.project_details"
+    )
+    assert spec.relationships[0].lookup_address(spec.key, "name") == (
+        "apps.operations.relationships.project_details.lookups.name"
+    )
+    assert (
+        spec.relationships[0].summary_fields[0].address(spec.key, spec.relationships[0].key)
+        == "apps.operations.relationships.project_details.summaries.total_hours"
     )
 
 
@@ -139,9 +147,9 @@ def test_relationship_generated_fields_cannot_collide_with_declared_child_fields
 
 def test_summary_fields_enforce_quickbase_accumulation_requirements():
     with pytest.raises(ValueError, match="SUM summary fields require"):
-        SummaryFieldSpec(accumulation_type="SUM")
+        SummaryFieldSpec(key="total_hours", accumulation_type="SUM")
     with pytest.raises(ValueError, match="COUNT summary fields must omit"):
-        SummaryFieldSpec(accumulation_type="COUNT", field="hours")
+        SummaryFieldSpec(key="detail_count", accumulation_type="COUNT", field="hours")
 
 
 def test_schema_state_round_trips_stable_resource_bindings():
@@ -154,6 +162,7 @@ def test_schema_state_round_trips_stable_resource_bindings():
                 kind="field",
                 remote_id=12,
                 name="Project Status",
+                attributes={"field_type": "text", "properties": {"choices": ["Active"]}},
             ),
             StateResource(
                 address="apps.operations",
@@ -169,6 +178,10 @@ def test_schema_state_round_trips_stable_resource_bindings():
     assert restored == state
     assert restored.resources[0].address == "apps.operations"
     assert restored.resource("apps.operations.tables.projects.fields.status").remote_id == 12
+    assert restored.resource("apps.operations.tables.projects.fields.status").attributes == {
+        "field_type": "text",
+        "properties": {"choices": ("Active",)},
+    }
 
 
 def test_schema_state_rejects_version_drift_and_mismatched_resource_addresses():

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import re
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import isfinite
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, cast
 from uuid import UUID, uuid4
@@ -15,7 +18,16 @@ from .models import RelationshipAccumulation
 SCHEMA_STATE_FORMAT = "qbvisor-schema-state"
 SCHEMA_STATE_FORMAT_VERSION = 1
 
-SchemaResourceKind = Literal["app", "table", "field", "relationship"]
+SchemaResourceKind = Literal[
+    "app",
+    "table",
+    "field",
+    "relationship",
+    "lookup",
+    "summary",
+]
+SchemaAction = Literal["create", "update", "unchanged", "conflict"]
+SchemaStateAction = Literal["none", "bind"]
 
 _RESOURCE_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
 _ACCUMULATION_TYPES = frozenset(
@@ -38,6 +50,14 @@ _ADDRESS_PATTERNS: dict[SchemaResourceKind, re.Pattern[str]] = {
         r"^apps\.[a-z][a-z0-9_]*\.tables\.[a-z][a-z0-9_]*\.fields\.[a-z][a-z0-9_]*$"
     ),
     "relationship": re.compile(r"^apps\.[a-z][a-z0-9_]*\.relationships\.[a-z][a-z0-9_]*$"),
+    "lookup": re.compile(
+        r"^apps\.[a-z][a-z0-9_]*\.relationships\.[a-z][a-z0-9_]*"
+        r"\.lookups\.[a-z][a-z0-9_]*$"
+    ),
+    "summary": re.compile(
+        r"^apps\.[a-z][a-z0-9_]*\.relationships\.[a-z][a-z0-9_]*"
+        r"\.summaries\.[a-z][a-z0-9_]*$"
+    ),
 }
 
 
@@ -115,6 +135,14 @@ def _freeze_json(value: Any, field_name: str) -> Any:
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
         return tuple(_freeze_json(item, field_name) for item in value)
     raise ValueError(f"{field_name} must contain only JSON-compatible values")
+
+
+def _thaw_json(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _thaw_json(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw_json(item) for item in value]
+    return value
 
 
 def _unique_specs(specs: Sequence[Any], resource_name: str, name_attribute: str) -> None:
@@ -200,12 +228,14 @@ class TableSpec:
 class SummaryFieldSpec:
     """Desired summary field attached to a declarative relationship."""
 
+    key: str
     accumulation_type: RelationshipAccumulation
     field: str | None = None
     label: str | None = None
     where: str | None = None
 
     def __post_init__(self) -> None:
+        _validate_key(self.key, "summary field key")
         if self.accumulation_type not in _ACCUMULATION_TYPES:
             raise ValueError(f"Unsupported accumulation type: {self.accumulation_type}")
         if self.accumulation_type == "COUNT":
@@ -219,6 +249,11 @@ class SummaryFieldSpec:
             _validate_name(self.label, "summary field label")
         if self.where is not None and not isinstance(self.where, str):
             raise ValueError("summary field where must be a string or None")
+
+    def address(self, app_key: str, relationship_key: str) -> str:
+        _validate_key(app_key, "app key")
+        _validate_key(relationship_key, "relationship key")
+        return f"apps.{app_key}.relationships.{relationship_key}.summaries.{self.key}"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -248,10 +283,18 @@ class RelationshipSpec:
             "summary_fields",
             _typed_tuple(self.summary_fields, SummaryFieldSpec, "summary_fields"),
         )
+        summary_keys = [summary.key for summary in self.summary_fields]
+        if len(set(summary_keys)) != len(summary_keys):
+            raise ValueError("summary field resource keys must be unique within a relationship")
 
     def address(self, app_key: str) -> str:
         _validate_key(app_key, "app key")
         return f"apps.{app_key}.relationships.{self.key}"
+
+    def lookup_address(self, app_key: str, field_key: str) -> str:
+        _validate_key(app_key, "app key")
+        _validate_key(field_key, "lookup field key")
+        return f"{self.address(app_key)}.lookups.{field_key}"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -362,6 +405,7 @@ class StateResource:
     kind: SchemaResourceKind
     remote_id: str | int
     name: str
+    attributes: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.kind, str) or self.kind not in _ADDRESS_PATTERNS:
@@ -381,12 +425,17 @@ class StateResource:
             or self.remote_id < 1
         ):
             raise ValueError(f"{self.kind} remote_id must be a positive integer")
+        attributes = _optional_mapping(self.attributes, "state resource attributes")
+        if attributes is None:
+            raise ValueError("state resource attributes must be a mapping")
+        object.__setattr__(self, "attributes", attributes)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "remote_id": self.remote_id,
             "name": self.name,
+            "attributes": _thaw_json(self.attributes),
         }
 
     @classmethod
@@ -404,6 +453,7 @@ class StateResource:
             kind=cast(SchemaResourceKind, kind),
             remote_id=remote_id,
             name=_required_string(payload, "name", f"State resource {address}"),
+            attributes=payload.get("attributes", {}),
         )
 
 
@@ -471,3 +521,165 @@ class SchemaState:
                 for address, resource in resources.items()
             ),
         )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SchemaAttributeChange:
+    """One managed attribute difference included in a schema plan."""
+
+    name: str
+    before: Any
+    after: Any
+
+    def __post_init__(self) -> None:
+        _validate_name(self.name, "schema attribute name")
+        object.__setattr__(self, "before", _freeze_json(self.before, self.name))
+        object.__setattr__(self, "after", _freeze_json(self.after, self.name))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "before": _thaw_json(self.before),
+            "after": _thaw_json(self.after),
+        }
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SchemaChange:
+    """A deterministic action for one declarative schema resource."""
+
+    address: str
+    kind: SchemaResourceKind
+    action: SchemaAction
+    summary: str
+    remote_id: str | int | None = None
+    state_action: SchemaStateAction = "none"
+    attributes: Sequence[SchemaAttributeChange] = ()
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in _ADDRESS_PATTERNS:
+            raise ValueError(f"Unsupported schema resource kind: {self.kind}")
+        if _ADDRESS_PATTERNS[self.kind].fullmatch(self.address) is None:
+            raise ValueError(f"Resource address does not match kind {self.kind}: {self.address}")
+        if self.action not in {"create", "update", "unchanged", "conflict"}:
+            raise ValueError(f"Unsupported schema action: {self.action}")
+        if self.state_action not in {"none", "bind"}:
+            raise ValueError(f"Unsupported schema state action: {self.state_action}")
+        _validate_name(self.summary, "schema change summary")
+        if self.reason is not None:
+            _validate_name(self.reason, "schema change reason")
+        if self.action == "conflict" and self.reason is None:
+            raise ValueError("conflict schema changes require a reason")
+        if self.action == "conflict" and self.state_action != "none":
+            raise ValueError("conflict schema changes cannot bind state")
+        attributes = _typed_tuple(
+            self.attributes, SchemaAttributeChange, "schema change attributes"
+        )
+        names = [attribute.name for attribute in attributes]
+        if len(set(names)) != len(names):
+            raise ValueError("schema change attributes must have unique names")
+        object.__setattr__(
+            self, "attributes", tuple(sorted(attributes, key=lambda item: item.name))
+        )
+
+    @property
+    def mutates_quickbase(self) -> bool:
+        return self.action in {"create", "update"}
+
+    @property
+    def mutates_state(self) -> bool:
+        return self.state_action == "bind" or self.action == "create"
+
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "address": self.address,
+            "kind": self.kind,
+            "action": self.action,
+            "summary": self.summary,
+            "state_action": self.state_action,
+            "attributes": [attribute.to_dict() for attribute in self.attributes],
+        }
+        if self.remote_id is not None:
+            result["remote_id"] = self.remote_id
+        if self.reason is not None:
+            result["reason"] = self.reason
+        return result
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SchemaPlan:
+    """Read-only comparison between one desired app and observed Quickbase state."""
+
+    spec: AppSpec
+    state_path: Path
+    changes: Sequence[SchemaChange]
+    state: SchemaState | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.spec, AppSpec):
+            raise ValueError("schema plan spec must be an AppSpec")
+        if not isinstance(self.state_path, Path):
+            object.__setattr__(self, "state_path", Path(self.state_path))
+        if self.state is not None and not isinstance(self.state, SchemaState):
+            raise ValueError("schema plan state must be a SchemaState or None")
+        changes = _typed_tuple(self.changes, SchemaChange, "schema plan changes")
+        addresses = [change.address for change in changes]
+        if len(set(addresses)) != len(addresses):
+            raise ValueError("schema plan cannot contain duplicate resource addresses")
+        object.__setattr__(self, "changes", tuple(sorted(changes, key=lambda item: item.address)))
+
+    @property
+    def has_conflicts(self) -> bool:
+        return any(change.action == "conflict" for change in self.changes)
+
+    @property
+    def can_apply(self) -> bool:
+        return not self.has_conflicts
+
+    @property
+    def quickbase_change_count(self) -> int:
+        return sum(change.mutates_quickbase for change in self.changes)
+
+    @property
+    def state_change_count(self) -> int:
+        return sum(change.mutates_state for change in self.changes)
+
+    @property
+    def action_counts(self) -> dict[str, int]:
+        counts = Counter(change.action for change in self.changes)
+        return {
+            action: counts.get(action, 0)
+            for action in ("create", "update", "unchanged", "conflict")
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "app": self.spec.address,
+            "state_path": str(self.state_path),
+            "state_serial": self.state.serial if self.state is not None else None,
+            "can_apply": self.can_apply,
+            "quickbase_change_count": self.quickbase_change_count,
+            "state_change_count": self.state_change_count,
+            "action_counts": self.action_counts,
+            "changes": [change.to_dict() for change in self.changes],
+        }
+
+    def __str__(self) -> str:
+        counts = self.action_counts
+        lines = [
+            "Schema plan: "
+            f"{counts['create']} to create, {counts['update']} to update, "
+            f"{counts['unchanged']} unchanged, {counts['conflict']} conflicts"
+        ]
+        markers = {"create": "+", "update": "~", "unchanged": "=", "conflict": "!"}
+        for change in self.changes:
+            binding = " [bind state]" if change.state_action == "bind" else ""
+            lines.append(f"{markers[change.action]} {change.address}: {change.summary}{binding}")
+            for attribute in change.attributes:
+                before = json.dumps(_thaw_json(attribute.before), sort_keys=True)
+                after = json.dumps(_thaw_json(attribute.after), sort_keys=True)
+                lines.append(f"    {attribute.name}: {before} -> {after}")
+            if change.reason is not None:
+                lines.append(f"    reason: {change.reason}")
+        return "\n".join(lines)

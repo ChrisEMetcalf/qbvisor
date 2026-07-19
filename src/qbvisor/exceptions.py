@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 
@@ -99,6 +100,15 @@ class QuickbaseResponseError(QuickbaseError):
         else:
             message = f"{method} {path} returned an invalid JSON response"
         super().__init__(f"{message}{ray}")
+
+
+class QuickbaseSchemaStateError(QuickbaseError):
+    """Raised when a declarative schema state file cannot be trusted."""
+
+    def __init__(self, path: str | Path, detail: str):
+        self.path = Path(path)
+        self.detail = detail
+        super().__init__(f"Invalid schema state at {self.path}: {detail}")
 
 
 class BackupConsistencyError(QuickbaseError):
