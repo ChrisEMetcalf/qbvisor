@@ -9,6 +9,7 @@ import pytest
 from qbvisor import (
     AppSpec,
     FieldSpec,
+    FormulaSpec,
     QuickBaseClient,
     QuickbaseSchemaApplyError,
     QuickbaseSchemaConflictError,
@@ -132,14 +133,20 @@ class StatefulQuickbase:
                 self._update_table(table, body)
             return table
         if path == "fields":
-            field = {"id": 6, "properties": {}, **body}
+            field_id = 6 + len(self.fields[TABLE_ID])
+            field = {"id": field_id, "properties": {}, **body}
+            if "formula" in field["properties"]:
+                field["mode"] = "formula"
+                if field["fieldType"] == "datetime":
+                    field["fieldType"] = "timestamp"
             self.fields[TABLE_ID].append(field)
             return field
-        if path == "fields/6":
-            field = self.fields[TABLE_ID][0]
+        if path.startswith("fields/"):
+            field_id = int(path.split("/")[1])
+            field = next(item for item in self.fields[TABLE_ID] if item["id"] == field_id)
             if not self.ignore_updates:
-                properties = body.pop("properties", None)
-                field.update(body)
+                properties = body.get("properties")
+                field.update({name: value for name, value in body.items() if name != "properties"})
                 if properties is not None:
                     field["properties"].update(properties)
             return field
@@ -275,6 +282,78 @@ def test_apply_updates_only_planned_managed_attributes_and_advances_state(tmp_pa
     assert result.state.lineage == previous.lineage
     assert result.state.serial == previous.serial + 1
     assert result.verification.can_apply
+
+
+def test_apply_creates_and_updates_formula_fields_with_quickbase_syntax(tmp_path):
+    api = StatefulQuickbase(existing=False)
+    client = client_for(api, configured=False)
+    state_path = tmp_path / "state.json"
+
+    def formula_spec(expression: str) -> AppSpec:
+        return AppSpec(
+            key="operations",
+            name="Operations",
+            tables=[
+                TableSpec(
+                    key="projects",
+                    name="Projects",
+                    fields=[
+                        FieldSpec(key="quantity", label="Quantity", field_type="numeric"),
+                        FieldSpec(key="rate", label="Rate", field_type="currency"),
+                        FieldSpec(
+                            key="total",
+                            label="Total",
+                            field_type="currency",
+                            formula=FormulaSpec(
+                                expression=expression,
+                                depends_on=(
+                                    "tables.projects.fields.quantity",
+                                    "tables.projects.fields.rate",
+                                ),
+                            ),
+                            properties={"decimalPlaces": 2},
+                        ),
+                    ],
+                )
+            ],
+        )
+
+    initial = client.apply_app(
+        client.plan_app(formula_spec("[Quantity] * [Rate]"), state_path=state_path)
+    )
+    create_calls = [call for call in mutation_calls(api) if call["path"] == "fields"]
+
+    assert [call["json_body"]["label"] for call in create_calls] == [
+        "Quantity",
+        "Rate",
+        "Total",
+    ]
+    assert create_calls[-1]["json_body"] == {
+        "label": "Total",
+        "fieldType": "currency",
+        "properties": {
+            "decimalPlaces": 2,
+            "formula": "[Quantity] * [Rate]",
+        },
+    }
+    total_resource = initial.state.resource("apps.operations.tables.projects.fields.total")
+    assert total_resource is not None
+    assert total_resource.attributes == {"field_type": "currency", "mode": "formula"}
+
+    api.calls.clear()
+    updated = client.apply_app(
+        client.plan_app(formula_spec("[Quantity] * [Rate] * 2"), state_path=state_path)
+    )
+
+    assert mutation_calls(api) == [
+        {
+            "method": "POST",
+            "path": "fields/8",
+            "params": {"tableId": TABLE_ID},
+            "json_body": {"properties": {"formula": "[Quantity] * [Rate] * 2"}},
+        }
+    ]
+    assert updated.verification.quickbase_change_count == 0
 
 
 def test_apply_rejects_a_stale_plan_before_mutating_or_rewriting_state(tmp_path):

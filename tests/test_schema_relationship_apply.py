@@ -237,30 +237,42 @@ def test_apply_creates_relationship_and_binds_reversed_generated_field_responses
     result = client.apply_app(plan)
 
     posts = mutation_calls(api)
-    assert len(posts) == 1
-    assert posts[0] == {
-        "method": "POST",
-        "path": f"tables/{DETAILS_ID}/relationship",
-        "params": None,
-        "json_body": {
-            "parentTableId": PROJECTS_ID,
-            "foreignKeyField": {"label": "Related Project"},
-            "lookupFieldIds": [6, 7],
-            "summaryFields": [
-                {
-                    "accumulationType": "SUM",
-                    "summaryFid": 8,
-                    "label": "Total Hours",
-                    "where": "{8.GT.0}",
-                },
-                {
-                    "accumulationType": "AVG",
-                    "summaryFid": 12,
-                    "label": "Average Cost",
-                },
-            ],
-        },
-    }
+    assert [(post["path"], post["json_body"]) for post in posts] == [
+        (
+            f"tables/{DETAILS_ID}/relationship",
+            {
+                "parentTableId": PROJECTS_ID,
+                "foreignKeyField": {"label": "Related Project"},
+            },
+        ),
+        (f"tables/{DETAILS_ID}/relationship/9", {"lookupFieldIds": [7]}),
+        (f"tables/{DETAILS_ID}/relationship/9", {"lookupFieldIds": [6]}),
+        (
+            f"tables/{DETAILS_ID}/relationship/9",
+            {
+                "summaryFields": [
+                    {
+                        "accumulationType": "AVG",
+                        "summaryFid": 12,
+                        "label": "Average Cost",
+                    }
+                ]
+            },
+        ),
+        (
+            f"tables/{DETAILS_ID}/relationship/9",
+            {
+                "summaryFields": [
+                    {
+                        "accumulationType": "SUM",
+                        "summaryFid": 8,
+                        "label": "Total Hours",
+                        "where": "{8.GT.0}",
+                    }
+                ]
+            },
+        ),
+    ]
     resources = {resource.address: resource for resource in result.state.resources}
     assert resources["apps.operations.relationships.project_details.lookups.name"].remote_id == 11
     assert resources["apps.operations.relationships.project_details.lookups.budget"].remote_id == 13
@@ -332,23 +344,34 @@ def test_apply_adds_missing_generated_fields_to_an_existing_relationship(tmp_pat
     result = client.apply_app(client.plan_app(full_spec, state_path=state_path))
 
     posts = mutation_calls(api)
-    assert len(posts) == 1
-    assert posts[0]["path"] == f"tables/{DETAILS_ID}/relationship/9"
-    assert posts[0]["json_body"] == {
-        "lookupFieldIds": [6, 7],
-        "summaryFields": [
+    assert [(post["path"], post["json_body"]) for post in posts] == [
+        (f"tables/{DETAILS_ID}/relationship/9", {"lookupFieldIds": [7]}),
+        (f"tables/{DETAILS_ID}/relationship/9", {"lookupFieldIds": [6]}),
+        (
+            f"tables/{DETAILS_ID}/relationship/9",
             {
-                "accumulationType": "SUM",
-                "summaryFid": 8,
-                "label": "Total Hours",
-                "where": "{8.GT.0}",
+                "summaryFields": [
+                    {
+                        "accumulationType": "AVG",
+                        "summaryFid": 12,
+                        "label": "Average Cost",
+                    }
+                ]
             },
+        ),
+        (
+            f"tables/{DETAILS_ID}/relationship/9",
             {
-                "accumulationType": "AVG",
-                "summaryFid": 12,
-                "label": "Average Cost",
+                "summaryFields": [
+                    {
+                        "accumulationType": "SUM",
+                        "summaryFid": 8,
+                        "label": "Total Hours",
+                        "where": "{8.GT.0}",
+                    }
+                ]
             },
-        ],
-    }
+        ),
+    ]
     assert result.state.serial == 2
     assert result.verification.quickbase_change_count == 0

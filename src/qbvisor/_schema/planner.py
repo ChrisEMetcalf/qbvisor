@@ -895,24 +895,8 @@ class SchemaPlanner:
             if label_change is not None:
                 relation_attributes.append(label_change)
 
-        lookup_creates = self._plan_lookups(relationship, parent, child, remote)
-        summary_creates = self._plan_summaries(relationship, parent, child, remote)
-        if lookup_creates:
-            relation_attributes.append(
-                SchemaAttributeChange(
-                    name="lookup_fields.add",
-                    before=[],
-                    after=lookup_creates,
-                )
-            )
-        if summary_creates:
-            relation_attributes.append(
-                SchemaAttributeChange(
-                    name="summary_fields.add",
-                    before=[],
-                    after=summary_creates,
-                )
-            )
+        self._plan_lookups(relationship, parent, child, remote)
+        self._plan_summaries(relationship, parent, child, remote)
         action: SchemaAction = "update" if relation_attributes else "unchanged"
         self.changes.append(
             SchemaChange(
@@ -936,10 +920,9 @@ class SchemaPlanner:
         parent: _TableObservation,
         child: _TableObservation,
         remote: Mapping[str, Any],
-    ) -> list[str]:
+    ) -> None:
         remote_lookups = _objects(remote.get("lookupFields", []), "relationships", "lookupFields")
         lookup_ids = {_required_integer(item, "id", "relationships") for item in remote_lookups}
-        creates: list[str] = []
         for field_key in relationship.lookup_fields:
             address = relationship.lookup_address(self.spec.key, field_key)
             desired_target = parent.field_ids_by_key.get(field_key)
@@ -962,7 +945,6 @@ class SchemaPlanner:
                             summary=f"Create lookup {relationship.key}.{field_key}",
                         )
                     )
-                    creates.append(field_key)
                 continue
 
             candidates = [
@@ -1019,7 +1001,6 @@ class SchemaPlanner:
                         summary=f"Create lookup {relationship.key}.{field_key}",
                     )
                 )
-                creates.append(field_key)
             else:
                 label = _required_string(child.fields_by_id[remote_id], "label", "fields")
                 self.changes.append(
@@ -1032,7 +1013,6 @@ class SchemaPlanner:
                         state_action=state_action,
                     )
                 )
-        return creates
 
     def _plan_summaries(
         self,
@@ -1040,12 +1020,11 @@ class SchemaPlanner:
         parent: _TableObservation,
         child: _TableObservation,
         remote: Mapping[str, Any],
-    ) -> list[str]:
+    ) -> None:
         remote_summaries = _objects(
             remote.get("summaryFields", []), "relationships", "summaryFields"
         )
         summary_ids = {_required_integer(item, "id", "relationships") for item in remote_summaries}
-        creates: list[str] = []
         for summary in relationship.summary_fields:
             address = summary.address(self.spec.key, relationship.key)
             desired_target = (
@@ -1063,7 +1042,6 @@ class SchemaPlanner:
                     )
                 else:
                     self._append_summary_create(relationship, summary)
-                    creates.append(summary.key)
                 continue
 
             candidates = [
@@ -1152,7 +1130,6 @@ class SchemaPlanner:
 
             if remote_id is None:
                 self._append_summary_create(relationship, summary)
-                creates.append(summary.key)
                 continue
 
             remote_label = _required_string(parent.fields_by_id[remote_id], "label", "fields")
@@ -1177,7 +1154,6 @@ class SchemaPlanner:
                     attributes=attributes,
                 )
             )
-        return creates
 
     @staticmethod
     def _summary_definition_matches(
