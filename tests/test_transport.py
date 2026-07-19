@@ -13,6 +13,7 @@ from qbvisor import (
     QuickbaseRateLimitError,
     QuickbaseResponseError,
     QuickbaseTimeoutError,
+    __version__,
 )
 from qbvisor.transport import DEFAULT_TIMEOUT, QuickBaseTransport, RetryPolicy
 
@@ -62,6 +63,14 @@ def test_reuses_session_and_applies_default_timeout():
     assert session.request.call_count == 2
     assert session.request.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
     assert session.request.call_args.kwargs["headers"]["Authorization"] == "secret-token"
+
+
+def test_user_agent_reports_installed_package_version():
+    session = Mock(spec=requests.Session)
+
+    client = transport(session)
+
+    assert client.headers["User-Agent"] == f"qbvisor/{__version__}"
 
 
 def test_injected_session_is_not_closed():
