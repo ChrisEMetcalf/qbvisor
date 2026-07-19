@@ -698,10 +698,16 @@ def test_query_dataframe_uses_quickbase_labels_as_columns(client):
     )
 
 
-def test_run_report_marks_read_like_post_as_safe(client):
+def test_run_report_uses_quickbase_native_response_size_by_default(client):
     client._request.return_value = {
         "fields": [{"id": 6, "label": "Name"}],
         "data": [{"6": {"value": "Migration"}}],
+        "metadata": {
+            "numFields": 1,
+            "numRecords": 1,
+            "totalRecords": 1,
+            "skip": 0,
+        },
     }
 
     result = client.run_report("Operations", "Projects", 12)
@@ -710,9 +716,106 @@ def test_run_report_marks_read_like_post_as_safe(client):
     client._request.assert_called_once_with(
         method="POST",
         path="reports/12/run",
-        params={"tableId": "tbl_projects", "skip": 0, "top": 1000},
+        params={"tableId": "tbl_projects"},
         retry_policy=RetryPolicy.SAFE,
     )
+
+
+def test_run_report_continues_when_quickbase_shortens_the_native_response(client):
+    client._request.side_effect = [
+        {
+            "fields": [{"id": 6, "label": "Name"}],
+            "data": [
+                {"6": {"value": "Migration"}},
+                {"6": {"value": "Backup"}},
+            ],
+            "metadata": {
+                "numFields": 1,
+                "numRecords": 2,
+                "totalRecords": 3,
+                "skip": 0,
+            },
+        },
+        {
+            "fields": [{"id": 6, "label": "Name"}],
+            "data": [{"6": {"value": "Rebuild"}}],
+            "metadata": {
+                "numFields": 1,
+                "numRecords": 1,
+                "totalRecords": 3,
+                "skip": 2,
+            },
+        },
+    ]
+
+    result = client.run_report("Operations", "Projects", 12)
+
+    pd.testing.assert_frame_equal(
+        result,
+        pd.DataFrame([{"Name": "Migration"}, {"Name": "Backup"}, {"Name": "Rebuild"}]),
+    )
+    assert client._request.call_args_list == [
+        call(
+            method="POST",
+            path="reports/12/run",
+            params={"tableId": "tbl_projects"},
+            retry_policy=RetryPolicy.SAFE,
+        ),
+        call(
+            method="POST",
+            path="reports/12/run",
+            params={"tableId": "tbl_projects", "skip": 2},
+            retry_policy=RetryPolicy.SAFE,
+        ),
+    ]
+
+
+def test_run_report_treats_explicit_top_as_a_total_limit(client):
+    client._request.side_effect = [
+        {
+            "fields": [{"id": 6, "label": "Name"}],
+            "data": [
+                {"6": {"value": "Migration"}},
+                {"6": {"value": "Backup"}},
+            ],
+            "metadata": {
+                "numFields": 1,
+                "numRecords": 2,
+                "totalRecords": 5,
+                "skip": 1,
+                "top": 3,
+            },
+        },
+        {
+            "fields": [{"id": 6, "label": "Name"}],
+            "data": [{"6": {"value": "Rebuild"}}],
+            "metadata": {
+                "numFields": 1,
+                "numRecords": 1,
+                "totalRecords": 5,
+                "skip": 3,
+                "top": 1,
+            },
+        },
+    ]
+
+    result = client.run_report("Operations", "Projects", 12, skip=1, top=3)
+
+    assert list(result["Name"]) == ["Migration", "Backup", "Rebuild"]
+    assert client._request.call_args_list == [
+        call(
+            method="POST",
+            path="reports/12/run",
+            params={"tableId": "tbl_projects", "skip": 1, "top": 3},
+            retry_policy=RetryPolicy.SAFE,
+        ),
+        call(
+            method="POST",
+            path="reports/12/run",
+            params={"tableId": "tbl_projects", "skip": 3, "top": 1},
+            retry_policy=RetryPolicy.SAFE,
+        ),
+    ]
 
 
 def test_run_formula_marks_read_like_post_as_safe(client):

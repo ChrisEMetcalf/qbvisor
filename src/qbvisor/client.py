@@ -11,6 +11,7 @@ import aiofiles
 import pandas as pd
 from dotenv import load_dotenv
 
+from ._pagination import iter_intelligent_pages
 from ._records.pagination import iter_record_pages_by_id
 from ._resources.apps import AppResource
 from ._resources.fields import FieldResource
@@ -531,7 +532,12 @@ class QuickBaseClient:
         )
 
     def run_report(
-        self, app_name: str, table_name: str, report_id: int, skip: int = 0, top: int = 1000
+        self,
+        app_name: str,
+        table_name: str,
+        report_id: int,
+        skip: int = 0,
+        top: int | None = None,
     ) -> pd.DataFrame:
         """
         Run a report: POST /v1/reports/{reportId}/run
@@ -541,21 +547,37 @@ class QuickBaseClient:
             table_name (str): The name of the table.
             report_id (int): Report ID.
             skip (int): Number of records to skip. Default is 0.
-            top (int): Number of records to return. Default is 1000.
+            top (Optional[int]): Maximum total records to return. By default, the complete report is returned.
 
         Returns:
             pd.DataFrame: DataFrame containing the report data.
         """
         _, table_id = self._ids(app_name, table_name)
 
-        params = {"tableId": table_id, "skip": skip, "top": top}
-        resp = self._request(
-            method="POST",
-            path=f"reports/{report_id}/run",
-            params=params,
-            retry_policy=RetryPolicy.SAFE,
-        )
-        return pd.DataFrame(self._parse_report(resp))
+        path = f"reports/{report_id}/run"
+
+        def fetch_page(page_skip: int, page_top: int | None) -> dict[str, Any]:
+            params: dict[str, Any] = {"tableId": table_id}
+            if page_skip:
+                params["skip"] = page_skip
+            if page_top is not None:
+                params["top"] = page_top
+            return self._request(
+                method="POST",
+                path=path,
+                params=params,
+                retry_policy=RetryPolicy.SAFE,
+            )
+
+        rows: list[dict[str, Any]] = []
+        for response in iter_intelligent_pages(
+            fetch_page,
+            path=path,
+            skip=skip,
+            top=top,
+        ):
+            rows.extend(self._parse_report(response))
+        return pd.DataFrame(rows)
 
     @staticmethod
     def _parse_report(resp: dict[str, Any]) -> list[dict[str, Any]]:
