@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Sequence
 from typing import Any, Protocol
 
+from .._pagination import required_count
 from ..exceptions import QuickbaseResponseError
 
 RECORD_ID_FIELD_ID = 3
@@ -22,18 +23,6 @@ class RecordQueryClient(Protocol):
         skip: int = 0,
         top: int = 1000,
     ) -> dict[str, Any]: ...
-
-
-def _required_count(metadata: dict[str, Any], key: str) -> int:
-    value = metadata.get(key)
-    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise QuickbaseResponseError(
-            "POST",
-            "records/query",
-            expected=f"non-negative integer metadata.{key}",
-            actual=type(value).__name__,
-        )
-    return value
 
 
 def _record_id(record: dict[str, Any], table_id: str) -> int:
@@ -63,7 +52,7 @@ def _validate_response_fields(
             actual=type(fields).__name__,
         )
     response_field_ids = [field.get("id") for field in fields]
-    num_fields = _required_count(metadata, "numFields")
+    num_fields = required_count(metadata, "numFields", path="records/query")
     if (
         num_fields != len(fields)
         or not all(
@@ -152,8 +141,8 @@ def iter_record_pages_by_id(
                 actual=type(metadata).__name__,
             )
         _validate_response_fields(response, metadata, field_ids)
-        num_records = _required_count(metadata, "numRecords")
-        total_records = _required_count(metadata, "totalRecords")
+        num_records = required_count(metadata, "numRecords", path="records/query")
+        total_records = required_count(metadata, "totalRecords", path="records/query")
         if num_records != len(data) or num_records > total_records or num_records > request_size:
             raise QuickbaseResponseError(
                 "POST",
