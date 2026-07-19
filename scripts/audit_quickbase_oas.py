@@ -39,6 +39,7 @@ SUPPORTED_OPERATIONS = (
     ("DELETE", "/tables/{tableId}"),
     ("GET", "/tables/{tableId}/relationships"),
     ("POST", "/tables/{tableId}/relationship"),
+    ("POST", "/tables/{tableId}/relationship/{relationshipId}"),
     ("DELETE", "/tables/{tableId}/relationship/{relationshipId}"),
     ("GET", "/reports"),
     ("GET", "/reports/{reportId}"),

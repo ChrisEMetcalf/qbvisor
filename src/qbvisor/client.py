@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeVar, cast, overload
@@ -15,6 +16,7 @@ from .exceptions import QuickbaseBatchError, QuickbaseResponseError
 from .helpers import sanitize_filenames
 from .log_runner import get_logger
 from .metadata import QuickBaseMetaCache
+from .models import RelationshipSummary
 from .transport import QuickBaseTransport, RetryPolicy
 
 logger = get_logger(__name__)
@@ -439,6 +441,75 @@ class QuickBaseClient:
             path=f"tables/{table_id}/relationship",
             json_body=body,
         )
+
+    def update_relationship(
+        self,
+        app_name: str,
+        table_name: str,
+        relationship: str | int,
+        *,
+        lookup_fields: Sequence[str | int] | None = None,
+        summary_fields: Sequence[RelationshipSummary] | None = None,
+    ) -> dict[str, Any]:
+        """Add lookup or summary fields to an existing table relationship."""
+        if not lookup_fields and not summary_fields:
+            raise ValueError("Provide at least one lookup field or summary field")
+
+        app_id, child_table_id = self._ids(app_name, table_name)
+        relationship_id = (
+            relationship
+            if isinstance(relationship, int)
+            else self.meta.get_field_id(app_id, child_table_id, relationship)
+        )
+        body: dict[str, Any] = {}
+
+        if lookup_fields:
+            parent_table_id: str | None = None
+            if any(isinstance(field, str) for field in lookup_fields):
+                relationships = self.get_all_relationships(app_name, table_name)
+                match = next(
+                    (item for item in relationships if item.get("id") == relationship_id),
+                    None,
+                )
+                if match is None or not isinstance(match.get("parentTableId"), str):
+                    raise ValueError(f"Relationship {relationship_id} was not found")
+                parent_table_id = match["parentTableId"]
+            body["lookupFieldIds"] = [
+                field
+                if isinstance(field, int)
+                else self.meta.get_field_id(app_id, cast(str, parent_table_id), field)
+                for field in lookup_fields
+            ]
+
+        if summary_fields:
+            summaries: list[dict[str, Any]] = []
+            for summary in summary_fields:
+                definition: dict[str, Any] = {
+                    "accumulationType": summary.accumulation_type,
+                }
+                if summary.field is not None:
+                    definition["summaryFid"] = (
+                        summary.field
+                        if isinstance(summary.field, int)
+                        else self.meta.get_field_id(app_id, child_table_id, summary.field)
+                    )
+                if summary.label is not None:
+                    definition["label"] = summary.label
+                if summary.where is not None:
+                    definition["where"] = summary.where
+                summaries.append(definition)
+            body["summaryFields"] = summaries
+
+        response = self._request(
+            method="POST",
+            path=f"tables/{child_table_id}/relationship/{relationship_id}",
+            json_body=body,
+        )
+        self.meta.invalidate_fields(app_id, child_table_id)
+        parent_id = response.get("parentTableId")
+        if isinstance(parent_id, str):
+            self.meta.invalidate_fields(app_id, parent_id)
+        return response
 
     def delete_relationship(
         self,

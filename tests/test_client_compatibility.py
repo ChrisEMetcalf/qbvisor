@@ -8,10 +8,16 @@ import pytest
 import qbvisor.client as client_module
 from qbvisor.client import QuickBaseClient
 from qbvisor.exceptions import QuickbaseResponseError
+from qbvisor.models import RelationshipSummary
 from qbvisor.transport import RetryPolicy
 
 
 class FakeMeta:
+    invalidated_fields: list[tuple[str, str]]
+
+    def __init__(self):
+        self.invalidated_fields = []
+
     cache = {
         "Operations": {
             "tables": {
@@ -35,8 +41,11 @@ class FakeMeta:
 
     def get_field_id(self, app: str, table: str, label: str) -> int:
         assert app == "app_operations"
-        assert table == "tbl_projects"
-        return {"Record ID#": 3, "Name": 6, "Status": 7}[label]
+        fields = {
+            "tbl_projects": {"Record ID#": 3, "Name": 6, "Status": 7, "Hours": 8},
+            "tbl_customers": {"Record ID#": 3, "Customer Name": 6},
+        }
+        return fields[table][label]
 
     def get_field_map(self, app: str, table: str) -> dict[str, dict[str, object]]:
         assert app == "app_operations"
@@ -55,6 +64,9 @@ class FakeMeta:
     def normalize_app(self, app: str) -> str:
         assert app == "app_operations"
         return "Operations"
+
+    def invalidate_fields(self, app: str, table: str) -> None:
+        self.invalidated_fields.append((app, table))
 
 
 @pytest.fixture
@@ -299,6 +311,79 @@ def test_relationship_mutations_match_documented_paths_and_body(client):
         method="DELETE",
         path="tables/tbl_projects/relationship/7",
     )
+
+
+def test_update_relationship_resolves_typed_lookup_and_summary_fields(client):
+    client._request.side_effect = [
+        {
+            "relationships": [
+                {"id": 7, "parentTableId": "tbl_customers", "childTableId": "tbl_projects"}
+            ]
+        },
+        {"id": 7, "parentTableId": "tbl_customers", "childTableId": "tbl_projects"},
+    ]
+
+    result = client.update_relationship(
+        "Operations",
+        "Projects",
+        "Status",
+        lookup_fields=["Customer Name", 3],
+        summary_fields=[
+            RelationshipSummary("SUM", "Hours", label="Total Hours"),
+            RelationshipSummary("COUNT", label="Project Count", where="{7.EX.'Active'}"),
+        ],
+    )
+
+    assert result["id"] == 7
+    assert client._request.call_args_list == [
+        call(method="GET", path="tables/tbl_projects/relationships"),
+        call(
+            method="POST",
+            path="tables/tbl_projects/relationship/7",
+            json_body={
+                "lookupFieldIds": [6, 3],
+                "summaryFields": [
+                    {
+                        "accumulationType": "SUM",
+                        "summaryFid": 8,
+                        "label": "Total Hours",
+                    },
+                    {
+                        "accumulationType": "COUNT",
+                        "label": "Project Count",
+                        "where": "{7.EX.'Active'}",
+                    },
+                ],
+            },
+        ),
+    ]
+    assert client.meta.invalidated_fields == [
+        ("app_operations", "tbl_projects"),
+        ("app_operations", "tbl_customers"),
+    ]
+
+
+def test_update_relationship_accepts_ids_without_metadata_lookup(client):
+    client._request.return_value = {
+        "id": 7,
+        "parentTableId": "tbl_customers",
+        "childTableId": "tbl_projects",
+    }
+
+    client.update_relationship("Operations", "Projects", 7, lookup_fields=[6])
+
+    client._request.assert_called_once_with(
+        method="POST",
+        path="tables/tbl_projects/relationship/7",
+        json_body={"lookupFieldIds": [6]},
+    )
+
+
+def test_update_relationship_requires_a_schema_change(client):
+    with pytest.raises(ValueError, match="at least one lookup field or summary field"):
+        client.update_relationship("Operations", "Projects", 7)
+
+    client._request.assert_not_called()
 
 
 def test_query_records_translates_labels_to_field_ids(client):

@@ -10,8 +10,8 @@
   },
   "coverage": {
     "totalOperations": 67,
-    "supportedOperations": 30,
-    "missingOperations": 37,
+    "supportedOperations": 31,
+    "missingOperations": 36,
     "byTag": [
       {
         "tag": "Apps",
@@ -88,8 +88,8 @@
       {
         "tag": "Tables",
         "total": 9,
-        "supported": 8,
-        "missing": 1
+        "supported": 9,
+        "missing": 0
       },
       {
         "tag": "Trustees",
@@ -690,7 +690,7 @@
       "operationId": "updateRelationship",
       "tag": "Tables",
       "summary": "Update a relationship",
-      "supported": false,
+      "supported": true,
       "successShapes": [
         "object"
       ]
@@ -1011,6 +1011,18 @@
       "method": "POST",
       "path": "/tables/{tableId}/relationship",
       "operationId": "createRelationship",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/tables/{tableId}/relationship/{relationshipId}",
+      "operationId": "updateRelationship",
       "responses": {
         "200": {
           "description": "Success",

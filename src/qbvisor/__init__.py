@@ -38,6 +38,7 @@ from .helpers import (
     summarize_file_sizes,
 )
 from .log_runner import LoggingConfigurator, get_logger
+from .models import RelationshipAccumulation, RelationshipSummary
 from .query_helper import QueryHelper
 from .transport import QuickBaseTransport, RetryPolicy
 
@@ -56,6 +57,8 @@ __all__ = [
     "QuickbaseRateLimitError",
     "QuickbaseResponseError",
     "QueryHelper",
+    "RelationshipAccumulation",
+    "RelationshipSummary",
     "sanitize_filenames",
     "ensure_temp_dir",
     "generate_timestamped_folder",
