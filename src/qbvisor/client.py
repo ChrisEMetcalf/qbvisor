@@ -715,7 +715,7 @@ class QuickBaseClient:
             fields_to_return (Optional[List[str]]): Field labels to return in response (optional).
 
         Returns:
-            dict: Validated write outcome with returned data, record ID groups, and line errors.
+            dict: Aggregated write outcome with returned data, record ID groups, and line errors.
         """
         app_id, table_id = self._ids(app_name, table_name)
 

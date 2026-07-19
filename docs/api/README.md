@@ -17,6 +17,9 @@ uv run python scripts/audit_quickbase_oas.py --refresh --write
 - Empty successful responses preserve the existing `{}` compatibility behavior.
 - The transport accepts a `207` upsert response as a JSON object. `upsert_records()` validates its
   metadata, returns `success=False`, and preserves line errors and every successful record outcome.
+- Upsert inputs are fully serialized and preflighted before mutation. Requests exceeding the 40 MB
+  endpoint limit are split sequentially, and batch-local line errors are restored to original input
+  positions.
 - Quickbase error objects preserve `message` and `description`. Exceptions also preserve the HTTP status, `Retry-After`, and `qb-api-ray` header when present.
 
 ## File responses
