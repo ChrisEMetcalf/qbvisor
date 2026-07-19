@@ -192,6 +192,12 @@ messages.
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [Configuration and authentication](docs/configuration.md)
+- [Data queries, reports, and record movement](docs/data-workflows.md)
+- [Building Quickbase applications](docs/application-building.md)
+- [Backups and attachments](docs/backups-and-attachments.md)
+- [Logging, errors, and recovery](docs/logging-and-errors.md)
+- [Upgrading from 0.2 to 0.3](docs/upgrading-to-0.3.md)
 - [Declarative schemas](docs/declarative-schemas.md)
 - [Quickbase API coverage and response contract](docs/api/README.md)
 - [Changelog](CHANGELOG.md)
