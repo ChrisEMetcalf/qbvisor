@@ -60,6 +60,7 @@ EXPECTED_SUCCESS_SHAPES = {
     ("GET", "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}"): "binary",
 }
 DEFAULT_SUCCESS_SHAPE = "object"
+HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete"})
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -135,13 +136,15 @@ def _build_manifest(
     source_sha256: str,
     source_headers: dict[str, str],
     retrieved_at: str,
+    supported_operations: tuple[tuple[str, str], ...] = SUPPORTED_OPERATIONS,
 ) -> dict[str, Any]:
     paths = document.get("paths")
     if not isinstance(paths, dict):
         raise ValueError("Quickbase specification does not contain a paths object")
 
+    supported_set = set(supported_operations)
     operations: list[dict[str, Any]] = []
-    for method, path in SUPPORTED_OPERATIONS:
+    for method, path in supported_operations:
         path_item = paths.get(path)
         operation = path_item.get(method.lower()) if isinstance(path_item, dict) else None
         if not isinstance(operation, dict):
@@ -160,6 +163,44 @@ def _build_manifest(
             }
         )
 
+    available_operations: list[dict[str, Any]] = []
+    tag_counts: dict[str, dict[str, int]] = {}
+    for path, path_item in paths.items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            normalized_method = method.upper()
+            is_supported = (normalized_method, path) in supported_set
+            tags = operation.get("tags", [])
+            tag = str(tags[0]) if isinstance(tags, list) and tags else "Untagged"
+            responses = operation.get("responses", {})
+            success_shapes = sorted(
+                {
+                    _response_entry(document, response).get("shape", "unspecified")
+                    for code, response in responses.items()
+                    if str(code).isdigit() and 200 <= int(code) < 300
+                }
+            )
+            available_operations.append(
+                {
+                    "method": normalized_method,
+                    "path": path,
+                    "operationId": operation.get("operationId"),
+                    "tag": tag,
+                    "summary": operation.get("summary", ""),
+                    "supported": is_supported,
+                    "successShapes": success_shapes,
+                }
+            )
+            counts = tag_counts.setdefault(tag, {"total": 0, "supported": 0, "missing": 0})
+            counts["total"] += 1
+            counts["supported" if is_supported else "missing"] += 1
+
+    available_operations.sort(key=lambda item: (item["tag"], item["path"], item["method"]))
+    supported_count = sum(operation["supported"] for operation in available_operations)
+
     info = document.get("info", {})
     return {
         "source": {
@@ -171,8 +212,28 @@ def _build_manifest(
             "oasVersion": document.get("swagger") or document.get("openapi"),
             "apiVersion": info.get("version") if isinstance(info, dict) else None,
         },
+        "coverage": {
+            "totalOperations": len(available_operations),
+            "supportedOperations": supported_count,
+            "missingOperations": len(available_operations) - supported_count,
+            "byTag": [{"tag": tag, **counts} for tag, counts in sorted(tag_counts.items())],
+        },
+        "availableOperations": available_operations,
         "supportedOperations": operations,
     }
+
+
+def _manifests_equivalent(tracked: dict[str, Any], current: dict[str, Any]) -> bool:
+    """Compare API content while ignoring retrieval-only source metadata."""
+    tracked_copy = json.loads(json.dumps(tracked))
+    current_copy = json.loads(json.dumps(current))
+    for manifest in (tracked_copy, current_copy):
+        source = manifest.get("source")
+        if isinstance(source, dict):
+            source.pop("retrievedAt", None)
+            source.pop("etag", None)
+            source.pop("lastModified", None)
+    return tracked_copy == current_copy
 
 
 def _audit(manifest: dict[str, Any]) -> list[str]:
@@ -251,7 +312,7 @@ def main() -> int:
     if not args.write:
         if not MANIFEST_PATH.exists():
             issues.append(f"tracked manifest is missing: {MANIFEST_PATH}")
-        elif _load_json(MANIFEST_PATH) != manifest:
+        elif not _manifests_equivalent(_load_json(MANIFEST_PATH), manifest):
             issues.append("tracked manifest is stale; rerun with --write")
     if issues:
         for issue in issues:
