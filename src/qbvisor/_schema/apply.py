@@ -118,6 +118,7 @@ class SchemaApplier:
                 state_path=plan.state_path,
                 state=verification.state,
                 changes=verification.changes,
+                execution_order=verification.execution_order,
             )
             return SchemaApplyResult(
                 plan=plan,

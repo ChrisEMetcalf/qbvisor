@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from ..exceptions import QuickbaseHTTPError, QuickbaseResponseError
 from ..schema import (
     AppSpec,
+    FieldSpec,
     RelationshipSpec,
     SchemaAction,
     SchemaAttributeChange,
@@ -21,12 +23,17 @@ from ..schema import (
     SummaryFieldSpec,
     TableSpec,
 )
+from .dependencies import SchemaDependencyOrder, plan_schema_dependencies
 from .state import DEFAULT_SCHEMA_STATE_PATH, load_schema_state
 
 if TYPE_CHECKING:
     from ..client import QuickBaseClient
 
 _ObservationStatus = Literal["existing", "create", "conflict"]
+_FORMULA_QUERY_FUNCTION = re.compile(
+    r"\b(?:GetRecord|GetRecordByUniqueField|GetRecords|GetFieldValues|SumValues)\s*\(",
+    re.IGNORECASE,
+)
 
 
 @dataclass(slots=True)
@@ -114,6 +121,21 @@ def _variables(payload: Mapping[str, Any], path: str) -> dict[str, str]:
     return result
 
 
+def _remote_field_type_matches(spec: FieldSpec, remote_type: str) -> bool:
+    return remote_type == spec.field_type or (
+        spec.field_type == "datetime" and remote_type == "timestamp"
+    )
+
+
+def _formula_warnings(spec: FieldSpec) -> tuple[str, ...]:
+    if spec.formula is None or _FORMULA_QUERY_FUNCTION.search(spec.formula.expression) is None:
+        return ()
+    return (
+        "Formula query detected; review Quickbase performance before filtering, sorting, "
+        "or grouping on this field",
+    )
+
+
 class SchemaPlanner:
     """Observe Quickbase through the existing client and produce a mutation-free plan."""
 
@@ -146,12 +168,40 @@ class SchemaPlanner:
             assert app_reason is not None
             self._block_descendants(app_reason)
 
+        dependency_order = plan_schema_dependencies(spec)
+        self._apply_dependency_conflicts(dependency_order)
+
         return SchemaPlan(
             spec=spec,
             state_path=resolved_state_path,
             state=self.state,
             changes=self.changes,
+            execution_order=dependency_order.review_order,
         )
+
+    def _apply_dependency_conflicts(self, order: SchemaDependencyOrder) -> None:
+        if not order.blocked:
+            return
+        cycle = " -> ".join(order.cycle) if order.cycle else "unknown dependency cycle"
+        reason = f"schema dependency cycle prevents a safe execution order: {cycle}"
+        blocked = set(order.blocked)
+        revised: list[SchemaChange] = []
+        for change in self.changes:
+            if change.address not in blocked:
+                revised.append(change)
+                continue
+            revised.append(
+                SchemaChange(
+                    address=change.address,
+                    kind=change.kind,
+                    action="conflict",
+                    summary=f"Cannot order {change.kind} {change.address}",
+                    remote_id=change.remote_id,
+                    reason=reason,
+                    warnings=change.warnings,
+                )
+            )
+        self.changes = revised
 
     def _binding(self, address: str) -> StateResource | None:
         return self.state.resource(address) if self.state is not None else None
@@ -182,6 +232,7 @@ class SchemaPlanner:
         address: str,
         kind: SchemaResourceKind,
         summary: str,
+        warnings: Sequence[str] = (),
     ) -> bool:
         binding = self._binding(address)
         if binding is not None:
@@ -197,7 +248,13 @@ class SchemaPlanner:
             )
             return False
         self.changes.append(
-            SchemaChange(address=address, kind=kind, action="create", summary=summary)
+            SchemaChange(
+                address=address,
+                kind=kind,
+                action="create",
+                summary=summary,
+                warnings=warnings,
+            )
         )
         return True
 
@@ -325,6 +382,7 @@ class SchemaPlanner:
                     address=field_spec.address(self.spec.key, table.key),
                     kind="field",
                     summary=f"Create field {table.name}.{field_spec.label}",
+                    warnings=_formula_warnings(field_spec),
                 )
                 observation.field_ids_by_key[field_spec.key] = None
                 if not field_created:
@@ -413,6 +471,7 @@ class SchemaPlanner:
                         address=field_spec.address(self.spec.key, table_spec.key),
                         kind="field",
                         summary=f"Create field {table_spec.name}.{field_spec.label}",
+                        warnings=_formula_warnings(field_spec),
                     )
                     observation.field_ids_by_key[field_spec.key] = None
                     if not field_created:
@@ -530,6 +589,7 @@ class SchemaPlanner:
                     address=address,
                     kind="field",
                     summary=f"Create field {table.spec.name}.{field_spec.label}",
+                    warnings=_formula_warnings(field_spec),
                 )
                 table.field_ids_by_key[field_spec.key] = None
                 if not created:
@@ -541,7 +601,7 @@ class SchemaPlanner:
             remote_label = _required_string(remote, "label", "fields")
             remote_type = _required_string(remote, "fieldType", "fields")
             table.field_ids_by_key[field_spec.key] = field_id
-            if remote_type != field_spec.field_type:
+            if not _remote_field_type_matches(field_spec, remote_type):
                 self._append_conflict(
                     address=address,
                     kind="field",
@@ -549,6 +609,24 @@ class SchemaPlanner:
                     reason=(
                         f"Quickbase field type is {remote_type!r}, but desired type is "
                         f"{field_spec.field_type!r}; field types are immutable"
+                    ),
+                    remote_id=field_id,
+                )
+                continue
+
+            remote_mode = remote.get("mode", "")
+            if not isinstance(remote_mode, str):
+                raise _response_error("fields", "string property mode", remote_mode)
+            desired_mode = "formula" if field_spec.formula is not None else ""
+            if remote_mode != desired_mode:
+                self._append_conflict(
+                    address=address,
+                    kind="field",
+                    summary=f"Cannot change field mode for {table.spec.name}.{remote_label}",
+                    reason=(
+                        f"Quickbase field mode is {remote_mode!r}, but desired mode is "
+                        f"{desired_mode!r}; scalar and derived field modes cannot be converted "
+                        "through the JSON API"
                     ),
                     remote_id=field_id,
                 )
@@ -572,6 +650,19 @@ class SchemaPlanner:
                 if desired is not None:
                     candidates.append(_attribute(spec_name, remote.get(response_name), desired))
             remote_properties = _properties(remote, "fields")
+            if field_spec.formula is not None:
+                remote_formula = remote_properties.get("formula")
+                if not isinstance(remote_formula, str):
+                    raise _response_error(
+                        "fields", "formula field string property formula", remote_formula
+                    )
+                candidates.append(
+                    _attribute(
+                        "formula.expression",
+                        remote_formula.rstrip(),
+                        field_spec.formula.expression,
+                    )
+                )
             if field_spec.properties is not None:
                 candidates.extend(
                     _attribute(f"properties.{name}", remote_properties.get(name), desired)
@@ -591,6 +682,7 @@ class SchemaPlanner:
                     remote_id=field_id,
                     state_action=state_action,
                     attributes=attributes,
+                    warnings=_formula_warnings(field_spec),
                 )
             )
 

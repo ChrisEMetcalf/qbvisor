@@ -655,6 +655,7 @@ class SchemaChange:
     state_action: SchemaStateAction = "none"
     attributes: Sequence[SchemaAttributeChange] = ()
     reason: str | None = None
+    warnings: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         if self.kind not in _ADDRESS_PATTERNS:
@@ -681,6 +682,14 @@ class SchemaChange:
         object.__setattr__(
             self, "attributes", tuple(sorted(attributes, key=lambda item: item.name))
         )
+        if isinstance(self.warnings, (str, bytes)) or not isinstance(self.warnings, Sequence):
+            raise ValueError("schema change warnings must be a sequence of strings")
+        warnings = tuple(self.warnings)
+        if not all(isinstance(warning, str) and warning.strip() for warning in warnings):
+            raise ValueError("schema change warnings must contain only non-empty strings")
+        if len(set(warnings)) != len(warnings):
+            raise ValueError("schema change warnings cannot contain duplicates")
+        object.__setattr__(self, "warnings", warnings)
 
     @property
     def mutates_quickbase(self) -> bool:
@@ -703,6 +712,8 @@ class SchemaChange:
             result["remote_id"] = self.remote_id
         if self.reason is not None:
             result["reason"] = self.reason
+        if self.warnings:
+            result["warnings"] = list(self.warnings)
         return result
 
 
@@ -714,6 +725,7 @@ class SchemaPlan:
     state_path: Path
     changes: Sequence[SchemaChange]
     state: SchemaState | None = None
+    execution_order: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.spec, AppSpec):
@@ -727,6 +739,22 @@ class SchemaPlan:
         if len(set(addresses)) != len(addresses):
             raise ValueError("schema plan cannot contain duplicate resource addresses")
         object.__setattr__(self, "changes", tuple(sorted(changes, key=lambda item: item.address)))
+        if isinstance(self.execution_order, (str, bytes)) or not isinstance(
+            self.execution_order, Sequence
+        ):
+            raise ValueError("schema plan execution_order must be a sequence of addresses")
+        execution_order = tuple(self.execution_order)
+        if not all(isinstance(address, str) for address in execution_order):
+            raise ValueError("schema plan execution_order must contain only string addresses")
+        if len(set(execution_order)) != len(execution_order):
+            raise ValueError("schema plan execution_order cannot contain duplicate addresses")
+        change_addresses = {change.address for change in changes}
+        unknown = set(execution_order) - change_addresses
+        if unknown:
+            raise ValueError(
+                f"schema plan execution_order contains unknown addresses: {sorted(unknown)}"
+            )
+        object.__setattr__(self, "execution_order", execution_order)
 
     @property
     def has_conflicts(self) -> bool:
@@ -761,6 +789,7 @@ class SchemaPlan:
             "quickbase_change_count": self.quickbase_change_count,
             "state_change_count": self.state_change_count,
             "action_counts": self.action_counts,
+            "execution_order": list(self.execution_order),
             "changes": [change.to_dict() for change in self.changes],
         }
 
@@ -781,6 +810,14 @@ class SchemaPlan:
                 lines.append(f"    {attribute.name}: {before} -> {after}")
             if change.reason is not None:
                 lines.append(f"    reason: {change.reason}")
+            for warning in change.warnings:
+                lines.append(f"    warning: {warning}")
+        if self.execution_order:
+            lines.append("Execution order:")
+            lines.extend(
+                f"    {index}. {address}"
+                for index, address in enumerate(self.execution_order, start=1)
+            )
         return "\n".join(lines)
 
 
