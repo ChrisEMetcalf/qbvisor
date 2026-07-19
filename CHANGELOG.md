@@ -14,6 +14,8 @@ heading.
   artifact attestations, and a documented maintainer procedure.
 - Add task-focused guides, a generated public API reference, strict documentation validation, and
   the planned `0.3.0` migration.
+- Publish the reviewed documentation site through GitHub Pages and expose its canonical URL in
+  package metadata.
 - Add a shared synchronous transport with pooled connections, explicit timeouts, structured
   exceptions, and operation-aware retries ([#3]).
 - Add app events, app roles, field usage, relationship lookup, relationship summary, and record

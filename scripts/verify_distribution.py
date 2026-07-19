@@ -19,7 +19,12 @@ EXPECTED_CLASSIFIERS = {
     "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 }
-EXPECTED_PROJECT_URLS = {"Changelog", "Documentation", "Issues", "Repository"}
+EXPECTED_PROJECT_URLS = {
+    "Changelog": "https://github.com/ChrisEMetcalf/qbvisor/blob/main/CHANGELOG.md",
+    "Documentation": "https://chrisemetcalf.github.io/qbvisor/",
+    "Issues": "https://github.com/ChrisEMetcalf/qbvisor/issues",
+    "Repository": "https://github.com/ChrisEMetcalf/qbvisor",
+}
 REQUIRED_SDIST_FILES = {
     "CHANGELOG.md",
     "LICENSE.md",
@@ -167,13 +172,17 @@ def _validate_metadata(metadata: Message, wheel: Path, sdist: Path) -> str:
         )
 
     project_urls = {
-        value.partition(",")[0].strip() for value in metadata.get_all("Project-URL", [])
+        label.strip(): url.strip()
+        for value in metadata.get_all("Project-URL", [])
+        for label, separator, url in [value.partition(",")]
+        if separator
     }
-    missing_urls = EXPECTED_PROJECT_URLS - project_urls
-    if missing_urls:
-        raise DistributionValidationError(
-            f"Distribution metadata is missing project URLs: {sorted(missing_urls)}"
-        )
+    for label, expected in EXPECTED_PROJECT_URLS.items():
+        actual = project_urls.get(label)
+        if actual != expected:
+            raise DistributionValidationError(
+                f"Project URL {label} must be {expected!r}; found {actual!r}"
+            )
 
     license_files = set(metadata.get_all("License-File", []))
     if "LICENSE.md" not in license_files:

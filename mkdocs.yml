@@ -1,5 +1,6 @@
 site_name: qbvisor
 site_description: Developer-focused Python SDK for building on Quickbase
+site_url: https://chrisemetcalf.github.io/qbvisor/
 repo_url: https://github.com/ChrisEMetcalf/qbvisor
 repo_name: ChrisEMetcalf/qbvisor
 edit_uri: edit/main/docs/
