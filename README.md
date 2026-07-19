@@ -361,6 +361,37 @@ an uncertain connection, timeout, or gateway failure.
 deleted = qb.delete_file("My App", "Projects", record_id=42, field="Attachment", version_number=2)
 ```
 
+## Record writes
+
+`upsert_records()` accepts developer-facing field labels and sends Quickbase field IDs. Its result
+keeps the existing `success`, `createdRecordIds`, and `totalProcessed` keys while preserving the
+complete documented write outcome:
+
+```python
+result = qb.upsert_records(
+    "My App",
+    "Projects",
+    [{"Project Key": "migration-42", "Status": "Active"}],
+    merge_field_label="Project Key",
+    fields_to_return=["Project Key", "Status"],
+)
+
+returned_record = result["data"][0]
+updated_ids = result["updatedRecordIds"]
+```
+
+`data` retains Quickbase's native field-ID cell structure and includes Record ID# when return
+fields are requested. `updatedRecordIds` and `unchangedRecordIds` distinguish writes from records
+that already held the submitted values. A partial `207` response returns `success=False`,
+`partial=True`, and one-based `lineErrors` while retaining every successful outcome from the same
+request. Malformed or incomplete success responses raise `QuickbaseResponseError`.
+
+Record mutations are not automatically retried after uncertain connection failures. Use a stable,
+unique `merge_field_label` when a caller may retry an operation; retrying append-only writes can
+create duplicate records. `upsert_records()` currently sends one request and therefore remains
+subject to Quickbase's 40 MB upsert payload limit. Payload-aware batching is intentionally handled
+as a separate feature because several requests cannot provide transaction-level atomicity.
+
 ## Record exports and concurrent attachments
 
 `download_records_to_csv()` scans records in stable Record ID# order and writes each page to a

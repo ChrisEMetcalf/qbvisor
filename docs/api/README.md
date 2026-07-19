@@ -15,7 +15,8 @@ uv run python scripts/audit_quickbase_oas.py --refresh --write
 - The transport returns any valid JSON value without wrapping it.
 - High-level methods enforce the documented top-level response shape. Apps, individual resources, relationships, record operations, formulas, and report runs return objects. Table, report, field, app-event, app-role, and field-usage collections return arrays.
 - Empty successful responses preserve the existing `{}` compatibility behavior.
-- A `207` upsert response remains a successful object. Callers can inspect `metadata.lineErrors` alongside successfully processed records.
+- The transport accepts a `207` upsert response as a JSON object. `upsert_records()` validates its
+  metadata, returns `success=False`, and preserves line errors and every successful record outcome.
 - Quickbase error objects preserve `message` and `description`. Exceptions also preserve the HTTP status, `Retry-After`, and `qb-api-ray` header when present.
 
 ## File responses
