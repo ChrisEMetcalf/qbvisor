@@ -216,13 +216,18 @@ def test_apply_creates_app_table_and_field_then_publishes_verified_state(tmp_pat
 
     result = client.apply_app(plan)
 
-    assert [call["path"] for call in mutation_calls(api)] == ["apps", "tables", "fields"]
+    assert [call["path"] for call in mutation_calls(api)] == [
+        "apps",
+        "tables",
+        "fields",
+        "fields/6",
+    ]
     assert mutation_calls(api)[2]["json_body"] == {
         "label": "Status",
         "fieldType": "text-multiple-choice",
-        "required": True,
         "properties": {"choices": ["Ready", "Complete"]},
     }
+    assert mutation_calls(api)[3]["json_body"] == {"required": True}
     assert result.quickbase_change_count == 3
     assert result.state_written
     assert result.state.serial == 1

@@ -65,10 +65,11 @@ def _field_body(spec: FieldSpec, *, create: bool) -> dict[str, Any]:
         "add_to_forms": "addToForms",
         "bold": "bold",
     }
-    for spec_name, request_name in top_level.items():
-        value = getattr(spec, spec_name)
-        if value is not None:
-            body[request_name] = value
+    if not create:
+        for spec_name, request_name in top_level.items():
+            value = getattr(spec, spec_name)
+            if value is not None:
+                body[request_name] = value
     if spec.properties is not None:
         body["properties"] = _thaw_json(spec.properties)
     return body
@@ -273,7 +274,18 @@ class SchemaApplier:
                 params={"tableId": table_id},
                 json_body=_field_body(spec, create=True),
             )
-            return _required_integer(response, "id", "Create field")
+            field_id = _required_integer(response, "id", "Create field")
+            settings = _field_body(spec, create=False)
+            settings.pop("label")
+            settings.pop("properties", None)
+            if settings:
+                self.client._request(
+                    method="POST",
+                    path=f"fields/{field_id}",
+                    params={"tableId": table_id},
+                    json_body=settings,
+                )
+            return field_id
 
         field_id = cast(int, change.remote_id)
         if change.action == "update":
