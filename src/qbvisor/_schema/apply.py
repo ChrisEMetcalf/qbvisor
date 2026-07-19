@@ -30,8 +30,6 @@ from .state import (
 if TYPE_CHECKING:
     from ..client import QuickBaseClient
 
-_RELATIONSHIP_KINDS = frozenset({"relationship", "lookup", "summary"})
-
 
 def _required_string(payload: Mapping[str, Any], key: str, context: str) -> str:
     value = payload.get(key)
@@ -89,17 +87,6 @@ class SchemaApplier:
             raise QuickbaseSchemaConflictError(
                 "Schema plan contains conflicts; resolve them and create a new plan"
             )
-        unsupported = [
-            change
-            for change in plan.changes
-            if change.kind in _RELATIONSHIP_KINDS
-            and (change.mutates_quickbase or change.mutates_state)
-        ]
-        if unsupported:
-            raise QuickbaseSchemaApplyError(
-                "Relationship changes are not supported by this apply stage"
-            )
-
         with SchemaStateLock(plan.state_path):
             current = self.client.plan_app(plan.spec, state_path=plan.state_path)
             if current != plan:
@@ -144,6 +131,8 @@ class SchemaApplier:
             resource.address: resource
             for resource in (plan.state.resources if plan.state is not None else ())
         }
+        table_ids: dict[str, str] = {}
+        field_ids: dict[tuple[str, str], int] = {}
 
         app_change = changes[plan.spec.address]
         app_id = self._apply_app(plan.spec, app_change)
@@ -158,6 +147,7 @@ class SchemaApplier:
             table_address = table_spec.address(plan.spec.key)
             table_change = changes[table_address]
             table_id = self._apply_table(app_id, table_spec, table_change)
+            table_ids[table_spec.key] = table_id
             resources[table_address] = StateResource(
                 address=table_address,
                 kind="table",
@@ -168,6 +158,7 @@ class SchemaApplier:
                 field_address = field_spec.address(plan.spec.key, table_spec.key)
                 field_change = changes[field_address]
                 field_id = self._apply_field(table_id, field_spec, field_change)
+                field_ids[(table_spec.key, field_spec.key)] = field_id
                 resources[field_address] = StateResource(
                     address=field_address,
                     kind="field",
@@ -175,6 +166,17 @@ class SchemaApplier:
                     name=field_spec.label,
                     attributes={"field_type": field_spec.field_type},
                 )
+
+        from .relationship_apply import apply_relationships
+
+        apply_relationships(
+            self.client,
+            plan.spec,
+            changes,
+            resources,
+            table_ids,
+            field_ids,
+        )
 
         return SchemaState(
             lineage=plan.state.lineage if plan.state is not None else SchemaState().lineage,
