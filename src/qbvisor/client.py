@@ -170,6 +170,24 @@ class QuickBaseClient:
 
         return self._request(method="GET", path=f"apps/{app_id}", params={"appId": app_id})
 
+    def get_app_events(self, app_name: str) -> list[dict[str, Any]]:
+        """List events configured in an app: GET /v1/apps/{appId}/events."""
+        app_id, _ = self._ids(app_name)
+        return self._request(
+            method="GET",
+            path=f"apps/{app_id}/events",
+            response_type=list,
+        )
+
+    def get_app_roles(self, app_name: str) -> list[dict[str, Any]]:
+        """List roles configured in an app: GET /v1/apps/{appId}/roles."""
+        app_id, _ = self._ids(app_name)
+        return self._request(
+            method="GET",
+            path=f"apps/{app_id}/roles",
+            response_type=list,
+        )
+
     def update_app(
         self,
         app_name: str,
@@ -573,6 +591,51 @@ class QuickBaseClient:
         body = {"fieldIds": field_ids}
         return self._request(
             method="DELETE", path="fields", params={"tableId": table_id}, json_body=body
+        )
+
+    def get_fields_usage(
+        self,
+        app_name: str,
+        table_name: str,
+        *,
+        skip: int | None = None,
+        top: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return usage statistics for fields in a table: GET /v1/fields/usage."""
+        if skip is not None and skip < 0:
+            raise ValueError("skip cannot be negative")
+        if top is not None and top < 1:
+            raise ValueError("top must be at least 1")
+
+        _, table_id = self._ids(app_name, table_name)
+        params: dict[str, Any] = {"tableId": table_id}
+        if skip is not None:
+            params["skip"] = skip
+        if top is not None:
+            params["top"] = top
+        return self._request(
+            method="GET",
+            path="fields/usage",
+            params=params,
+            response_type=list,
+        )
+
+    def get_field_usage(
+        self,
+        app_name: str,
+        table_name: str,
+        field: str | int,
+    ) -> list[dict[str, Any]]:
+        """Return usage statistics for one field: GET /v1/fields/usage/{fieldId}."""
+        app_id, table_id = self._ids(app_name, table_name)
+        field_id = (
+            field if isinstance(field, int) else self.meta.get_field_id(app_id, table_id, field)
+        )
+        return self._request(
+            method="GET",
+            path=f"fields/usage/{field_id}",
+            params={"tableId": table_id},
+            response_type=list,
         )
 
     # ----------------

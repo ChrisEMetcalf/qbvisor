@@ -10,14 +10,14 @@
   },
   "coverage": {
     "totalOperations": 67,
-    "supportedOperations": 26,
-    "missingOperations": 41,
+    "supportedOperations": 30,
+    "missingOperations": 37,
     "byTag": [
       {
         "tag": "Apps",
         "total": 7,
-        "supported": 5,
-        "missing": 2
+        "supported": 7,
+        "missing": 0
       },
       {
         "tag": "Audit",
@@ -40,8 +40,8 @@
       {
         "tag": "Fields",
         "total": 7,
-        "supported": 5,
-        "missing": 2
+        "supported": 7,
+        "missing": 0
       },
       {
         "tag": "Files",
@@ -173,7 +173,7 @@
       "operationId": "getAppEvents",
       "tag": "Apps",
       "summary": "Get app events",
-      "supported": false,
+      "supported": true,
       "successShapes": [
         "array"
       ]
@@ -184,7 +184,7 @@
       "operationId": "getRoles",
       "tag": "Apps",
       "summary": "Get app roles",
-      "supported": false,
+      "supported": true,
       "successShapes": [
         "array"
       ]
@@ -272,7 +272,7 @@
       "operationId": "getFieldsUsage",
       "tag": "Fields",
       "summary": "Get usage for all fields",
-      "supported": false,
+      "supported": true,
       "successShapes": [
         "array"
       ]
@@ -283,7 +283,7 @@
       "operationId": "getFieldUsage",
       "tag": "Fields",
       "summary": "Get usage for a field",
-      "supported": false,
+      "supported": true,
       "successShapes": [
         "array"
       ]
@@ -913,6 +913,30 @@
     },
     {
       "method": "GET",
+      "path": "/apps/{appId}/events",
+      "operationId": "getAppEvents",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/apps/{appId}/roles",
+      "operationId": "getRoles",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
       "path": "/tables",
       "operationId": "getAppTables",
       "responses": {
@@ -1099,6 +1123,30 @@
         "200": {
           "description": "Success",
           "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/fields/usage",
+      "operationId": "getFieldsUsage",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/fields/usage/{fieldId}",
+      "operationId": "getFieldUsage",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
           "mediaType": "application/json"
         }
       }

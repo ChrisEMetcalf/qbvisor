@@ -30,6 +30,8 @@ SUPPORTED_OPERATIONS = (
     ("POST", "/apps/{appId}"),
     ("DELETE", "/apps/{appId}"),
     ("POST", "/apps/{appId}/copy"),
+    ("GET", "/apps/{appId}/events"),
+    ("GET", "/apps/{appId}/roles"),
     ("GET", "/tables"),
     ("POST", "/tables"),
     ("GET", "/tables/{tableId}"),
@@ -46,6 +48,8 @@ SUPPORTED_OPERATIONS = (
     ("DELETE", "/fields"),
     ("GET", "/fields/{fieldId}"),
     ("POST", "/fields/{fieldId}"),
+    ("GET", "/fields/usage"),
+    ("GET", "/fields/usage/{fieldId}"),
     ("POST", "/formula/run"),
     ("POST", "/records"),
     ("DELETE", "/records"),
@@ -55,8 +59,12 @@ SUPPORTED_OPERATIONS = (
 
 EXPECTED_SUCCESS_SHAPES = {
     ("GET", "/tables"): "array",
+    ("GET", "/apps/{appId}/events"): "array",
+    ("GET", "/apps/{appId}/roles"): "array",
     ("GET", "/reports"): "array",
     ("GET", "/fields"): "array",
+    ("GET", "/fields/usage"): "array",
+    ("GET", "/fields/usage/{fieldId}"): "array",
     ("GET", "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}"): "binary",
 }
 DEFAULT_SUCCESS_SHAPE = "object"

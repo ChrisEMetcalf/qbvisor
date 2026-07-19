@@ -1,6 +1,6 @@
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import pandas as pd
 import pytest
@@ -138,6 +138,31 @@ def test_update_app_requires_at_least_one_change(client):
         client.update_app("Operations")
 
 
+def test_app_events_and_roles_use_documented_array_responses(client):
+    client._request.side_effect = [
+        [{"type": "webhook", "name": "Sync"}],
+        [{"id": 10, "name": "Viewer"}],
+    ]
+
+    events = client.get_app_events("Operations")
+    roles = client.get_app_roles("Operations")
+
+    assert events == [{"type": "webhook", "name": "Sync"}]
+    assert roles == [{"id": 10, "name": "Viewer"}]
+    assert client._request.call_args_list == [
+        call(
+            method="GET",
+            path="apps/app_operations/events",
+            response_type=list,
+        ),
+        call(
+            method="GET",
+            path="apps/app_operations/roles",
+            response_type=list,
+        ),
+    ]
+
+
 def test_create_table_preserves_existing_request_shape(client):
     client._request.return_value = {"id": "tbl_new"}
 
@@ -200,6 +225,53 @@ def test_field_mutations_put_table_id_in_query_parameter(client):
         params={"tableId": "tbl_projects"},
         json_body={"fieldIds": [7]},
     )
+
+
+def test_field_usage_resolves_names_and_preserves_pagination(client):
+    client._request.side_effect = [
+        [{"field": {"id": 6, "name": "Name"}, "usage": {}}],
+        [{"field": {"id": 7, "name": "Status"}, "usage": {}}],
+        [{"field": {"id": 6, "name": "Name"}, "usage": {}}],
+    ]
+
+    usage = client.get_fields_usage("Operations", "Projects", skip=5, top=25)
+    by_label = client.get_field_usage("Operations", "Projects", "Status")
+    by_id = client.get_field_usage("Operations", "Projects", 6)
+
+    assert usage[0]["field"]["id"] == 6
+    assert by_label[0]["field"]["id"] == 7
+    assert by_id[0]["field"]["id"] == 6
+    assert client._request.call_args_list == [
+        call(
+            method="GET",
+            path="fields/usage",
+            params={"tableId": "tbl_projects", "skip": 5, "top": 25},
+            response_type=list,
+        ),
+        call(
+            method="GET",
+            path="fields/usage/7",
+            params={"tableId": "tbl_projects"},
+            response_type=list,
+        ),
+        call(
+            method="GET",
+            path="fields/usage/6",
+            params={"tableId": "tbl_projects"},
+            response_type=list,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [({"skip": -1}, "skip cannot be negative"), ({"top": 0}, "top must be at least 1")],
+)
+def test_field_usage_rejects_invalid_pagination(client, kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        client.get_fields_usage("Operations", "Projects", **kwargs)
+
+    client._request.assert_not_called()
 
 
 def test_relationship_mutations_match_documented_paths_and_body(client):
