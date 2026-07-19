@@ -1,6 +1,7 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import pandas as pd
 import pytest
@@ -8,10 +9,16 @@ import pytest
 import qbvisor.client as client_module
 from qbvisor.client import QuickBaseClient
 from qbvisor.exceptions import QuickbaseResponseError
+from qbvisor.models import RelationshipSummary
 from qbvisor.transport import RetryPolicy
 
 
 class FakeMeta:
+    invalidated_fields: list[tuple[str, str]]
+
+    def __init__(self):
+        self.invalidated_fields = []
+
     cache = {
         "Operations": {
             "tables": {
@@ -35,8 +42,17 @@ class FakeMeta:
 
     def get_field_id(self, app: str, table: str, label: str) -> int:
         assert app == "app_operations"
-        assert table == "tbl_projects"
-        return {"Record ID#": 3, "Name": 6, "Status": 7}[label]
+        fields = {
+            "tbl_projects": {
+                "Record ID#": 3,
+                "Name": 6,
+                "Status": 7,
+                "Hours": 8,
+                "Attachment": 12,
+            },
+            "tbl_customers": {"Record ID#": 3, "Customer Name": 6},
+        }
+        return fields[table][label]
 
     def get_field_map(self, app: str, table: str) -> dict[str, dict[str, object]]:
         assert app == "app_operations"
@@ -55,6 +71,9 @@ class FakeMeta:
     def normalize_app(self, app: str) -> str:
         assert app == "app_operations"
         return "Operations"
+
+    def invalidate_fields(self, app: str, table: str) -> None:
+        self.invalidated_fields.append((app, table))
 
 
 @pytest.fixture
@@ -138,6 +157,31 @@ def test_update_app_requires_at_least_one_change(client):
         client.update_app("Operations")
 
 
+def test_app_events_and_roles_use_documented_array_responses(client):
+    client._request.side_effect = [
+        [{"type": "webhook", "name": "Sync"}],
+        [{"id": 10, "name": "Viewer"}],
+    ]
+
+    events = client.get_app_events("Operations")
+    roles = client.get_app_roles("Operations")
+
+    assert events == [{"type": "webhook", "name": "Sync"}]
+    assert roles == [{"id": 10, "name": "Viewer"}]
+    assert client._request.call_args_list == [
+        call(
+            method="GET",
+            path="apps/app_operations/events",
+            response_type=list,
+        ),
+        call(
+            method="GET",
+            path="apps/app_operations/roles",
+            response_type=list,
+        ),
+    ]
+
+
 def test_create_table_preserves_existing_request_shape(client):
     client._request.return_value = {"id": "tbl_new"}
 
@@ -202,6 +246,53 @@ def test_field_mutations_put_table_id_in_query_parameter(client):
     )
 
 
+def test_field_usage_resolves_names_and_preserves_pagination(client):
+    client._request.side_effect = [
+        [{"field": {"id": 6, "name": "Name"}, "usage": {}}],
+        [{"field": {"id": 7, "name": "Status"}, "usage": {}}],
+        [{"field": {"id": 6, "name": "Name"}, "usage": {}}],
+    ]
+
+    usage = client.get_fields_usage("Operations", "Projects", skip=5, top=25)
+    by_label = client.get_field_usage("Operations", "Projects", "Status")
+    by_id = client.get_field_usage("Operations", "Projects", 6)
+
+    assert usage[0]["field"]["id"] == 6
+    assert by_label[0]["field"]["id"] == 7
+    assert by_id[0]["field"]["id"] == 6
+    assert client._request.call_args_list == [
+        call(
+            method="GET",
+            path="fields/usage",
+            params={"tableId": "tbl_projects", "skip": 5, "top": 25},
+            response_type=list,
+        ),
+        call(
+            method="GET",
+            path="fields/usage/7",
+            params={"tableId": "tbl_projects"},
+            response_type=list,
+        ),
+        call(
+            method="GET",
+            path="fields/usage/6",
+            params={"tableId": "tbl_projects"},
+            response_type=list,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [({"skip": -1}, "skip cannot be negative"), ({"top": 0}, "top must be at least 1")],
+)
+def test_field_usage_rejects_invalid_pagination(client, kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        client.get_fields_usage("Operations", "Projects", **kwargs)
+
+    client._request.assert_not_called()
+
+
 def test_relationship_mutations_match_documented_paths_and_body(client):
     client._request.return_value = {"id": 9}
 
@@ -227,6 +318,79 @@ def test_relationship_mutations_match_documented_paths_and_body(client):
         method="DELETE",
         path="tables/tbl_projects/relationship/7",
     )
+
+
+def test_update_relationship_resolves_typed_lookup_and_summary_fields(client):
+    client._request.side_effect = [
+        {
+            "relationships": [
+                {"id": 7, "parentTableId": "tbl_customers", "childTableId": "tbl_projects"}
+            ]
+        },
+        {"id": 7, "parentTableId": "tbl_customers", "childTableId": "tbl_projects"},
+    ]
+
+    result = client.update_relationship(
+        "Operations",
+        "Projects",
+        "Status",
+        lookup_fields=["Customer Name", 3],
+        summary_fields=[
+            RelationshipSummary("SUM", "Hours", label="Total Hours"),
+            RelationshipSummary("COUNT", label="Project Count", where="{7.EX.'Active'}"),
+        ],
+    )
+
+    assert result["id"] == 7
+    assert client._request.call_args_list == [
+        call(method="GET", path="tables/tbl_projects/relationships"),
+        call(
+            method="POST",
+            path="tables/tbl_projects/relationship/7",
+            json_body={
+                "lookupFieldIds": [6, 3],
+                "summaryFields": [
+                    {
+                        "accumulationType": "SUM",
+                        "summaryFid": 8,
+                        "label": "Total Hours",
+                    },
+                    {
+                        "accumulationType": "COUNT",
+                        "label": "Project Count",
+                        "where": "{7.EX.'Active'}",
+                    },
+                ],
+            },
+        ),
+    ]
+    assert client.meta.invalidated_fields == [
+        ("app_operations", "tbl_projects"),
+        ("app_operations", "tbl_customers"),
+    ]
+
+
+def test_update_relationship_accepts_ids_without_metadata_lookup(client):
+    client._request.return_value = {
+        "id": 7,
+        "parentTableId": "tbl_customers",
+        "childTableId": "tbl_projects",
+    }
+
+    client.update_relationship("Operations", "Projects", 7, lookup_fields=[6])
+
+    client._request.assert_called_once_with(
+        method="POST",
+        path="tables/tbl_projects/relationship/7",
+        json_body={"lookupFieldIds": [6]},
+    )
+
+
+def test_update_relationship_requires_a_schema_change(client):
+    with pytest.raises(ValueError, match="at least one lookup field or summary field"):
+        client.update_relationship("Operations", "Projects", 7)
+
+    client._request.assert_not_called()
 
 
 def test_query_records_translates_labels_to_field_ids(client):
@@ -257,6 +421,92 @@ def test_query_records_translates_labels_to_field_ids(client):
         },
         retry_policy=RetryPolicy.SAFE,
     )
+
+
+def test_records_modified_since_normalizes_time_and_resolves_field_labels(client):
+    client._request.return_value = {
+        "count": 1,
+        "changes": [{"recordId": 12, "changeType": "MODIFY"}],
+    }
+
+    result = client.records_modified_since(
+        "Operations",
+        "Projects",
+        datetime(2026, 7, 18, 12, 30, tzinfo=timezone(timedelta(hours=-5))),
+        field_list=["Name", 7],
+        include_details=True,
+    )
+
+    assert result["count"] == 1
+    client._request.assert_called_once_with(
+        method="POST",
+        path="records/modifiedSince",
+        json_body={
+            "from": "tbl_projects",
+            "after": "2026-07-18T17:30:00Z",
+            "fieldList": [6, 7],
+            "includeDetails": True,
+        },
+        retry_policy=RetryPolicy.SAFE,
+    )
+
+
+def test_records_modified_since_accepts_a_utc_string(client):
+    client._request.return_value = {"count": 0}
+
+    client.records_modified_since("Operations", "Projects", "2026-07-18T17:30:00Z")
+
+    client._request.assert_called_once_with(
+        method="POST",
+        path="records/modifiedSince",
+        json_body={
+            "from": "tbl_projects",
+            "after": "2026-07-18T17:30:00Z",
+            "includeDetails": False,
+        },
+        retry_policy=RetryPolicy.SAFE,
+    )
+
+
+@pytest.mark.parametrize(
+    "after",
+    [datetime(2026, 7, 18, 17, 30), "2026-07-18 17:30:00", "not-a-timestamp"],
+)
+def test_records_modified_since_rejects_invalid_or_naive_timestamps(client, after):
+    with pytest.raises(ValueError, match="after must"):
+        client.records_modified_since("Operations", "Projects", after)
+
+    client._request.assert_not_called()
+
+
+def test_delete_file_resolves_a_field_label_and_requires_an_explicit_version(client):
+    client._request.return_value = {"versionNumber": 2, "fileName": "evidence.pdf"}
+
+    result = client.delete_file("Operations", "Projects", 42, "Attachment", 2)
+
+    assert result == {"versionNumber": 2, "fileName": "evidence.pdf"}
+    client._request.assert_called_once_with(
+        method="DELETE",
+        path="files/tbl_projects/42/12/2",
+    )
+
+
+def test_delete_file_allows_documented_latest_version_zero(client):
+    client._request.return_value = {"versionNumber": 3, "fileName": "latest.pdf"}
+
+    client.delete_file("Operations", "Projects", 42, 12, 0)
+
+    client._request.assert_called_once_with(
+        method="DELETE",
+        path="files/tbl_projects/42/12/0",
+    )
+
+
+def test_delete_file_rejects_a_negative_version_before_resolving_ids(client):
+    with pytest.raises(ValueError, match="version_number cannot be negative"):
+        client.delete_file("Operations", "Projects", 42, 12, -1)
+
+    client._request.assert_not_called()
 
 
 def test_query_dataframe_uses_quickbase_labels_as_columns(client):

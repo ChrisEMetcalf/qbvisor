@@ -8,6 +8,8 @@ def test_existing_public_exports_remain_available():
         "QuickbaseBatchError",
         "RetryPolicy",
         "QueryHelper",
+        "RelationshipAccumulation",
+        "RelationshipSummary",
         "sanitize_filenames",
         "ensure_temp_dir",
         "generate_timestamped_folder",

@@ -1,13 +1,855 @@
 {
   "source": {
     "url": "https://developer.quickbase.com/quickbase.json",
-    "retrievedAt": "2026-07-18T22:28:45+00:00",
+    "retrievedAt": "2026-07-18T23:58:45+00:00",
     "sha256": "033e274b35427e21a5e3ef8d2fc7c92c5e89dff2bb842c91f1c46bfc0efbffdc",
     "etag": "W/\"3267aa7ca17a15264c61711293a89de4\"",
     "lastModified": "Fri, 17 Jul 2026 11:09:24 GMT",
     "oasVersion": "2.0",
     "apiVersion": "1.0.0"
   },
+  "coverage": {
+    "totalOperations": 67,
+    "supportedOperations": 33,
+    "missingOperations": 34,
+    "byTag": [
+      {
+        "tag": "Apps",
+        "total": 7,
+        "supported": 7,
+        "missing": 0
+      },
+      {
+        "tag": "Audit",
+        "total": 1,
+        "supported": 0,
+        "missing": 1
+      },
+      {
+        "tag": "Auth",
+        "total": 2,
+        "supported": 0,
+        "missing": 2
+      },
+      {
+        "tag": "Document Templates",
+        "total": 1,
+        "supported": 0,
+        "missing": 1
+      },
+      {
+        "tag": "Fields",
+        "total": 7,
+        "supported": 7,
+        "missing": 0
+      },
+      {
+        "tag": "Files",
+        "total": 2,
+        "supported": 2,
+        "missing": 0
+      },
+      {
+        "tag": "Formulas",
+        "total": 1,
+        "supported": 1,
+        "missing": 0
+      },
+      {
+        "tag": "Groups",
+        "total": 6,
+        "supported": 0,
+        "missing": 6
+      },
+      {
+        "tag": "Platform Analytics",
+        "total": 2,
+        "supported": 0,
+        "missing": 2
+      },
+      {
+        "tag": "Records",
+        "total": 4,
+        "supported": 4,
+        "missing": 0
+      },
+      {
+        "tag": "Reports",
+        "total": 3,
+        "supported": 3,
+        "missing": 0
+      },
+      {
+        "tag": "Solutions",
+        "total": 9,
+        "supported": 0,
+        "missing": 9
+      },
+      {
+        "tag": "Tables",
+        "total": 9,
+        "supported": 9,
+        "missing": 0
+      },
+      {
+        "tag": "Trustees",
+        "total": 4,
+        "supported": 0,
+        "missing": 4
+      },
+      {
+        "tag": "UserToken",
+        "total": 4,
+        "supported": 0,
+        "missing": 4
+      },
+      {
+        "tag": "Users",
+        "total": 5,
+        "supported": 0,
+        "missing": 5
+      }
+    ]
+  },
+  "availableOperations": [
+    {
+      "method": "POST",
+      "path": "/apps",
+      "operationId": "createApp",
+      "tag": "Apps",
+      "summary": "Create an app",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/apps/{appId}",
+      "operationId": "deleteApp",
+      "tag": "Apps",
+      "summary": "Delete an app",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/apps/{appId}",
+      "operationId": "getApp",
+      "tag": "Apps",
+      "summary": "Get an app",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/apps/{appId}",
+      "operationId": "updateApp",
+      "tag": "Apps",
+      "summary": "Update an app",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/apps/{appId}/copy",
+      "operationId": "copyApp",
+      "tag": "Apps",
+      "summary": "Copy an app",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/apps/{appId}/events",
+      "operationId": "getAppEvents",
+      "tag": "Apps",
+      "summary": "Get app events",
+      "supported": true,
+      "successShapes": [
+        "array"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/apps/{appId}/roles",
+      "operationId": "getRoles",
+      "tag": "Apps",
+      "summary": "Get app roles",
+      "supported": true,
+      "successShapes": [
+        "array"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/audit",
+      "operationId": "audit",
+      "tag": "Audit",
+      "summary": "Get audit logs",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/auth/oauth/token",
+      "operationId": "exchangeSsoToken",
+      "tag": "Auth",
+      "summary": "Exchange an SSO token",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/auth/temporary/{dbid}",
+      "operationId": "getTempTokenDBID",
+      "tag": "Auth",
+      "summary": "Get a temporary token for a dbid",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/docTemplates/{templateId}/generate",
+      "operationId": "generateDocument",
+      "tag": "Document Templates",
+      "summary": "Generate a document",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/fields",
+      "operationId": "deleteFields",
+      "tag": "Fields",
+      "summary": "Delete field(s)",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/fields",
+      "operationId": "getFields",
+      "tag": "Fields",
+      "summary": "Get fields for a table",
+      "supported": true,
+      "successShapes": [
+        "array"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/fields",
+      "operationId": "createField",
+      "tag": "Fields",
+      "summary": "Create a field",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/fields/usage",
+      "operationId": "getFieldsUsage",
+      "tag": "Fields",
+      "summary": "Get usage for all fields",
+      "supported": true,
+      "successShapes": [
+        "array"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/fields/usage/{fieldId}",
+      "operationId": "getFieldUsage",
+      "tag": "Fields",
+      "summary": "Get usage for a field",
+      "supported": true,
+      "successShapes": [
+        "array"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/fields/{fieldId}",
+      "operationId": "getField",
+      "tag": "Fields",
+      "summary": "Get field",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/fields/{fieldId}",
+      "operationId": "updateField",
+      "tag": "Fields",
+      "summary": "Update a field",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}",
+      "operationId": "deleteFile",
+      "tag": "Files",
+      "summary": "Delete file",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}",
+      "operationId": "downloadFile",
+      "tag": "Files",
+      "summary": "Download file",
+      "supported": true,
+      "successShapes": [
+        "binary"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/formula/run",
+      "operationId": "runFormula",
+      "tag": "Formulas",
+      "summary": "Run a formula",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/groups/{gid}/managers",
+      "operationId": "removeManagersFromGroup",
+      "tag": "Groups",
+      "summary": "Remove managers",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/groups/{gid}/managers",
+      "operationId": "addManagersToGroup",
+      "tag": "Groups",
+      "summary": "Add managers",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/groups/{gid}/members",
+      "operationId": "removeMembersFromGroup",
+      "tag": "Groups",
+      "summary": "Remove members",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/groups/{gid}/members",
+      "operationId": "addMembersToGroup",
+      "tag": "Groups",
+      "summary": "Add members",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/groups/{gid}/subgroups",
+      "operationId": "removeSubgroupsFromGroup",
+      "tag": "Groups",
+      "summary": "Remove child groups",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/groups/{gid}/subgroups",
+      "operationId": "addSubgroupsToGroup",
+      "tag": "Groups",
+      "summary": "Add child groups",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/analytics/events/summaries",
+      "operationId": "platformAnalyticEventSummaries",
+      "tag": "Platform Analytics",
+      "summary": "Get event summaries",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/reads",
+      "operationId": "platformAnalyticReads",
+      "tag": "Platform Analytics",
+      "summary": "Get read summaries",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/records",
+      "operationId": "deleteRecords",
+      "tag": "Records",
+      "summary": "Delete record(s)",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/records",
+      "operationId": "upsert",
+      "tag": "Records",
+      "summary": "Insert/Update record(s)",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/records/modifiedSince",
+      "operationId": "recordsModifiedSince",
+      "tag": "Records",
+      "summary": "Get records modified since",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/records/query",
+      "operationId": "runQuery",
+      "tag": "Records",
+      "summary": "Query for data",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/reports",
+      "operationId": "getTableReports",
+      "tag": "Reports",
+      "summary": "Get reports for a table",
+      "supported": true,
+      "successShapes": [
+        "array"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/reports/{reportId}",
+      "operationId": "getReport",
+      "tag": "Reports",
+      "summary": "Get a report",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/reports/{reportId}/run",
+      "operationId": "runReport",
+      "tag": "Reports",
+      "summary": "Run a report",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/solutions",
+      "operationId": "createSolution",
+      "tag": "Solutions",
+      "summary": "Create a solution",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/solutions/fromrecord",
+      "operationId": "createSolutionFromRecord",
+      "tag": "Solutions",
+      "summary": "Create solution from record",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/solutions/{solutionId}",
+      "operationId": "exportSolution",
+      "tag": "Solutions",
+      "summary": "Export a solution",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/solutions/{solutionId}",
+      "operationId": "updateSolution",
+      "tag": "Solutions",
+      "summary": "Update a solution",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/solutions/{solutionId}/changeset",
+      "operationId": "changesetSolution",
+      "tag": "Solutions",
+      "summary": "List solution changes",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/solutions/{solutionId}/changeset/fromrecord",
+      "operationId": "changesetSolutionFromRecord",
+      "tag": "Solutions",
+      "summary": "List solution changes from record",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/solutions/{solutionId}/fromrecord",
+      "operationId": "updateSolutionToRecord",
+      "tag": "Solutions",
+      "summary": "Update solution from record",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/solutions/{solutionId}/resources",
+      "operationId": "getSolutionPublic",
+      "tag": "Solutions",
+      "summary": "Get solution information",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/solutions/{solutionId}/torecord",
+      "operationId": "exportSolutionToRecord",
+      "tag": "Solutions",
+      "summary": "Export solution to record",
+      "supported": false,
+      "successShapes": [
+        "unspecified"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/tables",
+      "operationId": "getAppTables",
+      "tag": "Tables",
+      "summary": "Get tables for an app",
+      "supported": true,
+      "successShapes": [
+        "array"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/tables",
+      "operationId": "createTable",
+      "tag": "Tables",
+      "summary": "Create a table",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/tables/{tableId}",
+      "operationId": "deleteTable",
+      "tag": "Tables",
+      "summary": "Delete a table",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/tables/{tableId}",
+      "operationId": "getTable",
+      "tag": "Tables",
+      "summary": "Get a table",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/tables/{tableId}",
+      "operationId": "updateTable",
+      "tag": "Tables",
+      "summary": "Update a table",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/tables/{tableId}/relationship",
+      "operationId": "createRelationship",
+      "tag": "Tables",
+      "summary": "Create a relationship",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/tables/{tableId}/relationship/{relationshipId}",
+      "operationId": "deleteRelationship",
+      "tag": "Tables",
+      "summary": "Delete a relationship",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/tables/{tableId}/relationship/{relationshipId}",
+      "operationId": "updateRelationship",
+      "tag": "Tables",
+      "summary": "Update a relationship",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/tables/{tableId}/relationships",
+      "operationId": "getRelationships",
+      "tag": "Tables",
+      "summary": "Get all relationships",
+      "supported": true,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/app/{appId}/trustees",
+      "operationId": "removeTrustees",
+      "tag": "Trustees",
+      "summary": "Remove trustees from an app",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/app/{appId}/trustees",
+      "operationId": "getTrustees",
+      "tag": "Trustees",
+      "summary": "Get trustees for an app",
+      "supported": false,
+      "successShapes": [
+        "array"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/app/{appId}/trustees",
+      "operationId": "updateTrustees",
+      "tag": "Trustees",
+      "summary": "Update trustees of an app",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/app/{appId}/trustees",
+      "operationId": "addTrustees",
+      "tag": "Trustees",
+      "summary": "Add trustees to an app",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/usertoken",
+      "operationId": "deleteUserToken",
+      "tag": "UserToken",
+      "summary": "Delete a user token",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/usertoken/clone",
+      "operationId": "cloneUserToken",
+      "tag": "UserToken",
+      "summary": "Clone a user token",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/usertoken/deactivate",
+      "operationId": "deactivateUserToken",
+      "tag": "UserToken",
+      "summary": "Deactivate a user token",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/usertoken/transfer",
+      "operationId": "transferUserToken",
+      "tag": "UserToken",
+      "summary": "Transfer a user token",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "operationId": "getUsers",
+      "tag": "Users",
+      "summary": "Get users",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/users/deny",
+      "operationId": "denyUsers",
+      "tag": "Users",
+      "summary": "Deny users",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/users/deny/{shouldDeleteFromGroups}",
+      "operationId": "denyUsersAndGroups",
+      "tag": "Users",
+      "summary": "Deny and remove users from groups",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/users/undeny",
+      "operationId": "undenyUsers",
+      "tag": "Users",
+      "summary": "Undeny users",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/users/{userId}/apps",
+      "operationId": "getUserApps",
+      "tag": "Users",
+      "summary": "Get apps for a user",
+      "supported": false,
+      "successShapes": [
+        "object"
+      ]
+    }
+  ],
   "supportedOperations": [
     {
       "method": "POST",
@@ -65,6 +907,30 @@
         "200": {
           "description": "Success",
           "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/apps/{appId}/events",
+      "operationId": "getAppEvents",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/apps/{appId}/roles",
+      "operationId": "getRoles",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
           "mediaType": "application/json"
         }
       }
@@ -145,6 +1011,18 @@
       "method": "POST",
       "path": "/tables/{tableId}/relationship",
       "operationId": "createRelationship",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/tables/{tableId}/relationship/{relationshipId}",
+      "operationId": "updateRelationship",
       "responses": {
         "200": {
           "description": "Success",
@@ -262,6 +1140,30 @@
       }
     },
     {
+      "method": "GET",
+      "path": "/fields/usage",
+      "operationId": "getFieldsUsage",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/fields/usage/{fieldId}",
+      "operationId": "getFieldUsage",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "array",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
       "method": "POST",
       "path": "/formula/run",
       "operationId": "runFormula",
@@ -309,6 +1211,18 @@
     },
     {
       "method": "POST",
+      "path": "/records/modifiedSince",
+      "operationId": "recordsModifiedSince",
+      "responses": {
+        "200": {
+          "description": "Success",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
       "path": "/records/query",
       "operationId": "runQuery",
       "responses": {
@@ -328,6 +1242,18 @@
           "description": "Success",
           "shape": "binary",
           "mediaType": "application/octet-stream"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}",
+      "operationId": "deleteFile",
+      "responses": {
+        "200": {
+          "description": "Successfully Deleted the File Attachment",
+          "shape": "object",
+          "mediaType": "application/json"
         }
       }
     }

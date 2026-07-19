@@ -48,3 +48,12 @@ def test_get_table_and_field(monkeypatch, tmp_path):
     assert tbl["id"] == "T1" and tbl["size"] == 5
     fmap = cache.get_field_map("A", "Tab")
     assert fmap["F1"]["id"] == 1
+
+
+def test_invalidate_fields_discards_only_the_selected_table_fields(monkeypatch, tmp_path):
+    cache = make_cache(tmp_path, monkeypatch)
+    cache.get_field_map("A", "Tab")
+
+    cache.invalidate_fields("ida", "T1")
+
+    assert cache.cache["A"]["tables"]["Tab"]["fields"] == {}

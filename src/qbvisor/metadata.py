@@ -149,6 +149,15 @@ class QuickBaseMetaCache:
         key = lookup[field_label.lower()]
         return fmap[key]["id"]
 
+    def invalidate_fields(self, app: str, table: str) -> None:
+        """Discard cached fields for one table after a schema mutation."""
+        name = self.normalize_app(app)
+        tables = self.cache.get(name, {}).get("tables", {})
+        for table_name, table_info in tables.items():
+            if table == table_info.get("id") or table.lower() == table_name.lower():
+                table_info["fields"] = {}
+                return
+
     def get_relationships(self, app: str, table: str) -> list[dict[str, Any]]:
         """
         List relationships: GET /v1/tables/{tableId}/relationships

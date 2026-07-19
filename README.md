@@ -110,6 +110,67 @@ except QuickbaseHTTPError as error:
 
 Request credentials and bodies are not included in transport logs or exception messages.
 
+## Application and schema inspection
+
+The client exposes Quickbase's current app-event, app-role, and field-usage endpoints without
+changing their documented response shapes:
+
+```python
+with QuickBaseClient() as qb:
+    events = qb.get_app_events("My App")
+    roles = qb.get_app_roles("My App")
+    field_usage = qb.get_fields_usage("My App", "Projects", top=100)
+    status_usage = qb.get_field_usage("My App", "Projects", "Status")
+```
+
+Existing relationships can be extended with parent lookup fields and child summary fields. Labels
+are resolved to stable field IDs immediately before the request; numeric IDs remain valid for
+automation that already tracks schema identifiers:
+
+```python
+from qbvisor import RelationshipSummary
+
+with QuickBaseClient() as qb:
+    relationship = qb.update_relationship(
+        "My App",
+        "Project Details",
+        "Related Project",
+        lookup_fields=["Project Name", "Owner"],
+        summary_fields=[
+            RelationshipSummary("SUM", "Hours", label="Total Hours"),
+            RelationshipSummary("COUNT", label="Detail Count"),
+        ],
+    )
+```
+
+`COUNT` summaries omit the source field, as required by Quickbase. Other accumulation types require
+a child-table field. Successful relationship updates invalidate the affected field metadata so the
+new lookup and summary fields are visible on the next access.
+
+## Change tracking and attachment cleanup
+
+Use `records_modified_since()` when incremental synchronization needs to include changes found
+through selected field dependencies. The timestamp must be timezone-aware and is normalized to
+ISO-8601 UTC:
+
+```python
+changes = qb.records_modified_since(
+    "My App",
+    "Projects",
+    "2026-07-01T00:00:00Z",
+    field_list=["Owner", "Status"],
+    include_details=True,
+)
+```
+
+`delete_file()` removes one attachment version. A version is always explicit; Quickbase's special
+version `0` value selects the latest version. File deletion is a mutation and is not replayed after
+an uncertain connection, timeout, or gateway failure.
+
+```python
+deleted = qb.delete_file("My App", "Projects", record_id=42, field="Attachment", version_number=2)
+```
+
 ## Concurrent exports and attachments
 
 `download_records_to_csv()` reads records concurrently in Quickbase's maximum 1,000-record

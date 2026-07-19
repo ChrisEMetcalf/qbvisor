@@ -19,6 +19,7 @@ from conftest import (
 )
 
 from qbvisor.client import QuickBaseClient
+from qbvisor.models import RelationshipSummary
 from qbvisor.transport import JSONValue, QuickBaseTransport, RetryPolicy
 
 pytestmark = pytest.mark.integration
@@ -42,6 +43,7 @@ def _query_keys(
                     contract.record_fields["Fixture Key"],
                     contract.record_fields["Name"],
                     contract.record_fields["Status"],
+                    contract.record_fields["Attachment"],
                 ],
                 "options": {"top": 100},
             },
@@ -140,6 +142,62 @@ def test_formula_response_matches_documented_object_shape(
     response = sandbox_client.run_formula(APP_NAME, sandbox_contract.records_table_id, "1 + 2")
 
     assert response == {"result": "3"}
+
+
+def test_app_events_and_roles_match_documented_array_shapes(
+    sandbox_client: QuickBaseClient,
+):
+    events = sandbox_client.get_app_events(APP_NAME)
+    roles = sandbox_client.get_app_roles(APP_NAME)
+
+    assert isinstance(events, list)
+    assert all(isinstance(event, dict) for event in events)
+    assert roles
+    assert all(
+        isinstance(role.get("id"), int) and isinstance(role.get("name"), str) for role in roles
+    )
+
+
+def test_field_usage_supports_table_and_single_field_inspection(
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+):
+    usage = sandbox_client.get_fields_usage(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        top=100,
+    )
+    fixture_key_usage = sandbox_client.get_field_usage(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        "Fixture Key",
+    )
+
+    returned_ids = {item["field"]["id"] for item in usage}
+    assert set(sandbox_contract.record_fields.values()).issubset(returned_ids)
+    assert len(fixture_key_usage) == 1
+    assert fixture_key_usage[0]["field"]["id"] == sandbox_contract.record_fields["Fixture Key"]
+    assert isinstance(fixture_key_usage[0]["usage"], dict)
+
+
+def test_records_modified_since_returns_persistent_fixture_changes(
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+):
+    response = sandbox_client.records_modified_since(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        "2000-01-01T00:00:00Z",
+        field_list=["Name"],
+        include_details=True,
+    )
+
+    assert response["count"] >= len(sandbox_contract.record_ids)
+    changes = response["changes"]
+    assert isinstance(changes, list)
+    changed_record_ids = {change["recordId"] for change in changes}
+    assert set(sandbox_contract.record_ids.values()).issubset(changed_record_ids)
+    assert all(change["changeType"] in {"CREATE", "MODIFY", "DELETE"} for change in changes)
 
 
 def test_default_report_contract_when_table_has_reports(
@@ -318,6 +376,8 @@ def test_temporary_relationship_lifecycle_uses_documented_endpoints(
         parent_created = True
         sandbox_client.create_table(APP_NAME, child_name)
         child_created = True
+        sandbox_client.create_field(APP_NAME, parent_name, "Lookup Source", "text")
+        sandbox_client.create_field(APP_NAME, child_name, "Hours", "numeric")
         relationship = sandbox_client.create_relationship(
             APP_NAME,
             child_name,
@@ -325,6 +385,18 @@ def test_temporary_relationship_lifecycle_uses_documented_endpoints(
             foreign_key_label="Related Temporary Parent",
         )
         assert relationship["foreignKeyField"]["label"] == "Related Temporary Parent"
+
+        updated = sandbox_client.update_relationship(
+            APP_NAME,
+            child_name,
+            "Related Temporary Parent",
+            lookup_fields=["Lookup Source"],
+            summary_fields=[RelationshipSummary("COUNT", label="Temporary Child Count")],
+        )
+        assert updated["id"] == relationship["id"]
+        assert len(updated["lookupFields"]) == 1
+        assert "Lookup Source" in updated["lookupFields"][0]["label"]
+        assert {field["label"] for field in updated["summaryFields"]} == {"Temporary Child Count"}
 
         deleted_id = sandbox_client.delete_relationship(
             APP_NAME, child_name, "Related Temporary Parent"
@@ -335,3 +407,65 @@ def test_temporary_relationship_lifecycle_uses_documented_endpoints(
             sandbox_client.delete_table(APP_NAME, child_name)
         if parent_created:
             sandbox_client.delete_table(APP_NAME, parent_name)
+
+
+@pytest.mark.sandbox_mutation
+def test_file_version_deletion_removes_only_the_disposable_attachment(
+    sandbox_client: QuickBaseClient,
+    sandbox_transport: QuickBaseTransport,
+    sandbox_contract: SandboxContract,
+):
+    if os.getenv(MUTATION_ENV) != "1":
+        pytest.skip(f"Set {MUTATION_ENV}=1 to run mutation contract tests")
+
+    fixture_key = f"qbvisor-delete-file-{uuid.uuid4().hex[:10]}"
+    record_id: int | None = None
+    attachment_fid = sandbox_contract.record_fields["Attachment"]
+    try:
+        created = sandbox_client.upsert_records(
+            APP_NAME,
+            sandbox_contract.records_table_id,
+            [
+                {
+                    "Fixture Key": fixture_key,
+                    "Attachment": {
+                        "fileName": "qbvisor-delete-contract.txt",
+                        "data": base64.b64encode(b"Disposable attachment version.\n").decode(
+                            "ascii"
+                        ),
+                    },
+                }
+            ],
+            fields_to_return=["Fixture Key", "Attachment"],
+        )
+        assert created["success"] is True
+        records = _query_keys(sandbox_transport, sandbox_contract)
+        record_id = int(records[fixture_key]["3"]["value"])
+        attachment = records[fixture_key][str(attachment_fid)]["value"]
+        version = max(attachment["versions"], key=lambda item: item["versionNumber"])
+
+        deleted = sandbox_client.delete_file(
+            APP_NAME,
+            sandbox_contract.records_table_id,
+            record_id,
+            "Attachment",
+            int(version["versionNumber"]),
+        )
+
+        assert deleted["versionNumber"] == version["versionNumber"]
+        records_after = _query_keys(sandbox_transport, sandbox_contract)
+        assert (
+            not records_after[fixture_key]
+            .get(str(attachment_fid), {})
+            .get("value", {})
+            .get("versions")
+        )
+    finally:
+        if record_id is not None:
+            sandbox_transport.delete(
+                "records",
+                json_body={
+                    "from": sandbox_contract.records_table_id,
+                    "where": [record_id],
+                },
+            )

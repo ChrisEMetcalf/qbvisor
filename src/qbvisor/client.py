@@ -1,7 +1,8 @@
 import asyncio
 import base64
 import json
-from datetime import datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar, cast, overload
 from uuid import uuid4
@@ -15,11 +16,27 @@ from .exceptions import QuickbaseBatchError, QuickbaseResponseError
 from .helpers import sanitize_filenames
 from .log_runner import get_logger
 from .metadata import QuickBaseMetaCache
+from .models import RelationshipSummary
 from .transport import QuickBaseTransport, RetryPolicy
 
 logger = get_logger(__name__)
 
 ResponseT = TypeVar("ResponseT")
+
+
+def _normalize_utc_timestamp(value: datetime | str) -> str:
+    """Validate an ISO-8601 timestamp and normalize it to UTC."""
+    if isinstance(value, str):
+        source = value.strip()
+        try:
+            parsed = datetime.fromisoformat(source.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError("after must be a valid ISO-8601 timestamp") from error
+    else:
+        parsed = value
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("after must include a timezone")
+    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 class QuickBaseClient:
@@ -169,6 +186,24 @@ class QuickBaseClient:
         app_id, _ = self._ids(app_name)
 
         return self._request(method="GET", path=f"apps/{app_id}", params={"appId": app_id})
+
+    def get_app_events(self, app_name: str) -> list[dict[str, Any]]:
+        """List events configured in an app: GET /v1/apps/{appId}/events."""
+        app_id, _ = self._ids(app_name)
+        return self._request(
+            method="GET",
+            path=f"apps/{app_id}/events",
+            response_type=list,
+        )
+
+    def get_app_roles(self, app_name: str) -> list[dict[str, Any]]:
+        """List roles configured in an app: GET /v1/apps/{appId}/roles."""
+        app_id, _ = self._ids(app_name)
+        return self._request(
+            method="GET",
+            path=f"apps/{app_id}/roles",
+            response_type=list,
+        )
 
     def update_app(
         self,
@@ -422,6 +457,75 @@ class QuickBaseClient:
             json_body=body,
         )
 
+    def update_relationship(
+        self,
+        app_name: str,
+        table_name: str,
+        relationship: str | int,
+        *,
+        lookup_fields: Sequence[str | int] | None = None,
+        summary_fields: Sequence[RelationshipSummary] | None = None,
+    ) -> dict[str, Any]:
+        """Add lookup or summary fields to an existing table relationship."""
+        if not lookup_fields and not summary_fields:
+            raise ValueError("Provide at least one lookup field or summary field")
+
+        app_id, child_table_id = self._ids(app_name, table_name)
+        relationship_id = (
+            relationship
+            if isinstance(relationship, int)
+            else self.meta.get_field_id(app_id, child_table_id, relationship)
+        )
+        body: dict[str, Any] = {}
+
+        if lookup_fields:
+            parent_table_id: str | None = None
+            if any(isinstance(field, str) for field in lookup_fields):
+                relationships = self.get_all_relationships(app_name, table_name)
+                match = next(
+                    (item for item in relationships if item.get("id") == relationship_id),
+                    None,
+                )
+                if match is None or not isinstance(match.get("parentTableId"), str):
+                    raise ValueError(f"Relationship {relationship_id} was not found")
+                parent_table_id = match["parentTableId"]
+            body["lookupFieldIds"] = [
+                field
+                if isinstance(field, int)
+                else self.meta.get_field_id(app_id, cast(str, parent_table_id), field)
+                for field in lookup_fields
+            ]
+
+        if summary_fields:
+            summaries: list[dict[str, Any]] = []
+            for summary in summary_fields:
+                definition: dict[str, Any] = {
+                    "accumulationType": summary.accumulation_type,
+                }
+                if summary.field is not None:
+                    definition["summaryFid"] = (
+                        summary.field
+                        if isinstance(summary.field, int)
+                        else self.meta.get_field_id(app_id, child_table_id, summary.field)
+                    )
+                if summary.label is not None:
+                    definition["label"] = summary.label
+                if summary.where is not None:
+                    definition["where"] = summary.where
+                summaries.append(definition)
+            body["summaryFields"] = summaries
+
+        response = self._request(
+            method="POST",
+            path=f"tables/{child_table_id}/relationship/{relationship_id}",
+            json_body=body,
+        )
+        self.meta.invalidate_fields(app_id, child_table_id)
+        parent_id = response.get("parentTableId")
+        if isinstance(parent_id, str):
+            self.meta.invalidate_fields(app_id, parent_id)
+        return response
+
     def delete_relationship(
         self,
         app_name: str,
@@ -573,6 +677,51 @@ class QuickBaseClient:
         body = {"fieldIds": field_ids}
         return self._request(
             method="DELETE", path="fields", params={"tableId": table_id}, json_body=body
+        )
+
+    def get_fields_usage(
+        self,
+        app_name: str,
+        table_name: str,
+        *,
+        skip: int | None = None,
+        top: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return usage statistics for fields in a table: GET /v1/fields/usage."""
+        if skip is not None and skip < 0:
+            raise ValueError("skip cannot be negative")
+        if top is not None and top < 1:
+            raise ValueError("top must be at least 1")
+
+        _, table_id = self._ids(app_name, table_name)
+        params: dict[str, Any] = {"tableId": table_id}
+        if skip is not None:
+            params["skip"] = skip
+        if top is not None:
+            params["top"] = top
+        return self._request(
+            method="GET",
+            path="fields/usage",
+            params=params,
+            response_type=list,
+        )
+
+    def get_field_usage(
+        self,
+        app_name: str,
+        table_name: str,
+        field: str | int,
+    ) -> list[dict[str, Any]]:
+        """Return usage statistics for one field: GET /v1/fields/usage/{fieldId}."""
+        app_id, table_id = self._ids(app_name, table_name)
+        field_id = (
+            field if isinstance(field, int) else self.meta.get_field_id(app_id, table_id, field)
+        )
+        return self._request(
+            method="GET",
+            path=f"fields/usage/{field_id}",
+            params={"tableId": table_id},
+            response_type=list,
         )
 
     # ----------------
@@ -750,6 +899,35 @@ class QuickBaseClient:
         return self._request(
             method="POST",
             path="records/query",
+            json_body=body,
+            retry_policy=RetryPolicy.SAFE,
+        )
+
+    def records_modified_since(
+        self,
+        app_name: str,
+        table_name: str,
+        after: datetime | str,
+        *,
+        field_list: Sequence[str | int] | None = None,
+        include_details: bool = False,
+    ) -> dict[str, Any]:
+        """Find records changed after an ISO-8601 timestamp."""
+        timestamp = _normalize_utc_timestamp(after)
+        app_id, table_id = self._ids(app_name, table_name)
+        body: dict[str, Any] = {
+            "from": table_id,
+            "after": timestamp,
+            "includeDetails": include_details,
+        }
+        if field_list:
+            body["fieldList"] = [
+                field if isinstance(field, int) else self.meta.get_field_id(app_id, table_id, field)
+                for field in field_list
+            ]
+        return self._request(
+            method="POST",
+            path="records/modifiedSince",
             json_body=body,
             retry_policy=RetryPolicy.SAFE,
         )
@@ -975,6 +1153,26 @@ class QuickBaseClient:
 
         fmap = self.meta.get_field_map(app_id, table_id)
         return [label for label, meta in fmap.items() if meta.get("type") == "file"]
+
+    def delete_file(
+        self,
+        app_name: str,
+        table_name: str,
+        record_id: int,
+        field: str | int,
+        version_number: int,
+    ) -> dict[str, Any]:
+        """Delete one explicit attachment version; version 0 selects the latest."""
+        if version_number < 0:
+            raise ValueError("version_number cannot be negative")
+        app_id, table_id = self._ids(app_name, table_name)
+        field_id = (
+            field if isinstance(field, int) else self.meta.get_field_id(app_id, table_id, field)
+        )
+        return self._request(
+            method="DELETE",
+            path=f"files/{table_id}/{record_id}/{field_id}/{version_number}",
+        )
 
     async def _async_download_attachment(
         self,
