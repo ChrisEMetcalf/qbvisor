@@ -11,6 +11,7 @@ import aiofiles
 import pandas as pd
 from dotenv import load_dotenv
 
+from ._attachments import latest_attachment
 from ._pagination import iter_intelligent_pages
 from ._records.pagination import iter_record_pages_by_id
 from ._resources.apps import AppResource
@@ -1284,26 +1285,26 @@ class QuickBaseClient:
             for rec in rows:
                 seen += 1
                 rid = rec.get(str(record_fid), {}).get("value")
+                if not rid:
+                    continue
                 cell = rec.get(str(file_fid), {}) or {}
-                file_val = cell.get("value") or {}
-
-                # Authoritative presence check: require at least one version
-                versions = file_val.get("versions") or []
-                if not rid or not versions:
+                attachment = latest_attachment(
+                    cell.get("value"),
+                    table_id=table_id,
+                    record_id=int(rid),
+                    field_id=file_fid,
+                )
+                if attachment is None:
                     skipped_empty += 1
                     continue
 
-                # Choose the highest version
-                v = max(versions, key=lambda x: x.get("versionNumber", 0))
-                version_num = int(v.get("versionNumber", 1))
-                filename = (
-                    v.get("fileName")
-                    or file_val.get("fileName")
-                    or f"fid{file_fid}_v{version_num}.bin"
+                full_url = (
+                    f"{self.transport.base_url}/files/{table_id}/{int(rid)}/"
+                    f"{file_fid}/{attachment.version_number}"
                 )
-
-                full_url = f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{file_fid}/{version_num}"
-                download_jobs.append({"record_id": rid, "file_name": filename, "url": full_url})
+                download_jobs.append(
+                    {"record_id": rid, "file_name": attachment.file_name, "url": full_url}
+                )
                 with_file += 1
 
             if len(rows) < page_size:
@@ -1364,16 +1365,17 @@ class QuickBaseClient:
             self.logger.warning(f"No attachment found for record {record_id}.")
             return None
 
-        file_info = records[0].get(str(file_fid), {}).get("value") or {}
-        versions = file_info.get("versions") or []
-        if not versions:
+        attachment = latest_attachment(
+            records[0].get(str(file_fid), {}).get("value"),
+            table_id=table_id,
+            record_id=record_id,
+            field_id=file_fid,
+        )
+        if attachment is None:
             self.logger.warning(f"No attachment found for record {record_id}.")
             return None
-        version_num = int(
-            max(versions, key=lambda version: version.get("versionNumber", 0))["versionNumber"]
-        )
 
-        path = f"files/{table_id}/{int(record_id)}/{file_fid}/{version_num}"
+        path = f"files/{table_id}/{int(record_id)}/{file_fid}/{attachment.version_number}"
         return base64.b64encode(self.transport.get_file(path)).decode("ascii")
 
     def download_table_attachments_async(
@@ -1449,29 +1451,26 @@ class QuickBaseClient:
                 for _, fid in file_fields:
                     seen_cells += 1
                     cell = rec.get(str(fid), {}) or {}
-                    file_val = cell.get("value") or {}
-                    versions = file_val.get("versions") or []
-                    if not versions:
+                    attachment = latest_attachment(
+                        cell.get("value"),
+                        table_id=table_id,
+                        record_id=int(rid),
+                        field_id=fid,
+                    )
+                    if attachment is None:
                         skipped_empty += 1
                         continue
 
-                    v = max(versions, key=lambda x: x.get("versionNumber", 0))
-                    version_num = int(v.get("versionNumber", 1))
-                    filename = (
-                        v.get("fileName")
-                        or file_val.get("fileName")
-                        or f"fid{fid}_v{version_num}.bin"
-                    )
-
                     url = (
-                        f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/{version_num}"
+                        f"{self.transport.base_url}/files/{table_id}/{int(rid)}/{fid}/"
+                        f"{attachment.version_number}"
                     )
                     download_jobs.append(
                         {
                             "record_id": rid,
                             "field_id": fid,
                             "include_field_id": True,
-                            "file_name": filename,
+                            "file_name": attachment.file_name,
                             "url": url,
                         }
                     )

@@ -8,8 +8,9 @@ from unittest.mock import Mock
 import pytest
 
 import qbvisor.client as client_module
+from qbvisor._attachments import LatestAttachment, latest_attachment
 from qbvisor.client import QuickBaseClient
-from qbvisor.exceptions import QuickbaseBatchError, QuickbaseTimeoutError
+from qbvisor.exceptions import QuickbaseBatchError, QuickbaseResponseError, QuickbaseTimeoutError
 
 
 class FakeAsyncTransport:
@@ -41,6 +42,60 @@ def client() -> QuickBaseClient:
 
 def install_async_transport(monkeypatch, transport: FakeAsyncTransport) -> None:
     monkeypatch.setattr(client_module, "AsyncQuickBaseTransport", lambda _sync: transport)
+
+
+def test_latest_attachment_selects_highest_version_and_preserves_its_name():
+    result = latest_attachment(
+        {
+            "fileName": "field-level.txt",
+            "versions": [
+                {"versionNumber": 3, "fileName": "current.txt"},
+                {"versionNumber": 1, "fileName": "original.txt"},
+            ],
+        },
+        table_id="table",
+        record_id=101,
+        field_id=8,
+    )
+
+    assert result == LatestAttachment(version_number=3, file_name="current.txt")
+
+
+@pytest.mark.parametrize("value", [None, "", {}, {"versions": None}, {"versions": []}])
+def test_latest_attachment_treats_documented_empty_cells_as_empty(value):
+    assert latest_attachment(value, table_id="table", record_id=101, field_id=8) is None
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ([], "file attachment value object"),
+        ({"versions": {}}, "file attachment versions array"),
+        ({"versions": [{"versionNumber": 0}]}, "positive integer attachment versionNumber"),
+        (
+            {"versions": [{"versionNumber": 1}, {"versionNumber": 1}]},
+            "unique attachment versionNumber values",
+        ),
+        (
+            {"versions": [{"versionNumber": 1, "fileName": 42}]},
+            "string attachment fileName",
+        ),
+    ],
+)
+def test_latest_attachment_rejects_malformed_metadata(value, message):
+    with pytest.raises(QuickbaseResponseError, match=message):
+        latest_attachment(value, table_id="table", record_id=101, field_id=8)
+
+
+def test_latest_attachment_builds_stable_fallback_name():
+    result = latest_attachment(
+        {"versions": [{"versionNumber": 2}]},
+        table_id="table",
+        record_id=101,
+        field_id=8,
+    )
+
+    assert result == LatestAttachment(version_number=2, file_name="fid8_v2.bin")
 
 
 def test_batch_download_writes_documented_binary_response_exactly(client, monkeypatch, tmp_path):
