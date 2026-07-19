@@ -31,7 +31,7 @@ ResponseT = TypeVar("ResponseT")
 
 
 def _normalize_utc_timestamp(value: datetime | str) -> str:
-    """Validate an ISO-8601 timestamp and normalize it to UTC."""
+    """Validate a timestamp and normalize it to whole-second ISO-8601 UTC."""
     if isinstance(value, str):
         source = value.strip()
         try:
@@ -42,7 +42,8 @@ def _normalize_utc_timestamp(value: datetime | str) -> str:
         parsed = value
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError("after must include a timezone")
-    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    normalized = parsed.astimezone(UTC).replace(microsecond=0)
+    return normalized.isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 class QuickBaseClient:

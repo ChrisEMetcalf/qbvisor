@@ -307,7 +307,8 @@ resolution performance.
 
 Use `records_modified_since()` when incremental synchronization needs to include changes found
 through selected field dependencies. The timestamp must be timezone-aware and is normalized to
-ISO-8601 UTC:
+whole-second ISO-8601 UTC. Fractional seconds are truncated so the comparison remains conservative
+without skipping changes:
 
 ```python
 changes = qb.records_modified_since(
