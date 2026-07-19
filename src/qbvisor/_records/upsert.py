@@ -2,11 +2,146 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
+
+import requests
 
 from ..exceptions import QuickbaseResponseError
 
 UPSERT_PATH = "records"
+MAX_UPSERT_PAYLOAD_BYTES = 40_000_000
+
+
+@dataclass(frozen=True, slots=True)
+class UpsertBatch:
+    """One preflighted, one-based input range for a Quickbase upsert request."""
+
+    start_line: int
+    records: tuple[dict[str, Any], ...]
+    payload_bytes: int
+
+    @property
+    def end_line(self) -> int:
+        return self.start_line + len(self.records) - 1
+
+    def json_body(self, request_template: dict[str, Any]) -> dict[str, Any]:
+        body = dict(request_template)
+        body["data"] = list(self.records)
+        return body
+
+
+def _json_payload_size(value: Any) -> int:
+    """Return the exact body size Requests will produce for a JSON value."""
+    prepared = requests.Request(
+        "POST",
+        "https://api.quickbase.com/v1/records",
+        json=value,
+    ).prepare()
+    body = prepared.body
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    if not isinstance(body, bytes):
+        raise TypeError("Requests did not produce a JSON byte payload")
+    return len(body)
+
+
+def _make_batch(
+    request_template: dict[str, Any],
+    records: list[dict[str, Any]],
+    *,
+    start_line: int,
+    expected_size: int,
+) -> UpsertBatch:
+    batch = UpsertBatch(start_line, tuple(records), expected_size)
+    actual_size = _json_payload_size(batch.json_body(request_template))
+    if actual_size != expected_size:
+        raise AssertionError(
+            f"Upsert payload size calculation drifted: expected {expected_size}, got {actual_size}"
+        )
+    return batch
+
+
+def plan_upsert_batches(
+    records: list[dict[str, Any]],
+    *,
+    request_template: dict[str, Any],
+    max_payload_bytes: int = MAX_UPSERT_PAYLOAD_BYTES,
+) -> tuple[UpsertBatch, ...]:
+    """Preflight sequential requests whose serialized JSON fits Quickbase's payload limit."""
+    if not isinstance(max_payload_bytes, int) or isinstance(max_payload_bytes, bool):
+        raise ValueError("max_payload_bytes must be a positive integer")
+    if max_payload_bytes < 1:
+        raise ValueError("max_payload_bytes must be a positive integer")
+    if "data" in request_template:
+        raise ValueError("request_template cannot contain data")
+
+    try:
+        empty_size = _json_payload_size({**request_template, "data": []})
+    except (TypeError, requests.exceptions.InvalidJSONError) as error:
+        raise ValueError("Upsert request options cannot be serialized as JSON") from error
+    if empty_size > max_payload_bytes:
+        raise ValueError(
+            f"Upsert request options require {empty_size} bytes, exceeding "
+            f"max_payload_bytes={max_payload_bytes}"
+        )
+    if not records:
+        return (
+            _make_batch(
+                request_template,
+                [],
+                start_line=1,
+                expected_size=empty_size,
+            ),
+        )
+
+    batches: list[UpsertBatch] = []
+    current_records: list[dict[str, Any]] = []
+    current_size = empty_size
+    start_line = 1
+    for line_number, record in enumerate(records, start=1):
+        try:
+            record_size = _json_payload_size(record)
+        except (TypeError, requests.exceptions.InvalidJSONError) as error:
+            raise ValueError(
+                f"Upsert record at position {line_number} cannot be serialized as JSON"
+            ) from error
+
+        single_record_size = empty_size + record_size
+        if single_record_size > max_payload_bytes:
+            raise ValueError(
+                f"Upsert record at position {line_number} requires {single_record_size} bytes, "
+                f"exceeding max_payload_bytes={max_payload_bytes}"
+            )
+
+        separator_size = 2 if current_records else 0
+        candidate_size = current_size + separator_size + record_size
+        if current_records and candidate_size > max_payload_bytes:
+            batches.append(
+                _make_batch(
+                    request_template,
+                    current_records,
+                    start_line=start_line,
+                    expected_size=current_size,
+                )
+            )
+            current_records = []
+            current_size = empty_size
+            start_line = line_number
+            candidate_size = current_size + record_size
+
+        current_records.append(record)
+        current_size = candidate_size
+
+    batches.append(
+        _make_batch(
+            request_template,
+            current_records,
+            start_line=start_line,
+            expected_size=current_size,
+        )
+    )
+    return tuple(batches)
 
 
 def _response_error(expected: str, actual: Any) -> QuickbaseResponseError:
