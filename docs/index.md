@@ -31,6 +31,7 @@ and recovery implications.
 ## Project policies
 
 - [Release and compatibility policy](release-policy.md)
+- [Maintainer release process](releasing.md)
 - [Changelog](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CHANGELOG.md)
 - [Security policy](https://github.com/ChrisEMetcalf/qbvisor/blob/main/SECURITY.md)
 - [Contributing](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CONTRIBUTING.md)

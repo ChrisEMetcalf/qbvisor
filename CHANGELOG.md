@@ -10,6 +10,8 @@ heading.
 
 - Add public package metadata, inline typing, release and security policies, and distribution
   artifact validation ([#18]).
+- Add trusted PyPI publishing with isolated OpenID Connect permissions, release identity checks,
+  artifact attestations, and a documented maintainer procedure.
 - Add task-focused guides, a generated public API reference, strict documentation validation, and
   the planned `0.3.0` migration.
 - Add a shared synchronous transport with pooled connections, explicit timeouts, structured
