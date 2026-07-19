@@ -2,7 +2,7 @@ import asyncio
 import base64
 import json
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar, cast, overload
 from uuid import uuid4
@@ -22,6 +22,21 @@ from .transport import QuickBaseTransport, RetryPolicy
 logger = get_logger(__name__)
 
 ResponseT = TypeVar("ResponseT")
+
+
+def _normalize_utc_timestamp(value: datetime | str) -> str:
+    """Validate an ISO-8601 timestamp and normalize it to UTC."""
+    if isinstance(value, str):
+        source = value.strip()
+        try:
+            parsed = datetime.fromisoformat(source.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError("after must be a valid ISO-8601 timestamp") from error
+    else:
+        parsed = value
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("after must include a timezone")
+    return parsed.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 class QuickBaseClient:
@@ -884,6 +899,35 @@ class QuickBaseClient:
         return self._request(
             method="POST",
             path="records/query",
+            json_body=body,
+            retry_policy=RetryPolicy.SAFE,
+        )
+
+    def records_modified_since(
+        self,
+        app_name: str,
+        table_name: str,
+        after: datetime | str,
+        *,
+        field_list: Sequence[str | int] | None = None,
+        include_details: bool = False,
+    ) -> dict[str, Any]:
+        """Find records changed after an ISO-8601 timestamp."""
+        timestamp = _normalize_utc_timestamp(after)
+        app_id, table_id = self._ids(app_name, table_name)
+        body: dict[str, Any] = {
+            "from": table_id,
+            "after": timestamp,
+            "includeDetails": include_details,
+        }
+        if field_list:
+            body["fieldList"] = [
+                field if isinstance(field, int) else self.meta.get_field_id(app_id, table_id, field)
+                for field in field_list
+            ]
+        return self._request(
+            method="POST",
+            path="records/modifiedSince",
             json_body=body,
             retry_policy=RetryPolicy.SAFE,
         )

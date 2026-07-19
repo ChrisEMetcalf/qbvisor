@@ -10,8 +10,8 @@
   },
   "coverage": {
     "totalOperations": 67,
-    "supportedOperations": 31,
-    "missingOperations": 36,
+    "supportedOperations": 32,
+    "missingOperations": 35,
     "byTag": [
       {
         "tag": "Apps",
@@ -70,8 +70,8 @@
       {
         "tag": "Records",
         "total": 4,
-        "supported": 3,
-        "missing": 1
+        "supported": 4,
+        "missing": 0
       },
       {
         "tag": "Reports",
@@ -459,7 +459,7 @@
       "operationId": "recordsModifiedSince",
       "tag": "Records",
       "summary": "Get records modified since",
-      "supported": false,
+      "supported": true,
       "successShapes": [
         "object"
       ]
@@ -1204,6 +1204,18 @@
       "responses": {
         "200": {
           "description": "Successful delete records response.",
+          "shape": "object",
+          "mediaType": "application/json"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/records/modifiedSince",
+      "operationId": "recordsModifiedSince",
+      "responses": {
+        "200": {
+          "description": "Success",
           "shape": "object",
           "mediaType": "application/json"
         }

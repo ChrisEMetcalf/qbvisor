@@ -54,6 +54,7 @@ SUPPORTED_OPERATIONS = (
     ("POST", "/formula/run"),
     ("POST", "/records"),
     ("DELETE", "/records"),
+    ("POST", "/records/modifiedSince"),
     ("POST", "/records/query"),
     ("GET", "/files/{tableId}/{recordId}/{fieldId}/{versionNumber}"),
 )

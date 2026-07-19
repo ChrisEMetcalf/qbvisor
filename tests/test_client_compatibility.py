@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call
 
@@ -414,6 +415,62 @@ def test_query_records_translates_labels_to_field_ids(client):
         },
         retry_policy=RetryPolicy.SAFE,
     )
+
+
+def test_records_modified_since_normalizes_time_and_resolves_field_labels(client):
+    client._request.return_value = {
+        "count": 1,
+        "changes": [{"recordId": 12, "changeType": "MODIFY"}],
+    }
+
+    result = client.records_modified_since(
+        "Operations",
+        "Projects",
+        datetime(2026, 7, 18, 12, 30, tzinfo=timezone(timedelta(hours=-5))),
+        field_list=["Name", 7],
+        include_details=True,
+    )
+
+    assert result["count"] == 1
+    client._request.assert_called_once_with(
+        method="POST",
+        path="records/modifiedSince",
+        json_body={
+            "from": "tbl_projects",
+            "after": "2026-07-18T17:30:00Z",
+            "fieldList": [6, 7],
+            "includeDetails": True,
+        },
+        retry_policy=RetryPolicy.SAFE,
+    )
+
+
+def test_records_modified_since_accepts_a_utc_string(client):
+    client._request.return_value = {"count": 0}
+
+    client.records_modified_since("Operations", "Projects", "2026-07-18T17:30:00Z")
+
+    client._request.assert_called_once_with(
+        method="POST",
+        path="records/modifiedSince",
+        json_body={
+            "from": "tbl_projects",
+            "after": "2026-07-18T17:30:00Z",
+            "includeDetails": False,
+        },
+        retry_policy=RetryPolicy.SAFE,
+    )
+
+
+@pytest.mark.parametrize(
+    "after",
+    [datetime(2026, 7, 18, 17, 30), "2026-07-18 17:30:00", "not-a-timestamp"],
+)
+def test_records_modified_since_rejects_invalid_or_naive_timestamps(client, after):
+    with pytest.raises(ValueError, match="after must"):
+        client.records_modified_since("Operations", "Projects", after)
+
+    client._request.assert_not_called()
 
 
 def test_query_dataframe_uses_quickbase_labels_as_columns(client):
