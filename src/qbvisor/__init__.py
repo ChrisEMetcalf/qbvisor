@@ -1,9 +1,10 @@
 """Public package interface for the qbvisor Quickbase SDK."""
 
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from ._version import __version__
 
 # Try to load .env from common locations
 possible_paths = [
@@ -77,11 +78,6 @@ from .schema import (
     TableSpec,
 )
 from .transport import QuickBaseTransport, RetryPolicy
-
-try:
-    __version__ = version("qbvisor")
-except PackageNotFoundError:  # pragma: no cover - only possible from an uninstalled source tree
-    __version__ = "0+unknown"
 
 # Expose file download utilities directly on the client
 

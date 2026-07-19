@@ -1,6 +1,6 @@
 [project]
 name = "qbvisor"
-version = "0.2.0"
+version = "0.3.0"
 description = "Developer-focused Python SDK for building, querying, moving, and backing up Quickbase applications."
 readme = "README.md"
 requires-python = ">=3.12"

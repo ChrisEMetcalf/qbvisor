@@ -27,21 +27,19 @@ or a major release after `1.0.0`.
 
 ## Installation
 
-Until the first PyPI release is published, install the current development package from GitHub:
+Install reviewed releases from PyPI and pin the version in production applications:
 
 ```bash
-python -m pip install git+https://github.com/ChrisEMetcalf/qbvisor.git
+python -m pip install qbvisor==0.3.0
 ```
 
-Published distributions will become the recommended installation path after the initial PyPI
-release. Releases will use reviewed commits, signed `vMAJOR.MINOR.PATCH` tags, validated wheel and
-source artifacts, and a protected publishing environment.
+Releases use reviewed commits, signed `vMAJOR.MINOR.PATCH` tags, validated wheel and source
+artifacts, and a protected publishing environment.
 
 Maintainers must follow the [release process](releasing.md). The publishing job uses PyPI trusted
 publishing with a short-lived identity token; the repository does not store a PyPI credential.
 
-Production applications should pin a released version. If a temporary Git dependency is required,
-pin its full commit SHA rather than tracking `main`.
+If a temporary Git dependency is required, pin its full commit SHA rather than tracking `main`.
 
 ## Deprecation and migration
 

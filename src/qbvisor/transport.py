@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 import requests
 
+from ._version import __version__
 from .exceptions import (
     QuickbaseConfigurationError,
     QuickbaseConnectionError,
@@ -152,7 +153,7 @@ class QuickBaseTransport:
             "QB-Realm-Hostname": self.realm_hostname,
             "Authorization": self.auth_token,
             "Content-Type": "application/json",
-            "User-Agent": "qbvisor/0.2",
+            "User-Agent": f"qbvisor/{__version__}",
         }
         self.timeout = timeout
         self.max_attempts = max_attempts
