@@ -14,7 +14,11 @@ from dotenv import load_dotenv
 from ._attachments import latest_attachment
 from ._pagination import iter_intelligent_pages
 from ._records.pagination import iter_record_pages_by_id
-from ._records.upsert import normalize_upsert_response
+from ._records.upsert import (
+    MAX_UPSERT_PAYLOAD_BYTES,
+    execute_upsert_batches,
+    plan_upsert_batches,
+)
 from ._resources.apps import AppResource
 from ._resources.fields import FieldResource
 from ._resources.relationships import RelationshipResource
@@ -726,19 +730,26 @@ class QuickBaseClient:
                 new_rec[str(get_id(label))] = {"value": val}
             api_records.append(new_rec)
 
-        # Build request body
-        body: dict[str, Any] = {"to": table_id, "data": api_records}
+        # Build request options shared by every payload-aware batch.
+        request_template: dict[str, Any] = {"to": table_id}
 
         if merge_field_label:
-            body["mergeFieldId"] = get_id(merge_field_label)
+            request_template["mergeFieldId"] = get_id(merge_field_label)
 
         if fields_to_return:
-            body["fieldsToReturn"] = [get_id(label) for label in fields_to_return]
+            request_template["fieldsToReturn"] = [get_id(label) for label in fields_to_return]
 
-        # Make the request
-        resp = self._request(method="POST", path="records", json_body=body)
+        batches = plan_upsert_batches(
+            api_records,
+            request_template=request_template,
+            max_payload_bytes=MAX_UPSERT_PAYLOAD_BYTES,
+        )
 
-        return normalize_upsert_response(resp, record_count=len(records))
+        return execute_upsert_batches(
+            batches,
+            request_template=request_template,
+            send=lambda body: self._request(method="POST", path="records", json_body=body),
+        )
 
     def delete_records(self, app_name: str, table_name: str, where: str | list[int]) -> int:
         """

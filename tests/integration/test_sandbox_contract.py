@@ -21,7 +21,9 @@ from conftest import (
     SandboxContract,
 )
 
+import qbvisor.client as client_module
 from qbvisor import BackupOptions
+from qbvisor._records.upsert import _json_payload_size
 from qbvisor.client import QuickBaseClient
 from qbvisor.models import RelationshipSummary
 from qbvisor.transport import JSONValue, QuickBaseTransport, RetryPolicy
@@ -341,12 +343,43 @@ def test_upsert_results_preserve_partial_line_errors_and_successful_records(
     sandbox_client: QuickBaseClient,
     sandbox_transport: QuickBaseTransport,
     sandbox_contract: SandboxContract,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     if os.getenv(MUTATION_ENV) != "1":
         pytest.skip(f"Set {MUTATION_ENV}=1 to run mutation contract tests")
 
     valid_key = f"qbvisor-upsert-valid-{uuid.uuid4().hex[:10]}"
     invalid_key = f"qbvisor-upsert-invalid-{uuid.uuid4().hex[:10]}"
+    key_fid = sandbox_contract.record_fields["Fixture Key"]
+    status_fid = sandbox_contract.record_fields["Status"]
+    api_records = [
+        {
+            str(key_fid): {"value": valid_key},
+            str(status_fid): {"value": "Complete"},
+        },
+        {
+            str(key_fid): {"value": invalid_key},
+            str(status_fid): {"value": "Not a configured choice"},
+        },
+    ]
+    request_template = {
+        "to": sandbox_contract.records_table_id,
+        "mergeFieldId": key_fid,
+        "fieldsToReturn": [key_fid, status_fid],
+    }
+    maximum = max(
+        _json_payload_size({**request_template, "data": [record]}) for record in api_records
+    )
+    monkeypatch.setattr(client_module, "MAX_UPSERT_PAYLOAD_BYTES", maximum)
+    original_request = sandbox_client._request
+    upsert_bodies: list[dict[str, Any]] = []
+
+    def record_request(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        if kwargs.get("method") == "POST" and kwargs.get("path") == "records":
+            upsert_bodies.append(kwargs["json_body"])
+        return original_request(*args, **kwargs)
+
+    monkeypatch.setattr(sandbox_client, "_request", record_request)
     created_ids: list[int] = []
     try:
         result = sandbox_client.upsert_records(
@@ -370,6 +403,7 @@ def test_upsert_results_preserve_partial_line_errors_and_successful_records(
         assert result["updatedRecordIds"] == []
         assert result["unchangedRecordIds"] == []
         assert all(isinstance(record, dict) for record in result["data"])
+        assert [body["data"] for body in upsert_bodies] == [[api_records[0]], [api_records[1]]]
     finally:
         records = _query_keys(sandbox_transport, sandbox_contract)
         cleanup_ids = [

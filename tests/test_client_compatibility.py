@@ -7,12 +7,13 @@ import pandas as pd
 import pytest
 
 import qbvisor.client as client_module
+from qbvisor._records.upsert import _json_payload_size
 from qbvisor._resources.apps import AppResource
 from qbvisor._resources.fields import FieldResource
 from qbvisor._resources.relationships import RelationshipResource
 from qbvisor._resources.tables import TableResource
 from qbvisor.client import QuickBaseClient
-from qbvisor.exceptions import QuickbaseResponseError
+from qbvisor.exceptions import QuickbaseBatchError, QuickbaseResponseError, QuickbaseTimeoutError
 from qbvisor.models import RelationshipSummary
 from qbvisor.transport import RetryPolicy
 
@@ -1185,6 +1186,138 @@ def test_upsert_records_requires_processed_count_to_match_submission(client):
             "Projects",
             [{"Name": "Migration"}, {"Name": "Backup"}],
         )
+
+
+def test_upsert_records_aggregates_batches_and_restores_global_error_positions(client, monkeypatch):
+    api_records = [
+        {"6": {"value": "First"}, "7": {"value": "Active"}},
+        {"6": {"value": "Second"}, "7": {"value": "Invalid"}},
+    ]
+    template = {"to": "tbl_projects", "fieldsToReturn": [3, 7]}
+    payload_sizes = [_json_payload_size({**template, "data": [record]}) for record in api_records]
+    maximum = max(payload_sizes)
+    monkeypatch.setattr(client_module, "MAX_UPSERT_PAYLOAD_BYTES", maximum)
+    client._request.side_effect = [
+        {
+            "data": [{"3": {"value": 101}, "7": {"value": "Active"}}],
+            "metadata": {
+                "createdRecordIds": [101],
+                "updatedRecordIds": [],
+                "unchangedRecordIds": [],
+                "totalNumberOfRecordsProcessed": 1,
+            },
+        },
+        {
+            "data": [],
+            "metadata": {
+                "createdRecordIds": [],
+                "updatedRecordIds": [],
+                "unchangedRecordIds": [],
+                "totalNumberOfRecordsProcessed": 1,
+                "lineErrors": {"1": ["Invalid choice"]},
+            },
+        },
+    ]
+
+    result = client.upsert_records(
+        "Operations",
+        "Projects",
+        [
+            {"Name": "First", "Status": "Active"},
+            {"Name": "Second", "Status": "Invalid"},
+        ],
+        fields_to_return=["Record ID#", "Status"],
+    )
+
+    assert result == {
+        "success": False,
+        "createdRecordIds": [101],
+        "updatedRecordIds": [],
+        "unchangedRecordIds": [],
+        "totalProcessed": 2,
+        "data": [{"3": {"value": 101}, "7": {"value": "Active"}}],
+        "partial": True,
+        "lineErrors": {"2": ["Invalid choice"]},
+    }
+    assert client._request.call_args_list == [
+        call(
+            method="POST",
+            path="records",
+            json_body={**template, "data": [api_records[0]]},
+        ),
+        call(
+            method="POST",
+            path="records",
+            json_body={**template, "data": [api_records[1]]},
+        ),
+    ]
+
+
+def test_upsert_records_reports_completed_batches_after_uncertain_failure(client, monkeypatch):
+    api_records = [
+        {"6": {"value": "First"}},
+        {"6": {"value": "Second"}},
+    ]
+    template = {"to": "tbl_projects"}
+    payload_sizes = [_json_payload_size({**template, "data": [record]}) for record in api_records]
+    maximum = max(payload_sizes)
+    monkeypatch.setattr(client_module, "MAX_UPSERT_PAYLOAD_BYTES", maximum)
+    failure = QuickbaseTimeoutError("POST", "records", 1)
+    client._request.side_effect = [
+        {
+            "metadata": {
+                "createdRecordIds": [101],
+                "updatedRecordIds": [],
+                "unchangedRecordIds": [],
+                "totalNumberOfRecordsProcessed": 1,
+            }
+        },
+        failure,
+    ]
+
+    with pytest.raises(QuickbaseBatchError) as caught:
+        client.upsert_records(
+            "Operations",
+            "Projects",
+            [{"Name": "First"}, {"Name": "Second"}],
+        )
+
+    assert caught.value.errors == [failure]
+    assert len(caught.value.results) == 2
+    assert caught.value.results[0] == {
+        "batchNumber": 1,
+        "startLine": 1,
+        "endLine": 1,
+        "payloadBytes": payload_sizes[0],
+        "status": "completed",
+        "result": {
+            "success": True,
+            "createdRecordIds": [101],
+            "updatedRecordIds": [],
+            "unchangedRecordIds": [],
+            "totalProcessed": 1,
+            "data": [],
+        },
+    }
+    assert caught.value.results[1]["batchNumber"] == 2
+    assert caught.value.results[1]["startLine"] == 2
+    assert caught.value.results[1]["endLine"] == 2
+    assert caught.value.results[1]["status"] == "uncertain"
+    assert caught.value.results[1]["error"] == str(failure)
+
+
+def test_upsert_records_preflights_every_record_before_sending_mutations(client):
+    with pytest.raises(ValueError, match="record at position 2 cannot be serialized"):
+        client.upsert_records(
+            "Operations",
+            "Projects",
+            [
+                {"Name": "Valid"},
+                {"Name": datetime(2026, 7, 19)},
+            ],
+        )
+
+    client._request.assert_not_called()
 
 
 def test_delete_records_accepts_query_or_record_ids(client):

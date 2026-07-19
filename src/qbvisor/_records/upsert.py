@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 import requests
 
-from ..exceptions import QuickbaseResponseError
+from ..exceptions import QuickbaseBatchError, QuickbaseHTTPError, QuickbaseResponseError
 
 UPSERT_PATH = "records"
 MAX_UPSERT_PAYLOAD_BYTES = 40_000_000
@@ -142,6 +143,98 @@ def plan_upsert_batches(
         )
     )
     return tuple(batches)
+
+
+def aggregate_upsert_results(
+    completed: Sequence[tuple[UpsertBatch, dict[str, Any]]],
+) -> dict[str, Any]:
+    """Combine validated batch results and restore original one-based line positions."""
+    created_ids: list[int] = []
+    updated_ids: list[int] = []
+    unchanged_ids: list[int] = []
+    data: list[dict[str, Any]] = []
+    line_errors: dict[str, list[str]] = {}
+    total_processed = 0
+
+    for batch, result in completed:
+        created_ids.extend(result["createdRecordIds"])
+        updated_ids.extend(result["updatedRecordIds"])
+        unchanged_ids.extend(result["unchangedRecordIds"])
+        data.extend(result["data"])
+        total_processed += result["totalProcessed"]
+        for local_position, messages in result.get("lineErrors", {}).items():
+            global_position = batch.start_line + int(local_position) - 1
+            line_errors[str(global_position)] = messages
+
+    aggregate: dict[str, Any] = {
+        "success": not line_errors,
+        "createdRecordIds": created_ids,
+        "updatedRecordIds": updated_ids,
+        "unchangedRecordIds": unchanged_ids,
+        "totalProcessed": total_processed,
+        "data": data,
+    }
+    if line_errors:
+        aggregate.update({"partial": True, "lineErrors": line_errors})
+    return aggregate
+
+
+def _completed_outcome(
+    batch_number: int,
+    batch: UpsertBatch,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "batchNumber": batch_number,
+        "startLine": batch.start_line,
+        "endLine": batch.end_line,
+        "payloadBytes": batch.payload_bytes,
+        "status": "completed",
+        "result": result,
+    }
+
+
+def _failure_outcome(
+    batch_number: int,
+    batch: UpsertBatch,
+    error: Exception,
+) -> dict[str, Any]:
+    status = (
+        "failed"
+        if isinstance(error, QuickbaseHTTPError) and error.status_code < 500
+        else "uncertain"
+    )
+    return {
+        "batchNumber": batch_number,
+        "startLine": batch.start_line,
+        "endLine": batch.end_line,
+        "payloadBytes": batch.payload_bytes,
+        "status": status,
+        "error": str(error),
+    }
+
+
+def execute_upsert_batches(
+    batches: Sequence[UpsertBatch],
+    *,
+    request_template: dict[str, Any],
+    send: Callable[[dict[str, Any]], dict[str, Any]],
+) -> dict[str, Any]:
+    """Execute a preflighted plan sequentially and preserve prior committed outcomes."""
+    completed: list[tuple[UpsertBatch, dict[str, Any]]] = []
+    outcomes: list[dict[str, Any]] = []
+    for batch_number, batch in enumerate(batches, start=1):
+        try:
+            response = send(batch.json_body(request_template))
+            result = normalize_upsert_response(response, record_count=len(batch.records))
+        except Exception as error:
+            if not completed:
+                raise
+            outcomes.append(_failure_outcome(batch_number, batch, error))
+            raise QuickbaseBatchError("Record upsert", outcomes, [error]) from error
+        completed.append((batch, result))
+        outcomes.append(_completed_outcome(batch_number, batch, result))
+    return aggregate_upsert_results(completed)
 
 
 def _response_error(expected: str, actual: Any) -> QuickbaseResponseError:

@@ -4,8 +4,10 @@ import pytest
 
 from qbvisor._records.upsert import (
     _json_payload_size,
+    execute_upsert_batches,
     plan_upsert_batches,
 )
+from qbvisor.exceptions import QuickbaseBatchError, QuickbaseHTTPError
 
 
 def test_batch_plan_uses_exact_requests_size_for_unicode_records():
@@ -87,3 +89,49 @@ def test_batch_plan_requires_a_positive_integer_limit(maximum):
 def test_batch_plan_rejects_data_in_the_request_template():
     with pytest.raises(ValueError, match="cannot contain data"):
         plan_upsert_batches([], request_template={"to": "table", "data": []})
+
+
+def test_later_definitive_http_failure_retains_completed_batch_range():
+    template = {"to": "table"}
+    records = [
+        {"6": {"value": "First"}},
+        {"6": {"value": "Second"}},
+    ]
+    maximum = max(_json_payload_size({**template, "data": [record]}) for record in records)
+    batches = plan_upsert_batches(
+        records,
+        request_template=template,
+        max_payload_bytes=maximum,
+    )
+    failure = QuickbaseHTTPError(
+        method="POST",
+        path="records",
+        status_code=400,
+        message="Bad request",
+    )
+    responses: list[dict | Exception] = [
+        {
+            "metadata": {
+                "createdRecordIds": [101],
+                "totalNumberOfRecordsProcessed": 1,
+            }
+        },
+        failure,
+    ]
+
+    def send(_body):
+        response = responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    with pytest.raises(QuickbaseBatchError) as caught:
+        execute_upsert_batches(batches, request_template=template, send=send)
+
+    assert caught.value.errors == [failure]
+    assert caught.value.results[0]["status"] == "completed"
+    assert caught.value.results[0]["startLine"] == 1
+    assert caught.value.results[0]["endLine"] == 1
+    assert caught.value.results[1]["status"] == "failed"
+    assert caught.value.results[1]["startLine"] == 2
+    assert caught.value.results[1]["endLine"] == 2
