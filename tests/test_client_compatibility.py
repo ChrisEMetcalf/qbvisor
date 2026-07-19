@@ -1,7 +1,6 @@
-import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, call
+from unittest.mock import Mock, call
 
 import pandas as pd
 import pytest
@@ -819,52 +818,135 @@ def test_file_attachment_fields_are_resolved_from_metadata(client):
     assert client.get_file_attachment_fields("Operations", "Projects") == ["Document"]
 
 
-def test_record_export_caps_batches_without_skipping_records(client, tmp_path):
-    client.meta.get_table = Mock(return_value={"id": "tbl_projects", "size": 2500})
-    client._gather_chunks = AsyncMock(return_value=[[{"Name": "Migration"}]])
+def _record_query_response(records, *, total_records):
+    return {
+        "fields": [
+            {"id": 3, "label": "Record ID#"},
+            {"id": 6, "label": "Name"},
+            {"id": 7, "label": "Status"},
+        ],
+        "data": records,
+        "metadata": {
+            "numFields": 3,
+            "numRecords": len(records),
+            "totalRecords": total_records,
+        },
+    }
+
+
+def test_record_export_continues_after_a_short_page_and_preserves_field_labels(client, tmp_path):
+    client._query_records_by_ids = Mock(
+        side_effect=[
+            _record_query_response(
+                [
+                    {
+                        "3": {"value": 10},
+                        "6": {"value": "Migration"},
+                        "7": {"value": "Active"},
+                    },
+                    {
+                        "3": {"value": 20},
+                        "6": {"value": "Backup"},
+                        "7": {"value": "Complete"},
+                    },
+                ],
+                total_records=3,
+            ),
+            _record_query_response(
+                [
+                    {
+                        "3": {"value": 30},
+                        "6": {"value": "Rebuild"},
+                        "7": {"value": "Planned"},
+                    }
+                ],
+                total_records=1,
+            ),
+        ]
+    )
 
     output = client.download_records_to_csv(
         "Operations",
         "Projects",
         str(tmp_path),
+        where="{7.EX.'Active'}OR{7.EX.'Complete'}",
         chunk_size=2500,
-        record_limit=2500,
         max_concurrency=3,
     )
 
     assert output.startswith(str(tmp_path / "Projects_"))
     assert output.endswith(".csv")
-    client._gather_chunks.assert_awaited_once_with(
-        "tbl_projects",
-        [3, 6, 7],
-        "{3.GT.'0'}",
-        [(0, 1000), (1000, 1000), (2000, 500)],
-        3,
-    )
+    frame = pd.read_csv(output)
+    assert list(frame.columns) == ["Record ID#", "Name", "Status"]
+    assert frame.to_dict("records") == [
+        {"Record ID#": 10, "Name": "Migration", "Status": "Active"},
+        {"Record ID#": 20, "Name": "Backup", "Status": "Complete"},
+        {"Record ID#": 30, "Name": "Rebuild", "Status": "Planned"},
+    ]
+    assert client._query_records_by_ids.call_args_list == [
+        call(
+            "tbl_projects",
+            select_fields=(3, 6, 7),
+            where="{7.EX.'Active'}OR{7.EX.'Complete'}",
+            sort_by=((3, "ASC"),),
+            top=1000,
+        ),
+        call(
+            "tbl_projects",
+            select_fields=(3, 6, 7),
+            where="({7.EX.'Active'}OR{7.EX.'Complete'})AND{3.GT.20}",
+            sort_by=((3, "ASC"),),
+            top=1000,
+        ),
+    ]
 
 
-def test_record_export_chunk_preserves_quickbase_field_labels(client):
-    async_transport = SimpleNamespace(
-        post_json=AsyncMock(
-            return_value={
-                "fields": [{"id": 6, "label": "Name"}, {"id": 7, "label": "Status"}],
-                "data": [
-                    {"6": {"value": "Migration"}, "7": {"value": "Active"}},
+def test_record_export_applies_an_exact_record_limit(client, tmp_path):
+    client._query_records_by_ids = Mock(
+        side_effect=[
+            _record_query_response(
+                [
+                    {"3": {"value": 10}, "6": {"value": "A"}, "7": {"value": "Open"}},
+                    {"3": {"value": 20}, "6": {"value": "B"}, "7": {"value": "Open"}},
                 ],
-            }
-        )
+                total_records=5,
+            ),
+            _record_query_response(
+                [{"3": {"value": 30}, "6": {"value": "C"}, "7": {"value": "Open"}}],
+                total_records=3,
+            ),
+        ]
     )
-    body = {"from": "tbl_projects", "select": [6, 7], "options": {"skip": 0, "top": 1000}}
 
-    rows = asyncio.run(client._fetch_chunk(async_transport, body, 0))
-
-    assert rows == [{"Name": "Migration", "Status": "Active"}]
-    async_transport.post_json.assert_awaited_once_with(
-        "records/query",
-        json_body=body,
-        headers={"Accept-Encoding": "gzip"},
-        retry_policy=RetryPolicy.SAFE,
+    output = client.download_records_to_csv(
+        "Operations", "Projects", str(tmp_path), chunk_size=2, record_limit=3
     )
+
+    assert len(pd.read_csv(output)) == 3
+    assert [request.kwargs["top"] for request in client._query_records_by_ids.call_args_list] == [
+        2,
+        1,
+    ]
+
+
+def test_record_export_removes_partial_file_without_replacing_existing_export(client, tmp_path):
+    existing_export = tmp_path / f"Projects_{datetime.now():%Y-%m-%d}.csv"
+    existing_export.write_text("existing export\n", encoding="utf-8")
+    client._query_records_by_ids = Mock(
+        side_effect=[
+            _record_query_response(
+                [{"3": {"value": 10}, "6": {"value": "A"}, "7": {"value": "Open"}}],
+                total_records=2,
+            ),
+            RuntimeError("second page failed"),
+        ]
+    )
+
+    with pytest.raises(RuntimeError, match="second page failed"):
+        client.download_records_to_csv("Operations", "Projects", str(tmp_path))
+
+    assert existing_export.read_text(encoding="utf-8") == "existing export\n"
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 @pytest.mark.parametrize(
@@ -881,7 +963,7 @@ def test_record_export_rejects_invalid_batch_configuration(client, tmp_path, kwa
 
 
 def test_record_export_respects_an_explicit_zero_record_limit(client, tmp_path):
-    client._gather_chunks = AsyncMock(return_value=[])
+    client._query_records_by_ids = Mock()
 
     output = client.download_records_to_csv(
         "Operations",
@@ -891,10 +973,5 @@ def test_record_export_respects_an_explicit_zero_record_limit(client, tmp_path):
     )
 
     assert output == ""
-    client._gather_chunks.assert_awaited_once_with(
-        "tbl_projects",
-        [3, 6, 7],
-        "{3.GT.'0'}",
-        [],
-        4,
-    )
+    client._query_records_by_ids.assert_not_called()
+    assert list(tmp_path.iterdir()) == []

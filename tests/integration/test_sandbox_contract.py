@@ -272,7 +272,7 @@ def test_default_report_contract_when_table_has_reports(
     assert not frame.empty
 
 
-def test_concurrent_record_export_round_trips_persistent_rows(
+def test_streaming_record_export_round_trips_persistent_rows(
     sandbox_client: QuickBaseClient,
     sandbox_contract: SandboxContract,
     tmp_path: Path,
