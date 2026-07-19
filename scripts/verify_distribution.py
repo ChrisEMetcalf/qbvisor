@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import re
 import tarfile
+import tomllib
 import zipfile
 from collections.abc import Iterable
 from email.message import Message
@@ -48,10 +50,44 @@ REJECTED_DIRECTORIES = {
     "tmp",
 }
 REJECTED_SUFFIXES = {".log", ".pyc", ".pyo"}
+RELEASE_TAG = re.compile(r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 
 class DistributionValidationError(ValueError):
     """Raised when a built distribution violates the release contract."""
+
+
+def validate_release_identity(tag: str, project_file: Path, distribution_version: str) -> str:
+    """Require one final-release version across the tag, project, and artifacts."""
+    match = RELEASE_TAG.fullmatch(tag)
+    if match is None:
+        raise DistributionValidationError(
+            f"Release tag must use vMAJOR.MINOR.PATCH with no leading zeroes; found {tag!r}"
+        )
+    tag_version = ".".join(match.groups())
+
+    with project_file.open("rb") as stream:
+        project = tomllib.load(stream)
+    try:
+        project_version = project["project"]["version"]
+    except (KeyError, TypeError) as error:
+        raise DistributionValidationError(
+            f"Project file {project_file} does not define project.version"
+        ) from error
+    if not isinstance(project_version, str) or not project_version:
+        raise DistributionValidationError(
+            f"Project file {project_file} must define project.version as a non-empty string"
+        )
+
+    versions = {
+        "release tag": tag_version,
+        "project": project_version,
+        "distribution": distribution_version,
+    }
+    if len(set(versions.values())) != 1:
+        rendered = ", ".join(f"{source}={version!r}" for source, version in versions.items())
+        raise DistributionValidationError(f"Release versions do not match: {rendered}")
+    return tag_version
 
 
 def _require_single(paths: Iterable[Path], description: str) -> Path:
@@ -192,11 +228,29 @@ def main() -> int:
         default=Path("dist"),
         help="Directory containing exactly one wheel and one .tar.gz source distribution",
     )
+    parser.add_argument(
+        "--release-tag",
+        help="Release tag to compare with project and distribution versions",
+    )
+    parser.add_argument(
+        "--project-file",
+        type=Path,
+        default=Path("pyproject.toml"),
+        help="Project metadata used with --release-tag",
+    )
     args = parser.parse_args()
 
     try:
         version = validate_distributions(args.directory)
-    except (DistributionValidationError, OSError, tarfile.TarError, zipfile.BadZipFile) as error:
+        if args.release_tag is not None:
+            validate_release_identity(args.release_tag, args.project_file, version)
+    except (
+        DistributionValidationError,
+        OSError,
+        tarfile.TarError,
+        tomllib.TOMLDecodeError,
+        zipfile.BadZipFile,
+    ) as error:
         parser.exit(1, f"Distribution validation failed: {error}\n")
 
     print(f"Validated qbvisor {version} wheel and source distribution")
