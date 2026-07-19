@@ -55,8 +55,14 @@ def _normalize_utc_timestamp(value: datetime | str) -> str:
 
 
 class QuickBaseClient:
-    """
-    High-level QuickBase client that composes transport, metadata, and file utilities.
+    """High-level SDK client for Quickbase applications, schemas, records, and files.
+
+    The client resolves configured application, table, and field names to Quickbase IDs.
+    Use it as a context manager when it creates its own transport, or call :meth:`close`.
+
+    Args:
+        transport: Optional preconfigured transport. The caller retains ownership of a
+            supplied transport.
     """
 
     def __init__(self, transport: QuickBaseTransport | None = None):
@@ -332,7 +338,7 @@ class QuickBaseClient:
         Create a new Quickbase table: POST /v1/tables?appId={appId}
 
         Args:
-            app_id (str): The name of the application to create the table in. (required)
+            app_name (str): The configured name or ID of the application.
             table_name (str): The name of the new table. (required)
             description (str, optional): A description for the new table.
             singular_record_name (str, optional): Singular name for records in this table.
@@ -553,7 +559,8 @@ class QuickBaseClient:
             table_name (str): The name of the table.
             report_id (int): Report ID.
             skip (int): Number of records to skip. Default is 0.
-            top (Optional[int]): Maximum total records to return. By default, the complete report is returned.
+            top (int | None): Maximum total records to return. By default, the complete
+                report is returned.
 
         Returns:
             pd.DataFrame: DataFrame containing the report data.
@@ -635,7 +642,7 @@ class QuickBaseClient:
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
-            field_labels (List[str]): List of field labels to delete.
+            field_labels (list[str]): Field labels to delete.
 
         Returns:
             dict: Response from the API.
@@ -675,10 +682,11 @@ class QuickBaseClient:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
             formula (str): The formula string to evaluate.
-            record_id (Optional[int]): Record ID to run the formula against (if required).
+            record_id (int | None): Record ID to evaluate against when the formula needs
+                record context.
 
         Returns:
-            Any: The result of the formula as a string.
+            Any: The JSON-compatible formula result returned by Quickbase.
         """
         _, table_id = self._ids(app_name, table_name)
 
@@ -710,9 +718,9 @@ class QuickBaseClient:
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
-            records (List[Dict[str, Any]]): List of record dicts.
-            merge_field_label (Optional[str]): Field label to match for updates (optional).
-            fields_to_return (Optional[List[str]]): Field labels to return in response (optional).
+            records (list[dict[str, Any]]): Records keyed by field label.
+            merge_field_label (str | None): Field label used to match existing records.
+            fields_to_return (list[str] | None): Field labels to include in returned data.
 
         Returns:
             dict: Aggregated write outcome with returned data, record ID groups, and line errors.
@@ -793,10 +801,11 @@ class QuickBaseClient:
         Args:
             app_name (str): The name of the application.
             table_name (str): The name of the table.
-            select_fields (Optional[List[str]]): Field labels to return. If not provided, default columns will be returned.
-            where (Optional[str]): Quickbase formula query string (optional).
-            sort_by (Optional[List[Tuple[str, str]]]): Field labels and sort directions.
-            group_by (Optional[List[str]]): Field labels to group by.
+            select_fields (list[str] | None): Field labels to return. Quickbase selects its
+                default columns when omitted.
+            where (str | None): Quickbase formula query string.
+            sort_by (list[tuple[str, str]] | None): Field labels and sort directions.
+            group_by (list[str] | None): Field labels to group by.
             skip (int): Number of records to skip. Default is 0.
             top (int): Number of records to return. Default is 1000.
 
@@ -1227,20 +1236,23 @@ class QuickBaseClient:
         page_size: int = 1000,
     ) -> list[dict[str, Any]]:
         """
-        Download all attachments from ONE file field in a table, honoring 'where',
-        paging through all matching records, and skipping rows without an attachment.
+        Download the latest attachment from one file field for every matching record.
+
+        This is a synchronous compatibility entry point despite its historical ``_async``
+        suffix. It uses concurrent async I/O internally and calls ``asyncio.run()``, so do not
+        call it from a thread already running an event loop.
 
         Args:
             app_name (str): The name of the app.
             table_name (str): The name of the table.
             file_field_label (str): The label of the file field.
             target_dir (str): The directory to save downloaded files.
-            where (Optional[str]): Optional filter for the records.
+            where (str | None): Optional Quickbase formula query.
             max_concurrency (int): Maximum number of concurrent downloads.
             page_size (int): Number of records to fetch per request.
 
         Returns:
-            List[Dict[str, Any]]: List of results for each download job.
+            list[dict[str, Any]]: Outcome for each queued attachment.
         """
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be at least 1")
@@ -1322,7 +1334,7 @@ class QuickBaseClient:
             file_field_label: The label of the file field to download.
 
         Returns:
-            Optional[str]: The attachment as BASE64 string, or None if not found.
+            str | None: Base64-encoded attachment bytes, or ``None`` when no file exists.
         """
         app_id, table_id = self._ids(app_name, table_name)
         fmap = self.meta.get_field_map(app_id, table_id)
@@ -1368,8 +1380,11 @@ class QuickBaseClient:
         page_size: int = 1000,
     ) -> list[dict[str, Any]]:
         """
-        Download attachments from ALL file fields in the table, honoring 'where'.
-        Pages through records and skips cells without an attachment.
+        Download the latest attachment from every file field for matching records.
+
+        This is a synchronous compatibility entry point despite its historical ``_async``
+        suffix. It uses concurrent async I/O internally and calls ``asyncio.run()``, so do not
+        call it from a thread already running an event loop.
 
         Args:
             app_name: The name of the application.
@@ -1380,7 +1395,7 @@ class QuickBaseClient:
             page_size: Number of records to process per page.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries containing information about the downloaded attachments.
+            list[dict[str, Any]]: Outcome for each queued attachment.
         """
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be at least 1")
@@ -1461,12 +1476,15 @@ class QuickBaseClient:
     # Utility
     # ----------------
     def get_field_id(self, app_id: str, table_id: str, field_label: str) -> int:
+        """Resolve a field label to its ID using the compatibility metadata interface."""
         return self._fields.get_id(app_id, table_id, field_label)
 
     def get_table_id(self, app_id: str, table_id: str) -> str:
+        """Resolve a configured table name or ID through the compatibility interface."""
         return self._tables.get_id(app_id, table_id)
 
     def get_field(self, app_id, table_id, field_id):
+        """Return field metadata through the compatibility metadata interface."""
         return self._fields.get(app_id, table_id, field_id)
 
     # ----------------
@@ -1474,7 +1492,9 @@ class QuickBaseClient:
     # ----------------
     def summarize_config(self, show_fields: bool = False):
         """
-        Logs a hierarchical summary of the current configuration using a directory-style layout.
+        Log a hierarchical summary of the in-memory metadata cache.
+
+        This compatibility debugging helper only reports metadata already loaded by the client.
 
         Args:
             show_fields (bool): Whether to include a breakdown of all fields under each table.
@@ -1497,8 +1517,10 @@ class QuickBaseClient:
 
     def dump_full_config(self):
         """
-        Dumps the full in-memory config dictionary to the logger in JSON format.
-        Useful for debugging large applications where fields/tables may be misconfigured.
+        Log the full in-memory metadata cache as formatted JSON.
+
+        This compatibility debugging helper can expose schema details in logs. Use it only where
+        that output is appropriate.
         """
         try:
             config_str = json.dumps(self.meta.cache, indent=2)
