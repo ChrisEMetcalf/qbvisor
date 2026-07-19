@@ -54,6 +54,18 @@ from .helpers import (
 from .log_runner import LoggingConfigurator, get_logger
 from .models import RelationshipAccumulation, RelationshipSummary
 from .query_helper import QueryHelper
+from .schema import (
+    SCHEMA_STATE_FORMAT,
+    SCHEMA_STATE_FORMAT_VERSION,
+    AppSpec,
+    FieldSpec,
+    RelationshipSpec,
+    SchemaResourceKind,
+    SchemaState,
+    StateResource,
+    SummaryFieldSpec,
+    TableSpec,
+)
 from .transport import QuickBaseTransport, RetryPolicy
 
 # Expose file download utilities directly on the client
@@ -83,6 +95,16 @@ __all__ = [
     "QuickbaseRateLimitError",
     "QuickbaseResponseError",
     "QueryHelper",
+    "SCHEMA_STATE_FORMAT",
+    "SCHEMA_STATE_FORMAT_VERSION",
+    "AppSpec",
+    "FieldSpec",
+    "RelationshipSpec",
+    "SchemaResourceKind",
+    "SchemaState",
+    "StateResource",
+    "SummaryFieldSpec",
+    "TableSpec",
     "RelationshipAccumulation",
     "RelationshipSummary",
     "sanitize_filenames",
