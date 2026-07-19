@@ -9,6 +9,7 @@ import pytest
 from qbvisor import (
     AppSpec,
     FieldSpec,
+    FormulaSpec,
     QuickBaseClient,
     QuickbaseSchemaStateError,
     RelationshipSpec,
@@ -58,6 +59,82 @@ def application_spec(*, summary_where: str | None = None) -> AppSpec:
                         where=summary_where,
                     )
                 ],
+            )
+        ],
+    )
+
+
+def formula_dependency_spec() -> AppSpec:
+    return AppSpec(
+        key="operations",
+        name="Operations",
+        tables=[
+            TableSpec(
+                key="parents",
+                name="Parents",
+                fields=[
+                    FieldSpec(key="base", label="Base", field_type="numeric"),
+                    FieldSpec(
+                        key="rate",
+                        label="Rate",
+                        field_type="numeric",
+                        formula=FormulaSpec(
+                            expression="[Base] * 2",
+                            depends_on=("tables.parents.fields.base",),
+                        ),
+                    ),
+                    FieldSpec(
+                        key="final",
+                        label="Final",
+                        field_type="numeric",
+                        formula=FormulaSpec(
+                            expression="[Total Derived] + 1",
+                            depends_on=("relationships.parent_children.summaries.total_derived",),
+                        ),
+                    ),
+                ],
+            ),
+            TableSpec(
+                key="children",
+                name="Children",
+                fields=[
+                    FieldSpec(key="amount", label="Amount", field_type="numeric"),
+                    FieldSpec(
+                        key="derived_amount",
+                        label="Derived Amount",
+                        field_type="numeric",
+                        formula=FormulaSpec(
+                            expression="[Amount] * 2",
+                            depends_on=("tables.children.fields.amount",),
+                        ),
+                    ),
+                    FieldSpec(
+                        key="lookup_plus_one",
+                        label="Lookup Plus One",
+                        field_type="numeric",
+                        formula=FormulaSpec(
+                            expression="[Parents - Rate] + 1",
+                            depends_on=("relationships.parent_children.lookups.rate",),
+                        ),
+                    ),
+                ],
+            ),
+        ],
+        relationships=[
+            RelationshipSpec(
+                key="parent_children",
+                parent_table="parents",
+                child_table="children",
+                foreign_key_label="Related Parent",
+                lookup_fields=("rate",),
+                summary_fields=(
+                    SummaryFieldSpec(
+                        key="total_derived",
+                        accumulation_type="SUM",
+                        field="derived_amount",
+                        label="Total Derived",
+                    ),
+                ),
             )
         ],
     )
@@ -442,6 +519,211 @@ def test_missing_app_plans_the_complete_schema_without_network_calls(tmp_path):
         "conflict": 0,
     }
     client._request.assert_not_called()
+
+
+def test_formula_fields_plan_remote_mode_type_normalization_and_exact_text(tmp_path):
+    remote = remote_schema()
+    remote["tables"] = [{"id": PROJECTS_ID, "name": "Projects"}]
+    remote["fields"] = {
+        PROJECTS_ID: [
+            {"id": 6, "label": "Quantity", "fieldType": "numeric", "properties": {}},
+            {
+                "id": 7,
+                "label": "Calculated At",
+                "fieldType": "timestamp",
+                "mode": "formula",
+                "properties": {"formula": "Now()"},
+            },
+        ]
+    }
+    remote["relationships"] = {}
+    spec = AppSpec(
+        key="operations",
+        name="Operations",
+        tables=[
+            TableSpec(
+                key="projects",
+                name="Projects",
+                fields=[
+                    FieldSpec(key="quantity", label="Quantity", field_type="numeric"),
+                    FieldSpec(
+                        key="calculated_at",
+                        label="Calculated At",
+                        field_type="datetime",
+                        formula=FormulaSpec(expression="Now()\n"),
+                    ),
+                ],
+            )
+        ],
+    )
+
+    plan = fake_client(remote).plan_app(spec, state_path=tmp_path / "missing.json")
+    formula_change = next(
+        change for change in plan.changes if change.address.endswith("calculated_at")
+    )
+
+    assert formula_change.action == "unchanged"
+    assert formula_change.state_action == "bind"
+    assert plan.execution_order == (
+        "apps.operations.tables.projects.fields.quantity",
+        "apps.operations.tables.projects.fields.calculated_at",
+    )
+
+
+def test_formula_drift_is_reviewable_and_formula_queries_warn_about_performance(tmp_path):
+    remote = remote_schema()
+    remote["tables"] = [{"id": PROJECTS_ID, "name": "Projects"}]
+    remote["fields"] = {
+        PROJECTS_ID: [
+            {
+                "id": 6,
+                "label": "Related Count",
+                "fieldType": "numeric",
+                "mode": "formula",
+                "properties": {"formula": "1"},
+            }
+        ]
+    }
+    remote["relationships"] = {}
+    spec = AppSpec(
+        key="operations",
+        name="Operations",
+        tables=[
+            TableSpec(
+                key="projects",
+                name="Projects",
+                fields=[
+                    FieldSpec(
+                        key="related_count",
+                        label="Related Count",
+                        field_type="numeric",
+                        formula=FormulaSpec(
+                            expression='Size(GetRecords("{3.GT.0}"))',
+                        ),
+                    )
+                ],
+            )
+        ],
+    )
+
+    plan = fake_client(remote).plan_app(spec, state_path=tmp_path / "missing.json")
+    formula_change = next(change for change in plan.changes if change.kind == "field")
+
+    assert formula_change.action == "update"
+    assert formula_change.attributes[0].name == "formula.expression"
+    assert formula_change.attributes[0].before == "1"
+    assert formula_change.attributes[0].after == 'Size(GetRecords("{3.GT.0}"))'
+    assert "performance" in formula_change.warnings[0]
+    assert "warning:" in str(plan)
+
+
+@pytest.mark.parametrize(
+    ("remote_mode", "formula"),
+    [
+        ("", FormulaSpec(expression="1")),
+        ("formula", None),
+    ],
+)
+def test_scalar_and_formula_modes_cannot_be_repurposed(tmp_path, remote_mode, formula):
+    remote = remote_schema()
+    remote["tables"] = [{"id": PROJECTS_ID, "name": "Projects"}]
+    remote["fields"] = {
+        PROJECTS_ID: [
+            {
+                "id": 6,
+                "label": "Amount",
+                "fieldType": "numeric",
+                "mode": remote_mode,
+                "properties": {"formula": "1"} if remote_mode == "formula" else {},
+            }
+        ]
+    }
+    remote["relationships"] = {}
+    spec = AppSpec(
+        key="operations",
+        name="Operations",
+        tables=[
+            TableSpec(
+                key="projects",
+                name="Projects",
+                fields=[
+                    FieldSpec(
+                        key="amount",
+                        label="Amount",
+                        field_type="numeric",
+                        formula=formula,
+                    )
+                ],
+            )
+        ],
+    )
+
+    plan = fake_client(remote).plan_app(spec, state_path=tmp_path / "missing.json")
+    field_change = next(change for change in plan.changes if change.kind == "field")
+
+    assert field_change.action == "conflict"
+    assert "field modes cannot be converted" in field_change.reason
+
+
+def test_formula_relationship_dependencies_have_a_deterministic_safe_order(tmp_path):
+    plan = fake_client(app_ids={}).plan_app(
+        formula_dependency_spec(),
+        state_path=tmp_path / "missing.json",
+    )
+    positions = {address: index for index, address in enumerate(plan.execution_order)}
+    relationship = "apps.operations.relationships.parent_children"
+    rate = "apps.operations.tables.parents.fields.rate"
+    lookup = f"{relationship}.lookups.rate"
+    lookup_formula = "apps.operations.tables.children.fields.lookup_plus_one"
+    derived = "apps.operations.tables.children.fields.derived_amount"
+    summary = f"{relationship}.summaries.total_derived"
+    final = "apps.operations.tables.parents.fields.final"
+
+    assert plan.can_apply
+    assert positions["apps.operations.tables.parents.fields.base"] < positions[rate]
+    assert positions[relationship] < positions[lookup]
+    assert positions[rate] < positions[lookup] < positions[lookup_formula]
+    assert positions[derived] < positions[summary] < positions[final]
+
+
+def test_formula_dependency_cycles_are_conflicts_before_mutation(tmp_path):
+    spec = AppSpec(
+        key="operations",
+        name="Operations",
+        tables=[
+            TableSpec(
+                key="parents",
+                name="Parents",
+                fields=[
+                    FieldSpec(
+                        key="rate",
+                        label="Rate",
+                        field_type="numeric",
+                        formula=FormulaSpec(
+                            expression="[Children - Rate] + 1",
+                            depends_on=("relationships.parent_children.lookups.rate",),
+                        ),
+                    )
+                ],
+            ),
+            TableSpec(key="children", name="Children"),
+        ],
+        relationships=[
+            RelationshipSpec(
+                key="parent_children",
+                parent_table="parents",
+                child_table="children",
+                lookup_fields=("rate",),
+            )
+        ],
+    )
+
+    plan = fake_client(app_ids={}).plan_app(spec, state_path=tmp_path / "missing.json")
+    conflicts = [change for change in plan.changes if change.action == "conflict"]
+
+    assert not plan.can_apply
+    assert {change.kind for change in conflicts} == {"field", "lookup"}
+    assert all("dependency cycle" in change.reason for change in conflicts)
 
 
 def test_filtered_summary_import_is_blocked_when_quickbase_cannot_verify_filter(tmp_path):

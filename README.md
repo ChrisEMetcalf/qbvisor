@@ -168,6 +168,7 @@ after it is understood. Display names remain normal Quickbase names; keys such a
 from qbvisor import (
     AppSpec,
     FieldSpec,
+    FormulaSpec,
     QuickBaseClient,
     RelationshipSpec,
     SummaryFieldSpec,
@@ -183,6 +184,20 @@ spec = AppSpec(
             name="Projects",
             fields=[
                 FieldSpec(key="name", label="Project Name", field_type="text"),
+                FieldSpec(key="budget", label="Budget", field_type="currency"),
+                FieldSpec(key="tax_rate", label="Tax Rate", field_type="percent"),
+                FieldSpec(
+                    key="budget_with_tax",
+                    label="Budget with Tax",
+                    field_type="currency",
+                    formula=FormulaSpec(
+                        expression="[Budget] * (1 + [Tax Rate])",
+                        depends_on=(
+                            "tables.projects.fields.budget",
+                            "tables.projects.fields.tax_rate",
+                        ),
+                    ),
+                ),
             ],
         ),
         TableSpec(
@@ -225,6 +240,11 @@ with QuickBaseClient() as qb:
 the reviewed `SchemaPlan`, checks that neither Quickbase nor local state changed after planning,
 applies only the declared differences, verifies convergence, and then atomically publishes
 `.qbvisor/state.json`. A second plan should be unchanged.
+
+`FormulaSpec` accepts Quickbase formula syntax directly. `depends_on` uses stable schema addresses
+to order formula fields, relationships, lookups, and summaries before mutation. Quickbase remains
+responsible for parsing and type-checking the expression. Formula-query functions are identified in
+the plan with a performance warning.
 
 Existing resources are imported by a unique case-insensitive name match. After that first apply,
 stored Quickbase IDs are authoritative, so display names can be changed safely without replacing

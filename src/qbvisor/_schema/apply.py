@@ -70,8 +70,11 @@ def _field_body(spec: FieldSpec, *, create: bool) -> dict[str, Any]:
             value = getattr(spec, spec_name)
             if value is not None:
                 body[request_name] = value
-    if spec.properties is not None:
-        body["properties"] = _thaw_json(spec.properties)
+    properties = _thaw_json(spec.properties) if spec.properties is not None else {}
+    if spec.formula is not None:
+        properties["formula"] = spec.formula.expression
+    if properties:
+        body["properties"] = properties
     return body
 
 
@@ -118,6 +121,7 @@ class SchemaApplier:
                 state_path=plan.state_path,
                 state=verification.state,
                 changes=verification.changes,
+                execution_order=verification.execution_order,
             )
             return SchemaApplyResult(
                 plan=plan,
@@ -155,22 +159,15 @@ class SchemaApplier:
                 remote_id=table_id,
                 name=table_spec.name,
             )
-            for field_spec in table_spec.fields:
-                field_address = field_spec.address(plan.spec.key, table_spec.key)
-                field_change = changes[field_address]
-                field_id = self._apply_field(table_id, field_spec, field_change)
-                field_ids[(table_spec.key, field_spec.key)] = field_id
-                resources[field_address] = StateResource(
-                    address=field_address,
-                    kind="field",
-                    remote_id=field_id,
-                    name=field_spec.label,
-                    attributes={"field_type": field_spec.field_type},
-                )
+        from .dependencies import plan_schema_dependencies
+        from .relationship_apply import RelationshipResourceApplier
 
-        from .relationship_apply import apply_relationships
-
-        apply_relationships(
+        field_specs = {
+            field_spec.address(plan.spec.key, table_spec.key): (table_spec, field_spec)
+            for table_spec in plan.spec.tables
+            for field_spec in table_spec.fields
+        }
+        relationship_applier = RelationshipResourceApplier(
             self.client,
             plan.spec,
             changes,
@@ -178,6 +175,29 @@ class SchemaApplier:
             table_ids,
             field_ids,
         )
+        execution_order = plan.execution_order or plan_schema_dependencies(plan.spec).ordered
+        for address in execution_order:
+            field_entry = field_specs.get(address)
+            if field_entry is not None:
+                table_spec, field_spec = field_entry
+                field_id = self._apply_field(
+                    table_ids[table_spec.key],
+                    field_spec,
+                    changes[address],
+                )
+                field_ids[(table_spec.key, field_spec.key)] = field_id
+                attributes: dict[str, Any] = {"field_type": field_spec.field_type}
+                if field_spec.formula is not None:
+                    attributes["mode"] = "formula"
+                resources[address] = StateResource(
+                    address=address,
+                    kind="field",
+                    remote_id=field_id,
+                    name=field_spec.label,
+                    attributes=attributes,
+                )
+                continue
+            relationship_applier.apply(address)
 
         return SchemaState(
             lineage=plan.state.lineage if plan.state is not None else SchemaState().lineage,
@@ -305,6 +325,8 @@ class SchemaApplier:
                 body["properties"] = {
                     name: _thaw_json(spec.properties[name]) for name in sorted(property_names)
                 }
+            if "formula.expression" in changed and spec.formula is not None:
+                body.setdefault("properties", {})["formula"] = spec.formula.expression
             self.client._request(
                 method="POST",
                 path=f"fields/{field_id}",

@@ -13,6 +13,8 @@ def test_existing_public_exports_remain_available():
         "BackupIntegrityError",
         "AppSpec",
         "FieldSpec",
+        "FormulaFieldType",
+        "FormulaSpec",
         "RelationshipSpec",
         "SchemaAttributeChange",
         "SchemaApplyResult",
