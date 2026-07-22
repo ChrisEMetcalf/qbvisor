@@ -96,9 +96,18 @@ QBVISOR_TEST_TOKEN=QB-USER-TOKEN replace-with-your-sandbox-token
 QBVISOR_TEST_APP_ID=replace-with-your-sandbox-app-id
 QBVISOR_RUN_INTEGRATION=0
 QBVISOR_ALLOW_SANDBOX_MUTATIONS=0
+QBVISOR_RUN_WORKLOADS=0
+QBVISOR_WORKLOAD_PROFILE=smoke
+QBVISOR_WORKLOAD_RESULTS=.qbvisor/workloads
 ```
 
 Read-only sandbox tests require `QBVISOR_RUN_INTEGRATION=1`. Fixture creation and mutation tests
 also require `QBVISOR_ALLOW_SANDBOX_MUTATIONS=1`. Review
 [Contributing](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CONTRIBUTING.md) before
 enabling either setting.
+
+The generated-record stabilization workload additionally requires `QBVISOR_RUN_WORKLOADS=1`; its
+backup step still captures the whole sandbox application. `QBVISOR_WORKLOAD_PROFILE` accepts
+`smoke`, `standard`, or `scale`; it defaults to `smoke`. `QBVISOR_WORKLOAD_RESULTS` controls where
+credential-free JSON summaries are written. See
+[Sandbox stabilization workloads](development-workloads.md) before increasing the profile.

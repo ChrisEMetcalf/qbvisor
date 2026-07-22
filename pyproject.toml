@@ -83,6 +83,7 @@ addopts = [
 markers = [
     "integration: live contract tests against the configured persistent Quickbase sandbox",
     "sandbox_mutation: explicitly opted-in tests that mutate only the dedicated sandbox",
+    "workload: bounded generated-record volume with a whole-application backup and explicit opt-in",
 ]
 testpaths = ["tests"]
 
