@@ -64,6 +64,25 @@ Prepare each version through a focused pull request:
 
 The release commit on `main` must remain unchanged after this review.
 
+For a patch release that changes runtime behavior, run the live checks against a quiet dedicated
+sandbox in this order:
+
+```bash
+QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=0 \
+  QBVISOR_RUN_WORKLOADS=0 uv run pytest -m integration --no-cov
+QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=1 \
+  QBVISOR_RUN_WORKLOADS=0 \
+  uv run pytest -m "integration and not workload" --no-cov
+QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=1 \
+  QBVISOR_RUN_WORKLOADS=1 QBVISOR_WORKLOAD_PROFILE=standard \
+  uv run pytest -m workload --no-cov -s
+```
+
+Review the newest `.qbvisor/workloads/*.json` before approval. It must report `status: passed`,
+`backupConsistent: true`, equal created, queried, exported, backed-up, and deleted counts, and no
+failure phase. Attach or summarize that credential-free result in the release pull request. Use
+`smoke` while developing and reserve `scale` for an intentional, separately reported exercise.
+
 ## Tag and publish
 
 Synchronize `main`, create a signed annotated tag, and push the tag:

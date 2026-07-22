@@ -78,6 +78,26 @@ QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=1 \
 
 Mutation tests are outside the default suite. They must verify the configured realm and application ID, use uniquely named temporary resources, and clean up after themselves. Never run integration tests against a production application.
 
+### Stabilization workloads
+
+The generated-record workload is a separate volume layer above the integration contract; its
+backup step still captures the whole sandbox application. It creates uniquely prefixed records,
+exercises the public developer workflows, writes a credential-free JSON summary, and attempts
+prefix-scoped cleanup even when a check fails. If cleanup also fails, the summary preserves the
+primary failure and records the cleanup failure separately.
+
+Start with the `smoke` profile after the normal integration contract passes:
+
+```bash
+QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=1 \
+  QBVISOR_RUN_WORKLOADS=1 QBVISOR_WORKLOAD_PROFILE=smoke \
+  uv run pytest -m workload --no-cov -s
+```
+
+Do not use workload timings as performance claims. They are diagnostics for comparing failures and
+large behavioral regressions. Run profiles and safety details are documented in
+[Sandbox stabilization workloads](docs/development-workloads.md).
+
 ## Quickbase API contract audit
 
 The official Quickbase OAS is cached locally and excluded from version control. Refresh it and update the tracked response manifest with:

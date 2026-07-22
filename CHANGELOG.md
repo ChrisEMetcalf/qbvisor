@@ -6,6 +6,12 @@ heading.
 
 ## [Unreleased]
 
+### Added
+
+- Add opt-in, bounded generated-record profiles for stabilizing record upserts, queries, DataFrame
+  conversion, CSV export, whole-application backups, and cleanup under representative live use,
+  with versioned diagnostic summaries and explicit backup-consistency enforcement.
+
 ## [0.3.0] - 2026-07-19
 
 ### Added
