@@ -22,6 +22,7 @@ nav:
   - Declarative schemas: declarative-schemas.md
   - API reference:
       - Public API: reference/index.md
+      - Compatibility helpers: compatibility-helpers.md
       - Client: reference/client.md
       - Queries: reference/queries.md
       - Declarative schemas: reference/schemas.md

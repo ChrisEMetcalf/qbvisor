@@ -1403,14 +1403,15 @@ def test_record_export_continues_after_a_short_page_and_preserves_field_labels(c
         ]
     )
 
-    output = client.download_records_to_csv(
-        "Operations",
-        "Projects",
-        str(tmp_path),
-        where="{7.EX.'Active'}OR{7.EX.'Complete'}",
-        chunk_size=2500,
-        max_concurrency=3,
-    )
+    with pytest.warns(UserWarning, match="compatibility-only parameter and is ignored"):
+        output = client.download_records_to_csv(
+            "Operations",
+            "Projects",
+            str(tmp_path),
+            where="{7.EX.'Active'}OR{7.EX.'Complete'}",
+            chunk_size=2500,
+            max_concurrency=3,
+        )
 
     assert output.startswith(str(tmp_path / "Projects_"))
     assert output.endswith(".csv")

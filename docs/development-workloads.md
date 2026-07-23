@@ -54,7 +54,7 @@ with the established persistent-sandbox and local regression contracts:
 | Attachments | Included in the application backup | Direct download, paging, and deletion live contracts | No scaled attachment churn |
 | Declarative schemas | Not volume-scaled | Live idempotency, relationship, and formula contracts | Run separately from record workloads |
 | Backups | Integrity and record-value verification | Persistent attachment round trip | Entire sandbox application; no resource scoping |
-| Compatibility | Public calls exercised without signature changes | Client compatibility regression suite | Existing deprecated behavior is unchanged |
+| Compatibility-retained helpers | Public calls exercised without signature changes | Compatibility ledger and focused regression suite | Retained behavior is unchanged |
 
 The workload is the new volume layer, not a replacement for those focused tests. Issue #23 should
 close only after the pull request records both the full live contract and a reviewed workload

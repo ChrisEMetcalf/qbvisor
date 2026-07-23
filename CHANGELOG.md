@@ -11,6 +11,13 @@ heading.
 - Add opt-in, bounded generated-record profiles for stabilizing record upserts, queries, DataFrame
   conversion, CSV export, whole-application backups, and cleanup under representative live use,
   with versioned diagnostic summaries and explicit backup-consistency enforcement.
+- Add a compatibility ledger with signature snapshots, behavior boundaries, side effects, and
+  preferred alternatives for retained attachment, metadata, config-diagnostic, and CSV helpers.
+
+### Changed
+
+- Reject async-named synchronous attachment helpers before side effects when an event loop is
+  active, and warn when a non-default ignored CSV `max_concurrency` value is passed.
 
 ## [0.3.0] - 2026-07-19
 
