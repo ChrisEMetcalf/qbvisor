@@ -45,8 +45,9 @@ or `download_records_to_csv()` for a stable large extract.
 
 CSV exports now scan in stable Record ID# order and publish the output only after all pages succeed.
 The `max_concurrency` compatibility-only argument remains accepted, but pages are fetched
-sequentially to avoid records shifting between offsets. Passing it explicitly, including as
-`max_concurrency=4`, now emits `UserWarning`; omit the argument in new code.
+sequentially to avoid records shifting between offsets. Passing a valid value explicitly, including
+as `max_concurrency=4`, now emits `UserWarning`; invalid values are rejected. Omit the argument in
+new code.
 
 ## Upserts
 

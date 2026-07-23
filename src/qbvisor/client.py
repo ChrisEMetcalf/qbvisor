@@ -1060,7 +1060,7 @@ class QuickBaseClient:
             chunk_size (int): Number of records to fetch per page, capped at 1000.
             record_limit (Optional[int]): Maximum number of records to download. Default is None (all records).
             max_concurrency (int): Compatibility-only parameter. Record pages are fetched
-                sequentially; passing it explicitly emits ``UserWarning``.
+                sequentially; passing a valid value explicitly emits ``UserWarning``.
 
         Returns:
             str: Path to the saved CSV file, or an empty string if no records found.

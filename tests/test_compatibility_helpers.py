@@ -168,6 +168,22 @@ def test_default_csv_concurrency_is_silent_when_the_parameter_is_omitted(tmp_pat
     assert not caught
 
 
+def test_invalid_explicit_csv_concurrency_is_rejected_without_warning(tmp_path):
+    client = QuickBaseClient.__new__(QuickBaseClient)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        with pytest.raises(ValueError, match="max_concurrency must be at least 1"):
+            client.download_records_to_csv(
+                "Billing",
+                "Invoices",
+                str(tmp_path),
+                max_concurrency=0,
+            )
+
+    assert not caught
+
+
 def test_preferred_beginner_path_builds_query_from_label_and_uses_facade():
     client = QuickBaseClient.__new__(QuickBaseClient)
     client.meta = Mock()
