@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from qbvisor import QuickBaseClient
+from qbvisor import QueryHelper, QuickBaseClient
 
 EXPECTED_SIGNATURES = {
     "download_attachments_async": (
@@ -101,7 +101,7 @@ def test_async_named_sync_helpers_reject_active_event_loop_before_side_effects(
     async def invoke() -> None:
         with pytest.raises(
             RuntimeError,
-            match=rf"{method_name}\(\) is a synchronous compatibility method",
+            match=rf"{method_name}\(\) is a compatibility-retained synchronous method",
         ):
             getattr(client, method_name)(*arguments, str(target_dir))
 
@@ -111,7 +111,7 @@ def test_async_named_sync_helpers_reject_active_event_loop_before_side_effects(
     assert not target_dir.exists()
 
 
-def test_nondefault_ignored_csv_concurrency_warns_before_export_side_effects(tmp_path):
+def test_explicit_nondefault_csv_concurrency_warns_before_export_side_effects(tmp_path):
     client = QuickBaseClient.__new__(QuickBaseClient)
     client._ids = Mock(side_effect=RuntimeError("stop after compatibility warning"))
 
@@ -128,6 +128,34 @@ def test_nondefault_ignored_csv_concurrency_warns_before_export_side_effects(tmp
     assert not list(tmp_path.iterdir())
 
 
+@pytest.mark.parametrize("passing_style", ["keyword", "positional"])
+def test_explicit_default_csv_concurrency_warns(passing_style, tmp_path):
+    client = QuickBaseClient.__new__(QuickBaseClient)
+    client._ids = Mock(side_effect=RuntimeError("stop after compatibility warning"))
+
+    with pytest.warns(UserWarning, match="compatibility-only parameter and is ignored"):
+        with pytest.raises(RuntimeError, match="stop after compatibility warning"):
+            if passing_style == "keyword":
+                client.download_records_to_csv(
+                    "Billing",
+                    "Invoices",
+                    str(tmp_path),
+                    max_concurrency=4,
+                )
+            else:
+                client.download_records_to_csv(
+                    "Billing",
+                    "Invoices",
+                    str(tmp_path),
+                    "{3.GT.'0'}",
+                    1000,
+                    None,
+                    4,
+                )
+
+    client._ids.assert_called_once_with("Billing", "Invoices")
+
+
 def test_default_csv_concurrency_is_silent_when_the_parameter_is_omitted(tmp_path):
     client = QuickBaseClient.__new__(QuickBaseClient)
     client._ids = Mock(side_effect=RuntimeError("stop after compatibility check"))
@@ -138,6 +166,35 @@ def test_default_csv_concurrency_is_silent_when_the_parameter_is_omitted(tmp_pat
             client.download_records_to_csv("Billing", "Invoices", str(tmp_path))
 
     assert not caught
+
+
+def test_preferred_beginner_path_builds_query_from_label_and_uses_facade():
+    client = QuickBaseClient.__new__(QuickBaseClient)
+    client.meta = Mock()
+    client.meta.get_field_map.return_value = {
+        "Invoice Number": {"id": 6, "type": "text"},
+        "Status": {"id": 7, "type": "text"},
+    }
+    client.query_dataframe = Mock(return_value="active invoices")
+
+    query = QueryHelper(client, "Billing", "Invoices")
+    active_filter = query.eq("Status", "Active")
+    result = client.query_dataframe(
+        "Billing",
+        "Invoices",
+        ["Invoice Number", "Status"],
+        where=active_filter,
+    )
+
+    assert active_filter == "{7.EX.'Active'}"
+    assert result == "active invoices"
+    client.meta.get_field_map.assert_called_once_with("Billing", "Invoices")
+    client.query_dataframe.assert_called_once_with(
+        "Billing",
+        "Invoices",
+        ["Invoice Number", "Status"],
+        where="{7.EX.'Active'}",
+    )
 
 
 def test_metadata_helpers_return_values_and_propagate_errors():

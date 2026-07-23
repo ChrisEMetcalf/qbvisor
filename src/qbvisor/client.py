@@ -1,9 +1,11 @@
 import asyncio
 import base64
+import inspect
 import json
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from functools import wraps
 from pathlib import Path
 from typing import Any, TypeVar, cast, overload
 from uuid import uuid4
@@ -40,15 +42,46 @@ ResponseT = TypeVar("ResponseT")
 
 
 def _reject_running_event_loop(method_name: str) -> None:
-    """Fail before sync compatibility helpers create coroutines or perform I/O."""
+    """Fail before compatibility-retained sync helpers create coroutines or perform I/O."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         return
     raise RuntimeError(
-        f"{method_name}() is a synchronous compatibility method and cannot run while "
+        f"{method_name}() is a compatibility-retained synchronous method and cannot run while "
         "an event loop is active; call it from a worker thread instead"
     )
+
+
+def _warn_on_explicit_csv_concurrency[**ParametersT, ReturnT](
+    function: Callable[ParametersT, ReturnT],
+) -> Callable[ParametersT, ReturnT]:
+    """Warn when callers explicitly use the retained-but-ignored CSV parameter."""
+    parameter_position = tuple(inspect.signature(function).parameters).index("max_concurrency")
+
+    @wraps(function)
+    def wrapped(*args: ParametersT.args, **kwargs: ParametersT.kwargs) -> ReturnT:
+        explicit_value: Any | None = None
+        if len(args) > parameter_position:
+            explicit_value = args[parameter_position]
+        elif "max_concurrency" in kwargs:
+            explicit_value = kwargs["max_concurrency"]
+
+        try:
+            should_warn = explicit_value is not None and explicit_value >= 1
+        except TypeError:
+            should_warn = False
+        if should_warn:
+            warnings.warn(
+                "download_records_to_csv(max_concurrency=...) is a compatibility-only "
+                "parameter and is ignored; record pages are always fetched sequentially. "
+                "Omit max_concurrency.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return function(*args, **kwargs)
+
+    return wrapped
 
 
 def _normalize_utc_timestamp(value: datetime | str) -> str:
@@ -1005,6 +1038,7 @@ class QuickBaseClient:
     # ----------------
     # CSV Download
     # ----------------
+    @_warn_on_explicit_csv_concurrency
     def download_records_to_csv(
         self,
         app_name: str,
@@ -1026,7 +1060,7 @@ class QuickBaseClient:
             chunk_size (int): Number of records to fetch per page, capped at 1000.
             record_limit (Optional[int]): Maximum number of records to download. Default is None (all records).
             max_concurrency (int): Compatibility-only parameter. Record pages are fetched
-                sequentially; passing a non-default value emits ``UserWarning``.
+                sequentially; passing it explicitly emits ``UserWarning``.
 
         Returns:
             str: Path to the saved CSV file, or an empty string if no records found.
@@ -1037,14 +1071,6 @@ class QuickBaseClient:
             raise ValueError("max_concurrency must be at least 1")
         if record_limit is not None and record_limit < 0:
             raise ValueError("record_limit cannot be negative")
-        if max_concurrency != 4:
-            warnings.warn(
-                "download_records_to_csv(max_concurrency=...) is a compatibility-only "
-                "parameter and is ignored; record pages are always fetched sequentially. "
-                "Omit max_concurrency.",
-                UserWarning,
-                stacklevel=2,
-            )
 
         app_id, table_id = self._ids(app_name, table_name)
 
