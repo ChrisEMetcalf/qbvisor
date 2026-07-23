@@ -12,7 +12,7 @@ from qbvisor import AppSpec, BackupOptions, QueryHelper, QuickBaseClient
 | --- | --- | --- |
 | Supported | `QuickBaseClient`, declarative schema models, backup models, `QueryHelper`, documented exceptions, logging, and transport configuration | Maintained under the release policy |
 | Compatibility-retained | Historical helpers on `QuickBaseClient` retained for existing applications | Names and call signatures remain stable when practical; new code should prefer the supported workflow in the compatibility ledger |
-| Compatibility-only parameter | An argument retained only to preserve an established call signature | The current implementation ignores it and warns whenever it is explicitly passed |
+| Compatibility-only parameter | An argument retained only to preserve an established call signature | The current implementation rejects invalid values and warns whenever a valid value is explicitly passed |
 | Internal | Underscore-prefixed modules, resource services, metadata-cache internals, and the internal async transport | May change between minor pre-1.0 releases |
 
 ## Compatibility-retained methods

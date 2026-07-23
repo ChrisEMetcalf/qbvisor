@@ -6,8 +6,8 @@ the preferred workflow when it fits. Compatibility-retained does not mean deprec
 helpers inventoried here has a removal schedule.
 
 A **compatibility-only parameter** remains in a public signature so existing calls keep working,
-but it does not control the current implementation. Passing it explicitly emits a `UserWarning`
-so the ignored setting cannot silently look effective.
+but it does not control the current implementation. Passing a valid value explicitly emits a
+`UserWarning` so the ignored setting cannot silently look effective; invalid values are rejected.
 
 ## Inventory
 
@@ -110,9 +110,10 @@ so the ignored setting cannot silently look effective.
 - **Classification:** `download_records_to_csv()` is supported; `max_concurrency` is a
   compatibility-only parameter.
 - **Behavior:** CSV pages are always fetched sequentially in stable Record ID# order.
-  `max_concurrency` is validated but ignored. Passing it explicitly emits `UserWarning`, including
-  an explicitly passed default value of `4`; calls that omit it remain silent. A
-  signature-preserving call wrapper records that boundary without changing the retained signature.
+  `max_concurrency` is validated but ignored. Passing a valid value explicitly emits `UserWarning`,
+  including an explicitly passed default value of `4`; invalid values are rejected, and calls that
+  omit it remain silent. A signature-preserving call wrapper records that boundary without changing
+  the retained signature.
 - **Side effects:** The supported method reads metadata and records, creates `output_dir`, writes a
   temporary CSV, and atomically replaces the dated final CSV after success. On failure it removes
   the temporary file.
