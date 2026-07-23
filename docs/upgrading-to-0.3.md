@@ -44,8 +44,10 @@ or `download_records_to_csv()` for a stable large extract.
 ## Record exports
 
 CSV exports now scan in stable Record ID# order and publish the output only after all pages succeed.
-The existing `max_concurrency` argument remains accepted, but pages are fetched sequentially to
-avoid records shifting between offsets.
+The `max_concurrency` compatibility-only argument remains accepted, but pages are fetched
+sequentially to avoid records shifting between offsets. Passing a valid value explicitly, including
+as `max_concurrency=4`, now emits `UserWarning`; invalid values are rejected. Omit the argument in
+new code.
 
 ## Upserts
 
@@ -65,9 +67,9 @@ and `partial`. Callers retrying writes should use a stable unique merge field.
 
 ## Attachments
 
-The existing methods ending in `_async` remain synchronous entry points. They now scan all matching
-records, use bounded asynchronous file transfers, preserve raw bytes correctly, and report
-`downloaded`, `skipped`, or `failed` outcomes.
+The compatibility-retained methods ending in `_async` remain synchronous entry points. They now
+scan all matching records, use bounded asynchronous file transfers, preserve raw bytes correctly,
+and report `downloaded`, `skipped`, or `failed` outcomes.
 
 One or more failed files raise `QuickbaseBatchError` after independent downloads finish. Code that
 previously expected a partial list without an exception should catch the batch error and inspect
