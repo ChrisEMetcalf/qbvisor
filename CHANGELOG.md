@@ -11,6 +11,9 @@ heading.
 - Add opt-in, bounded generated-record profiles for stabilizing record upserts, queries, DataFrame
   conversion, CSV export, whole-application backups, and cleanup under representative live use,
   with versioned diagnostic summaries and explicit backup-consistency enforcement.
+- Add scheduled and candidate-tag operational canaries for reads, upserts, attachments, backups,
+  and schema plans, with verified mutation cleanup, next-run orphan recovery, and secret-free
+  diagnostic artifacts.
 
 ## [0.3.0] - 2026-07-19
 

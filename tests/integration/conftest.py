@@ -38,6 +38,38 @@ class SandboxContract:
     record_ids: dict[str, int]
 
 
+def _validated_sandbox_config(config: dict[str, str | None]) -> SandboxConfig:
+    """Validate sandbox settings without copying their values into diagnostics."""
+
+    realm = config.get("QBVISOR_TEST_REALM")
+    token = config.get("QBVISOR_TEST_TOKEN")
+    app_id = config.get("QBVISOR_TEST_APP_ID")
+    if not isinstance(realm, str) or not isinstance(token, str) or not isinstance(app_id, str):
+        raise ValueError("Persistent sandbox configuration is incomplete")
+    if realm != realm.strip() or "://" in realm or "/" in realm:
+        raise ValueError(
+            "QBVISOR_TEST_REALM must be a bare realm hostname without a URL scheme or path"
+        )
+    if token != token.strip():
+        raise ValueError("QBVISOR_TEST_TOKEN must not contain leading or trailing whitespace")
+    if app_id != app_id.strip():
+        raise ValueError("QBVISOR_TEST_APP_ID must not contain surrounding whitespace")
+    try:
+        decoded_app_id = json.loads(app_id)
+    except json.JSONDecodeError:
+        decoded_app_id = None
+    if isinstance(decoded_app_id, (dict, list)):
+        raise ValueError(
+            "QBVISOR_TEST_APP_ID must be a bare Quickbase application ID, not a JSON mapping; "
+            "QB_APP_IDS is the separate runtime mapping variable"
+        )
+    if not app_id.isalnum() or not app_id[0].isalpha():
+        raise ValueError(
+            "QBVISOR_TEST_APP_ID must be one bare alphanumeric Quickbase application ID"
+        )
+    return SandboxConfig(realm=realm, token=token, app_id=app_id)
+
+
 def _object(payload: JSONValue, label: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         pytest.fail(f"{label} returned {type(payload).__name__}, expected an object")
@@ -407,11 +439,10 @@ def sandbox_config():
     if missing:
         pytest.skip(f"Persistent sandbox is not configured; missing {', '.join(missing)}")
 
-    sandbox = SandboxConfig(
-        realm=cast(str, config["QBVISOR_TEST_REALM"]),
-        token=cast(str, config["QBVISOR_TEST_TOKEN"]),
-        app_id=cast(str, config["QBVISOR_TEST_APP_ID"]),
-    )
+    try:
+        sandbox = _validated_sandbox_config(config)
+    except ValueError as error:
+        pytest.fail(str(error), pytrace=False)
     previous_app_ids = os.environ.get("QB_APP_IDS")
     os.environ["QB_APP_IDS"] = json.dumps({APP_NAME: sandbox.app_id})
     try:

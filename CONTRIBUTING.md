@@ -98,6 +98,24 @@ Do not use workload timings as performance claims. They are diagnostics for comp
 large behavioral regressions. Run profiles and safety details are documented in
 [Sandbox stabilization workloads](docs/development-workloads.md).
 
+### Operational canary
+
+The scheduled and release-candidate canary is a smaller five-check suite layered on the persistent
+fixture. It verifies reads, an upsert, an attachment round trip, a whole-application backup, and a
+read-only schema plan. Mutations use a reserved run prefix, verify exact cleanup, and recover
+leftovers before the next serialized run.
+
+Run it only against the dedicated sandbox:
+
+```bash
+QBVISOR_RUN_INTEGRATION=1 QBVISOR_ALLOW_SANDBOX_MUTATIONS=1 \
+  QBVISOR_RUN_OPERATIONAL=1 uv run pytest -m operational --no-cov -ra
+```
+
+The fixture setup, failure-injection recovery proof, secret-free diagnostics, GitHub environment,
+and candidate-tag procedure are documented in
+[Continuous operational testing](docs/operational-testing.md).
+
 ## Quickbase API contract audit
 
 The official Quickbase OAS is cached locally and excluded from version control. Refresh it and update the tracked response manifest with:
