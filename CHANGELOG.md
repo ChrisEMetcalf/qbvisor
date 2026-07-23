@@ -20,7 +20,7 @@ heading.
 ### Changed
 
 - Reject async-named synchronous attachment helpers before side effects when an event loop is
-  active, and warn when a non-default ignored CSV `max_concurrency` value is passed.
+  active, and warn whenever the ignored CSV `max_concurrency` argument is explicitly passed.
 
 ## [0.3.0] - 2026-07-19
 

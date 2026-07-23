@@ -6,8 +6,8 @@ the preferred workflow when it fits. Compatibility-retained does not mean deprec
 helpers inventoried here has a removal schedule.
 
 A **compatibility-only parameter** remains in a public signature so existing calls keep working,
-but it does not control the current implementation. Passing a non-default value emits a
-`UserWarning` so the ignored setting cannot silently look effective.
+but it does not control the current implementation. Passing it explicitly emits a `UserWarning`
+so the ignored setting cannot silently look effective.
 
 ## Inventory
 
@@ -110,9 +110,9 @@ but it does not control the current implementation. Passing a non-default value 
 - **Classification:** `download_records_to_csv()` is supported; `max_concurrency` is a
   compatibility-only parameter.
 - **Behavior:** CSV pages are always fetched sequentially in stable Record ID# order.
-  `max_concurrency` is validated but ignored. Passing a non-default value emits `UserWarning`;
-  calls using the default remain silent because the retained signature cannot distinguish omission
-  from an explicitly passed default.
+  `max_concurrency` is validated but ignored. Passing it explicitly emits `UserWarning`, including
+  an explicitly passed default value of `4`; calls that omit it remain silent. A
+  signature-preserving call wrapper records that boundary without changing the retained signature.
 - **Side effects:** The supported method reads metadata and records, creates `output_dir`, writes a
   temporary CSV, and atomically replaces the dated final CSV after success. On failure it removes
   the temporary file.
@@ -152,14 +152,16 @@ with QuickBaseClient() as qb:
 Pass labels to supported client methods instead of resolving IDs first:
 
 ```python
-from qbvisor import QuickBaseClient
+from qbvisor import QueryHelper, QuickBaseClient
 
 with QuickBaseClient() as qb:
-    active = qb.query_dataframe(
+    query = QueryHelper(qb, "Billing", "Invoices")
+    active_filter = query.eq("Status", "Active")
+    active_invoices = qb.query_dataframe(
         "Billing",
         "Invoices",
         ["Invoice Number", "Status"],
-        where="{7.EX.'Active'}",
+        where=active_filter,
     )
 ```
 

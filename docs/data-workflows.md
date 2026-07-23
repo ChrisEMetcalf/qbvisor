@@ -178,6 +178,7 @@ path = qb.download_records_to_csv(
 
 `chunk_size` is capped at 1,000. `record_limit` is exact. `max_concurrency` is a
 compatibility-only parameter: record pages remain sequential to avoid unstable fixed offsets, and
-passing a non-default value emits `UserWarning`. Omit it in new code. The [compatibility helper
+passing it explicitly emits `UserWarning`, including `max_concurrency=4`. Omit it in new code. The
+[compatibility helper
 ledger](compatibility-helpers.md#download_records_to_csvmax_concurrency) records the retained
 signature and side effects.
