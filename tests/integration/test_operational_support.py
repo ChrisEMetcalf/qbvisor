@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 from operational_support import (
+    REQUIRED_OPERATIONAL_CHECKS,
     CleanupCountMismatch,
+    IncompleteOperationalRun,
     IntentionalCleanupFailure,
     OperationalDiagnostics,
     recover_operational_records,
@@ -116,3 +118,49 @@ def test_recovery_fails_when_prefixed_records_remain():
             delete_matching=lambda: 0,
             count_remaining=lambda: 1,
         )
+
+
+def test_finish_requires_the_exact_operational_contract(tmp_path: Path):
+    diagnostics = OperationalDiagnostics(tmp_path / "operational.json", run_id="unit-test")
+    for check in REQUIRED_OPERATIONAL_CHECKS - {"schema-plan"}:
+        with diagnostics.check(check):
+            pass
+
+    with pytest.raises(IncompleteOperationalRun, match="every required check"):
+        diagnostics.finish(require_complete=True)
+
+    assert diagnostics.summary["status"] == "failed"
+    assert diagnostics.summary["missingChecks"] == ["schema-plan"]
+    assert diagnostics.summary["failedChecks"] == []
+
+
+def test_finish_fails_an_explicit_run_when_a_required_check_was_skipped(tmp_path: Path):
+    diagnostics = OperationalDiagnostics(tmp_path / "operational.json", run_id="unit-test")
+    for check in REQUIRED_OPERATIONAL_CHECKS:
+        if check == "attachment":
+            with pytest.raises(pytest.skip.Exception):
+                with diagnostics.check(check):
+                    pytest.skip("simulated unavailable fixture")
+        else:
+            with diagnostics.check(check):
+                pass
+
+    with pytest.raises(IncompleteOperationalRun, match="every required check"):
+        diagnostics.finish(require_complete=True)
+
+    assert diagnostics.summary["status"] == "failed"
+    assert diagnostics.summary["missingChecks"] == []
+    assert diagnostics.summary["failedChecks"] == ["attachment"]
+
+
+def test_finish_passes_only_after_all_six_required_checks(tmp_path: Path):
+    diagnostics = OperationalDiagnostics(tmp_path / "operational.json", run_id="unit-test")
+    for check in REQUIRED_OPERATIONAL_CHECKS:
+        with diagnostics.check(check):
+            pass
+
+    diagnostics.finish(require_complete=True)
+
+    assert diagnostics.summary["status"] == "passed"
+    assert diagnostics.summary["missingChecks"] == []
+    assert diagnostics.summary["failedChecks"] == []

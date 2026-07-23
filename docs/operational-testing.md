@@ -3,7 +3,8 @@
 The operational suite answers a narrow question on a schedule: do the documented qbvisor read,
 upsert, attachment, backup, and declarative-plan paths still work against the real Quickbase
 service? It complements unit tests and the larger [stabilization workloads](development-workloads.md);
-it is a five-check canary, not a performance or load test.
+it is a five-check functional canary plus a diagnostic performance smoke, not a load test or
+benchmark.
 
 ## Sandbox fixture strategy
 
@@ -19,7 +20,7 @@ Configure the `quickbase-sandbox` GitHub environment with these secrets:
 | --- | --- |
 | `QBVISOR_TEST_REALM` | Bare hostname such as `example.quickbase.com`; no scheme or path |
 | `QBVISOR_TEST_TOKEN` | Least-privilege user token scoped only to the sandbox |
-| `QBVISOR_TEST_APP_ID` | One bare application ID; never a `QB_APP_IDS` JSON mapping |
+| `QBVISOR_TEST_APP_ID` | One bare ASCII alphanumeric application ID; never a `QB_APP_IDS` JSON mapping |
 
 Do not add the token to repository variables, workflow inputs, artifacts, or command lines. The
 workflow has read-only repository permission, exposes the three sandbox secrets only to the pytest
@@ -52,6 +53,13 @@ The workflow uses the locked dependencies from the tested commit and uploads a J
 JUnit output for 14 days. Normal pull-request CI does not need Quickbase credentials and skips the
 operational tests unless all explicit opt-ins are present.
 
+Each phase duration is retained and printed in the job summary for comparison with prior runs. The
+workflow's 30-minute whole-job timeout, including setup, is a hard operational ceiling that catches
+stalls and severely regressed runs. Phase timings vary with sandbox size and service load, so they
+are diagnostic performance-smoke evidence rather than latency targets, benchmarks, or release
+SLOs. Investigate material changes against recent scheduled artifacts even when the ceiling is not
+reached.
+
 ## Diagnostics and secret boundary
 
 `.qbvisor/operational/summary.json` contains only an opaque hash derived from the validated run ID,
@@ -67,7 +75,10 @@ token immediately if it ever appears in a log or artifact despite these controls
 
 Configuration errors fail before an HTTP client is created. In particular,
 `QBVISOR_TEST_APP_ID` reports a value-free explanation when it contains a JSON mapping, and
-`QBVISOR_TEST_REALM` rejects a URL rather than printing it.
+`QBVISOR_TEST_REALM` rejects a URL rather than printing it. Once
+`QBVISOR_RUN_OPERATIONAL=1` is set, missing safety opt-ins, missing environment secrets, and an
+incomplete or skipped smoke check fail the run rather than producing a successful all-skipped
+result. Ordinary test collection without operational mode preserves the opt-in skip behavior.
 
 ## Prove recovery after a failed cleanup
 

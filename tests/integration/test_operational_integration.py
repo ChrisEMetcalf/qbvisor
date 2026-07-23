@@ -109,7 +109,7 @@ def operational_run(
     try:
         yield OperationalRun(run_id=run_id, diagnostics=diagnostics)
     finally:
-        diagnostics.finish()
+        diagnostics.finish(require_complete=True)
 
 
 def _record_cleanup(

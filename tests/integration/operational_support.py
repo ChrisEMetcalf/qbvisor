@@ -14,6 +14,9 @@ from time import perf_counter
 from typing import Any
 
 OPERATIONAL_PREFIX = "qbvisor-operational-"
+REQUIRED_OPERATIONAL_CHECKS = frozenset(
+    {"recovery", "read", "upsert", "attachment", "backup", "schema-plan"}
+)
 _SAFE_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 _SAFE_CANDIDATE = re.compile(
     r"^(?:local|scheduled-main|v[0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z.-]+)?)$"
@@ -26,6 +29,10 @@ class IntentionalCleanupFailure(RuntimeError):
 
 class CleanupCountMismatch(AssertionError):
     """Raised when a mutation did not delete the expected number of records."""
+
+
+class IncompleteOperationalRun(AssertionError):
+    """Raised when an explicitly requested operational run did not fully pass."""
 
 
 def safe_run_id(value: str | None = None) -> str:
@@ -215,13 +222,22 @@ class OperationalDiagnostics:
         if cleanup_error is not None:
             raise cleanup_error.with_traceback(cleanup_error.__traceback__)
 
-    def finish(self) -> None:
+    def finish(self, *, require_complete: bool = False) -> None:
         checks = self.summary["checks"]
         assert isinstance(checks, dict)
-        self.summary["completedAt"] = _timestamp()
-        self.summary["status"] = (
-            "passed"
-            if checks and all(check.get("status") == "passed" for check in checks.values())
-            else "failed"
+        missing = sorted(REQUIRED_OPERATIONAL_CHECKS - checks.keys())
+        failed = sorted(
+            name
+            for name in REQUIRED_OPERATIONAL_CHECKS & checks.keys()
+            if checks[name].get("status") != "passed"
         )
+        self.summary["completedAt"] = _timestamp()
+        self.summary["missingChecks"] = missing
+        self.summary["failedChecks"] = failed
+        self.summary["status"] = "passed" if not missing and not failed else "failed"
         self.write()
+        if require_complete and self.summary["status"] != "passed":
+            raise IncompleteOperationalRun(
+                "Operational run did not complete every required check successfully; "
+                "inspect the secret-free summary artifact"
+            )

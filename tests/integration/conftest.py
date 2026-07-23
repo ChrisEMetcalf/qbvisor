@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -18,6 +19,7 @@ DETAILS_TABLE_NAME = "qbvisor_sdk_contract_details"
 MUTATION_ENV = "QBVISOR_ALLOW_SANDBOX_MUTATIONS"
 ATTACHMENT_FILE_NAME = "qbvisor-contract.txt"
 ATTACHMENT_CONTENT = b"Persistent qbvisor attachment contract.\n"
+OPERATIONAL_ENV = "QBVISOR_RUN_OPERATIONAL"
 
 
 @dataclass(frozen=True)
@@ -63,11 +65,35 @@ def _validated_sandbox_config(config: dict[str, str | None]) -> SandboxConfig:
             "QBVISOR_TEST_APP_ID must be a bare Quickbase application ID, not a JSON mapping; "
             "QB_APP_IDS is the separate runtime mapping variable"
         )
-    if not app_id.isalnum() or not app_id[0].isalpha():
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", app_id) is None:
         raise ValueError(
-            "QBVISOR_TEST_APP_ID must be one bare alphanumeric Quickbase application ID"
+            "QBVISOR_TEST_APP_ID must be one bare ASCII alphanumeric Quickbase application ID"
         )
     return SandboxConfig(realm=realm, token=token, app_id=app_id)
+
+
+def _stop_sandbox_setup(reason: str, *, operational_requested: bool) -> None:
+    """Fail closed for an explicit operational run and otherwise preserve opt-in skips."""
+
+    if operational_requested:
+        pytest.fail(reason, pytrace=False)
+    pytest.skip(reason)
+
+
+def _require_operational_opt_ins() -> bool:
+    """Validate the non-secret safety gates before loading any sandbox configuration."""
+
+    operational_requested = os.getenv(OPERATIONAL_ENV) == "1"
+    if not operational_requested:
+        return False
+    missing = [name for name in ("QBVISOR_RUN_INTEGRATION", MUTATION_ENV) if os.getenv(name) != "1"]
+    if missing:
+        pytest.fail(
+            "Operational mode requires explicit opt-in; set "
+            + ", ".join(f"{name}=1" for name in missing),
+            pytrace=False,
+        )
+    return True
 
 
 def _object(payload: JSONValue, label: str) -> dict[str, Any]:
@@ -426,8 +452,12 @@ def _ensure_attachment(
 
 @pytest.fixture(scope="session")
 def sandbox_config():
+    operational_requested = _require_operational_opt_ins()
     if os.getenv("QBVISOR_RUN_INTEGRATION") != "1":
-        pytest.skip("Set QBVISOR_RUN_INTEGRATION=1 to run live sandbox tests")
+        _stop_sandbox_setup(
+            "Set QBVISOR_RUN_INTEGRATION=1 to run live sandbox tests",
+            operational_requested=operational_requested,
+        )
     load_dotenv()
     variable_names = (
         "QBVISOR_TEST_REALM",
@@ -437,7 +467,10 @@ def sandbox_config():
     config = {name: os.getenv(name) for name in variable_names}
     missing = [name for name, value in config.items() if not value]
     if missing:
-        pytest.skip(f"Persistent sandbox is not configured; missing {', '.join(missing)}")
+        _stop_sandbox_setup(
+            f"Persistent sandbox is not configured; missing {', '.join(missing)}",
+            operational_requested=operational_requested,
+        )
 
     try:
         sandbox = _validated_sandbox_config(config)

@@ -112,6 +112,8 @@ jobs:
               '"- Status: `\(.status)`",
                "- Candidate: `\(.candidateRef)`",
                "- Recovered records: `\(.recoveredRecords)`",
+               "- Missing checks: `\(.missingChecks // [])`",
+               "- Failed checks: `\(.failedChecks // [])`",
                (.checks | to_entries[] |
                  "- \(.key): `\(.value.status)` (\(.value.seconds)s)")' \
               .qbvisor/operational/summary.json >> "$GITHUB_STEP_SUMMARY"
