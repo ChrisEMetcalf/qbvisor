@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -18,6 +19,7 @@ DETAILS_TABLE_NAME = "qbvisor_sdk_contract_details"
 MUTATION_ENV = "QBVISOR_ALLOW_SANDBOX_MUTATIONS"
 ATTACHMENT_FILE_NAME = "qbvisor-contract.txt"
 ATTACHMENT_CONTENT = b"Persistent qbvisor attachment contract.\n"
+OPERATIONAL_ENV = "QBVISOR_RUN_OPERATIONAL"
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,62 @@ class SandboxContract:
     detail_fields: dict[str, int]
     relationship_id: int
     record_ids: dict[str, int]
+
+
+def _validated_sandbox_config(config: dict[str, str | None]) -> SandboxConfig:
+    """Validate sandbox settings without copying their values into diagnostics."""
+
+    realm = config.get("QBVISOR_TEST_REALM")
+    token = config.get("QBVISOR_TEST_TOKEN")
+    app_id = config.get("QBVISOR_TEST_APP_ID")
+    if not isinstance(realm, str) or not isinstance(token, str) or not isinstance(app_id, str):
+        raise ValueError("Persistent sandbox configuration is incomplete")
+    if realm != realm.strip() or "://" in realm or "/" in realm:
+        raise ValueError(
+            "QBVISOR_TEST_REALM must be a bare realm hostname without a URL scheme or path"
+        )
+    if token != token.strip():
+        raise ValueError("QBVISOR_TEST_TOKEN must not contain leading or trailing whitespace")
+    if app_id != app_id.strip():
+        raise ValueError("QBVISOR_TEST_APP_ID must not contain surrounding whitespace")
+    try:
+        decoded_app_id = json.loads(app_id)
+    except json.JSONDecodeError:
+        decoded_app_id = None
+    if isinstance(decoded_app_id, (dict, list)):
+        raise ValueError(
+            "QBVISOR_TEST_APP_ID must be a bare Quickbase application ID, not a JSON mapping; "
+            "QB_APP_IDS is the separate runtime mapping variable"
+        )
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", app_id) is None:
+        raise ValueError(
+            "QBVISOR_TEST_APP_ID must be one bare ASCII alphanumeric Quickbase application ID"
+        )
+    return SandboxConfig(realm=realm, token=token, app_id=app_id)
+
+
+def _stop_sandbox_setup(reason: str, *, operational_requested: bool) -> None:
+    """Fail closed for an explicit operational run and otherwise preserve opt-in skips."""
+
+    if operational_requested:
+        pytest.fail(reason, pytrace=False)
+    pytest.skip(reason)
+
+
+def _require_operational_opt_ins() -> bool:
+    """Validate the non-secret safety gates before loading any sandbox configuration."""
+
+    operational_requested = os.getenv(OPERATIONAL_ENV) == "1"
+    if not operational_requested:
+        return False
+    missing = [name for name in ("QBVISOR_RUN_INTEGRATION", MUTATION_ENV) if os.getenv(name) != "1"]
+    if missing:
+        pytest.fail(
+            "Operational mode requires explicit opt-in; set "
+            + ", ".join(f"{name}=1" for name in missing),
+            pytrace=False,
+        )
+    return True
 
 
 def _object(payload: JSONValue, label: str) -> dict[str, Any]:
@@ -394,8 +452,12 @@ def _ensure_attachment(
 
 @pytest.fixture(scope="session")
 def sandbox_config():
+    operational_requested = _require_operational_opt_ins()
     if os.getenv("QBVISOR_RUN_INTEGRATION") != "1":
-        pytest.skip("Set QBVISOR_RUN_INTEGRATION=1 to run live sandbox tests")
+        _stop_sandbox_setup(
+            "Set QBVISOR_RUN_INTEGRATION=1 to run live sandbox tests",
+            operational_requested=operational_requested,
+        )
     load_dotenv()
     variable_names = (
         "QBVISOR_TEST_REALM",
@@ -405,13 +467,15 @@ def sandbox_config():
     config = {name: os.getenv(name) for name in variable_names}
     missing = [name for name, value in config.items() if not value]
     if missing:
-        pytest.skip(f"Persistent sandbox is not configured; missing {', '.join(missing)}")
+        _stop_sandbox_setup(
+            f"Persistent sandbox is not configured; missing {', '.join(missing)}",
+            operational_requested=operational_requested,
+        )
 
-    sandbox = SandboxConfig(
-        realm=cast(str, config["QBVISOR_TEST_REALM"]),
-        token=cast(str, config["QBVISOR_TEST_TOKEN"]),
-        app_id=cast(str, config["QBVISOR_TEST_APP_ID"]),
-    )
+    try:
+        sandbox = _validated_sandbox_config(config)
+    except ValueError as error:
+        pytest.fail(str(error), pytrace=False)
     previous_app_ids = os.environ.get("QB_APP_IDS")
     os.environ["QB_APP_IDS"] = json.dumps({APP_NAME: sandbox.app_id})
     try:

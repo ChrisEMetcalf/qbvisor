@@ -1,0 +1,132 @@
+name: Quickbase operational smoke
+
+on:
+  schedule:
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      candidate_tag:
+        description: Existing v-prefixed release-candidate tag to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quickbase-operational-sandbox
+  cancel-in-progress: false
+
+jobs:
+  resolve-candidate:
+    name: Resolve trusted candidate
+    runs-on: ubuntu-latest
+    outputs:
+      candidate-label: ${{ steps.candidate.outputs.label }}
+      candidate-sha: ${{ steps.candidate.outputs.sha }}
+
+    steps:
+      - name: Check out default branch history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve scheduled commit or candidate tag
+        id: candidate
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            candidate_sha="$(git rev-parse origin/main)"
+            candidate_label="scheduled-main"
+          else
+            if [[ ! "$CANDIDATE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "candidate_tag must be a v-prefixed semantic-version tag" >&2
+              exit 2
+            fi
+            git show-ref --verify --quiet "refs/tags/$CANDIDATE_TAG" || {
+              echo "candidate_tag does not exist in this repository" >&2
+              exit 2
+            }
+            candidate_sha="$(git rev-list -n 1 "$CANDIDATE_TAG")"
+            git merge-base --is-ancestor "$candidate_sha" origin/main || {
+              echo "candidate_tag must point to a commit on main" >&2
+              exit 2
+            }
+            candidate_label="$CANDIDATE_TAG"
+          fi
+          echo "sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "label=$candidate_label" >> "$GITHUB_OUTPUT"
+
+  operational:
+    name: Read, mutate, attach, back up, and plan
+    needs:
+      - resolve-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: quickbase-sandbox
+
+    steps:
+      - name: Check out resolved candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.candidate-sha }}
+          persist-credentials: false
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --all-groups
+
+      - name: Run operational smoke suite
+        env:
+          QBVISOR_TEST_REALM: ${{ secrets.QBVISOR_TEST_REALM }}
+          QBVISOR_TEST_TOKEN: ${{ secrets.QBVISOR_TEST_TOKEN }}
+          QBVISOR_TEST_APP_ID: ${{ secrets.QBVISOR_TEST_APP_ID }}
+          QBVISOR_RUN_INTEGRATION: "1"
+          QBVISOR_ALLOW_SANDBOX_MUTATIONS: "1"
+          QBVISOR_RUN_OPERATIONAL: "1"
+          QBVISOR_OPERATIONAL_RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+          QBVISOR_CANDIDATE_REF: ${{ needs.resolve-candidate.outputs.candidate-label }}
+          QBVISOR_OPERATIONAL_RESULTS: .qbvisor/operational
+        run: |
+          mkdir -p .qbvisor/operational
+          uv run --frozen pytest -m operational --no-cov -ra \
+            --junitxml=.qbvisor/operational/junit.xml
+
+      - name: Publish secret-free run summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          echo "## Quickbase operational smoke" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f .qbvisor/operational/summary.json ]]; then
+            jq -r \
+              '"- Status: `\(.status)`",
+               "- Candidate: `\(.candidateRef)`",
+               "- Recovered records: `\(.recoveredRecords)`",
+               "- Missing checks: `\(.missingChecks // [])`",
+               "- Failed checks: `\(.failedChecks // [])`",
+               (.checks | to_entries[] |
+                 "- \(.key): `\(.value.status)` (\(.value.seconds)s)")' \
+              .qbvisor/operational/summary.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- No summary was produced; inspect setup and preflight output." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload operational diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: operational-${{ needs.resolve-candidate.outputs.candidate-label }}-${{ github.run_id }}
+          path: .qbvisor/operational/
+          if-no-files-found: warn
+          retention-days: 14

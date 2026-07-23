@@ -83,6 +83,13 @@ Review the newest `.qbvisor/workloads/*.json` before approval. It must report `s
 failure phase. Attach or summarize that credential-free result in the release pull request. Use
 `smoke` while developing and reserve `scale` for an intentional, separately reported exercise.
 
+After pushing the candidate tag and before publishing its GitHub Release, manually dispatch
+**Quickbase operational smoke** with that exact tag. The resolver requires a `v`-prefixed semantic
+version tag whose commit is already on `main`; the sandbox job tests the resolved SHA. Require a
+`passed` secret-free summary for read, upsert, attachment, backup, and schema-plan checks. Follow
+[Continuous operational testing](operational-testing.md) for environment setup, cleanup recovery,
+and diagnostic review.
+
 ## Tag and publish
 
 Synchronize `main`, create a signed annotated tag, and push the tag:
