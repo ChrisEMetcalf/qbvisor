@@ -14,6 +14,13 @@ heading.
 - Add scheduled and candidate-tag operational canaries for reads, upserts, attachments, backups,
   and schema plans, with verified mutation cleanup, next-run orphan recovery, and secret-free
   diagnostic artifacts.
+- Add a compatibility ledger with signature snapshots, behavior boundaries, side effects, and
+  preferred alternatives for retained attachment, metadata, config-diagnostic, and CSV helpers.
+
+### Changed
+
+- Reject async-named synchronous attachment helpers before side effects when an event loop is
+  active, and warn when a non-default ignored CSV `max_concurrency` value is passed.
 
 ## [0.3.0] - 2026-07-19
 

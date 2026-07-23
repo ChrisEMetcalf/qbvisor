@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import warnings
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,6 +37,18 @@ from .transport import QuickBaseTransport, RetryPolicy
 logger = get_logger(__name__)
 
 ResponseT = TypeVar("ResponseT")
+
+
+def _reject_running_event_loop(method_name: str) -> None:
+    """Fail before sync compatibility helpers create coroutines or perform I/O."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    raise RuntimeError(
+        f"{method_name}() is a synchronous compatibility method and cannot run while "
+        "an event loop is active; call it from a worker thread instead"
+    )
 
 
 def _normalize_utc_timestamp(value: datetime | str) -> str:
@@ -1012,7 +1025,8 @@ class QuickBaseClient:
             where (str): Quickbase formula query string. Default is "{3.GT.'0'}" (all records).
             chunk_size (int): Number of records to fetch per page, capped at 1000.
             record_limit (Optional[int]): Maximum number of records to download. Default is None (all records).
-            max_concurrency (int): Retained for compatibility. Record pages are fetched sequentially.
+            max_concurrency (int): Compatibility-only parameter. Record pages are fetched
+                sequentially; passing a non-default value emits ``UserWarning``.
 
         Returns:
             str: Path to the saved CSV file, or an empty string if no records found.
@@ -1023,6 +1037,14 @@ class QuickBaseClient:
             raise ValueError("max_concurrency must be at least 1")
         if record_limit is not None and record_limit < 0:
             raise ValueError("record_limit cannot be negative")
+        if max_concurrency != 4:
+            warnings.warn(
+                "download_records_to_csv(max_concurrency=...) is a compatibility-only "
+                "parameter and is ignored; record pages are always fetched sequentially. "
+                "Omit max_concurrency.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         app_id, table_id = self._ids(app_name, table_name)
 
@@ -1238,9 +1260,9 @@ class QuickBaseClient:
         """
         Download the latest attachment from one file field for every matching record.
 
-        This is a synchronous compatibility entry point despite its historical ``_async``
-        suffix. It uses concurrent async I/O internally and calls ``asyncio.run()``, so do not
-        call it from a thread already running an event loop.
+        This is a compatibility-retained synchronous entry point despite its historical
+        ``_async`` suffix. It uses concurrent async I/O internally and creates an event loop, so
+        do not call it from a thread already running an event loop.
 
         Args:
             app_name (str): The name of the app.
@@ -1254,6 +1276,7 @@ class QuickBaseClient:
         Returns:
             list[dict[str, Any]]: Outcome for each queued attachment.
         """
+        _reject_running_event_loop("download_attachments_async")
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be at least 1")
         if not 1 <= page_size <= 1000:
@@ -1382,9 +1405,9 @@ class QuickBaseClient:
         """
         Download the latest attachment from every file field for matching records.
 
-        This is a synchronous compatibility entry point despite its historical ``_async``
-        suffix. It uses concurrent async I/O internally and calls ``asyncio.run()``, so do not
-        call it from a thread already running an event loop.
+        This is a compatibility-retained synchronous entry point despite its historical
+        ``_async`` suffix. It uses concurrent async I/O internally and creates an event loop, so
+        do not call it from a thread already running an event loop.
 
         Args:
             app_name: The name of the application.
@@ -1397,6 +1420,7 @@ class QuickBaseClient:
         Returns:
             list[dict[str, Any]]: Outcome for each queued attachment.
         """
+        _reject_running_event_loop("download_table_attachments_async")
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be at least 1")
         if not 1 <= page_size <= 1000:
@@ -1476,15 +1500,15 @@ class QuickBaseClient:
     # Utility
     # ----------------
     def get_field_id(self, app_id: str, table_id: str, field_label: str) -> int:
-        """Resolve a field label to its ID using the compatibility metadata interface."""
+        """Resolve a field label through the compatibility-retained metadata interface."""
         return self._fields.get_id(app_id, table_id, field_label)
 
     def get_table_id(self, app_id: str, table_id: str) -> str:
-        """Resolve a configured table name or ID through the compatibility interface."""
+        """Resolve a table through the compatibility-retained metadata interface."""
         return self._tables.get_id(app_id, table_id)
 
     def get_field(self, app_id, table_id, field_id):
-        """Return field metadata through the compatibility metadata interface."""
+        """Return field metadata through the compatibility-retained metadata interface."""
         return self._fields.get(app_id, table_id, field_id)
 
     # ----------------
@@ -1494,7 +1518,8 @@ class QuickBaseClient:
         """
         Log a hierarchical summary of the in-memory metadata cache.
 
-        This compatibility debugging helper only reports metadata already loaded by the client.
+        This compatibility-retained diagnostic helper only reports metadata already loaded by the
+        client.
 
         Args:
             show_fields (bool): Whether to include a breakdown of all fields under each table.
@@ -1519,8 +1544,8 @@ class QuickBaseClient:
         """
         Log the full in-memory metadata cache as formatted JSON.
 
-        This compatibility debugging helper can expose schema details in logs. Use it only where
-        that output is appropriate.
+        This compatibility-retained diagnostic helper can expose schema details in logs. Use it
+        only where that output is appropriate.
         """
         try:
             config_str = json.dumps(self.meta.cache, indent=2)

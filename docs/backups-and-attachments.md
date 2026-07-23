@@ -75,9 +75,10 @@ classification.
 
 ## Direct attachment downloads
 
-The compatibility methods named `download_attachments_async()` and
-`download_table_attachments_async()` are synchronous entry points. They scan matching records
-sequentially in stable Record ID order and use bounded asynchronous I/O for the file transfers.
+The compatibility-retained methods named `download_attachments_async()` and
+`download_table_attachments_async()` are synchronous entry points despite their historical names.
+They scan matching records sequentially in stable Record ID order and use bounded asynchronous I/O
+for the file transfers.
 
 Download the latest attachment from one file field:
 
@@ -118,8 +119,15 @@ Single-field filenames use `recordId_filename`. Whole-table downloads include th
 collisions between two file fields. Quickbase filenames are sanitized before joining the target
 directory.
 
-These compatibility methods call `asyncio.run()` and cannot be called from a thread that already
-has a running event loop. A native public async client is not currently supported.
+These compatibility-retained methods create an internal event loop and cannot be called directly
+from a thread that already has a running event loop. They fail before metadata, directory, or
+network side effects in that situation. An async application can use
+`await asyncio.to_thread(qb.download_attachments_async, ...)`. A native public async client is not
+currently supported.
+
+For a durable capture, prefer `backup_app()` with
+`BackupOptions(attachment_versions="latest")`. See the [compatibility helper
+ledger](compatibility-helpers.md) for direct-download classifications and alternatives.
 
 ## Base64 and deletion
 
