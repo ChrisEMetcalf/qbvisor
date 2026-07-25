@@ -31,6 +31,9 @@ class QueryHelper:
     Build Quickbase formula queries using field labels, not field IDs.
     Ensures correct serialization of values and operator validation.
 
+    Field labels are resolved case-insensitively. An exact spelling takes precedence;
+    otherwise, labels that differ only by case are considered ambiguous.
+
     Supported Operators:
     CT, XCT, HAS, XHAS, EX, XEX, TV, XTV,
     SW, XSW, BF, OBF, AF, OAF, IR, XIR, LT, LTE, GT, GTE
@@ -41,14 +44,30 @@ class QueryHelper:
         self.app_name = app_name
         self.table_name = table_name
         self.field_map = client.meta.get_field_map(app_name, table_name)
+        self._field_labels_by_casefold: dict[str, list[str]] = {}
+        for label in self.field_map:
+            self._field_labels_by_casefold.setdefault(label.casefold(), []).append(label)
 
     def fid(self, label: str) -> str:
         """
-        Resolve a field label to its Quickbase field ID (fid).
+        Resolve a field label case-insensitively to its Quickbase field ID (fid).
+
+        Exact spelling wins. A non-exact spelling that matches multiple labels differing
+        only by case raises ``ValueError`` instead of choosing one arbitrarily.
         """
-        if label not in self.field_map:
+        if label in self.field_map:
+            return str(self.field_map[label]["id"])
+
+        matches = self._field_labels_by_casefold.get(label.casefold(), [])
+        if not matches:
             raise ValueError(f"Field label '{label}' not found in table '{self.table_name}'.")
-        return str(self.field_map[label]["id"])
+        if len(matches) > 1:
+            sorted_matches = sorted(matches)
+            raise ValueError(
+                f"Field label '{label}' is ambiguous in table '{self.table_name}'. "
+                f"Matches: {sorted_matches}. Use the exact field label."
+            )
+        return str(self.field_map[matches[0]]["id"])
 
     def expr(self, field_label: str, operator: str, value: Any) -> str:
         """
