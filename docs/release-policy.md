@@ -30,7 +30,7 @@ or a major release after `1.0.0`.
 Install reviewed releases from PyPI and pin the version in production applications:
 
 ```bash
-python -m pip install qbvisor==0.3.0
+python -m pip install qbvisor==0.3.1
 ```
 
 Releases use reviewed commits, signed `vMAJOR.MINOR.PATCH` tags, validated wheel and source

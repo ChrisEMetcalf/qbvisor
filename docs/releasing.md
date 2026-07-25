@@ -97,8 +97,8 @@ Synchronize `main`, create a signed annotated tag, and push the tag:
 ```bash
 git switch main
 git pull --ff-only
-git tag -s v0.3.0 -m "qbvisor 0.3.0"
-git push origin v0.3.0
+git tag -s v0.3.1 -m "qbvisor 0.3.1"
+git push origin v0.3.1
 ```
 
 On GitHub, draft a release for that existing tag. Review the generated notes against the changelog,
@@ -111,7 +111,7 @@ Confirm that the Release workflow completed and that PyPI shows both distributio
 attestations. Then install the exact version into an isolated environment:
 
 ```bash
-uv run --isolated --no-project --with qbvisor==0.3.0 \
+uv run --isolated --no-project --with qbvisor==0.3.1 \
   python -c "import qbvisor; print(qbvisor.__version__)"
 ```
 
