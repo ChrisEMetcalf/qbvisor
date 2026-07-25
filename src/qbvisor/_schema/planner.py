@@ -579,6 +579,8 @@ class SchemaPlanner:
                         reason=reason,
                     )
                     table.field_ids_by_key[field_spec.key] = None
+                    table.status = "conflict"
+                    table.conflict_reason = reason
                     continue
                 if matches:
                     remote = matches[0]

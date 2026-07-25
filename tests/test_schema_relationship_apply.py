@@ -2,14 +2,18 @@ from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 from qbvisor import (
     AppSpec,
     FieldSpec,
     QuickBaseClient,
+    QuickbaseSchemaApplyError,
     RelationshipSpec,
     SummaryFieldSpec,
     TableSpec,
 )
+from qbvisor._schema.state import SchemaStateLock
 
 APP_ID = "app_operations"
 PROJECTS_ID = "tbl_projects"
@@ -83,6 +87,7 @@ class RelationshipQuickbase:
             ],
         }
         self.relationships: list[dict[str, object]] = []
+        self.generated_lookup_candidates = 1
         self.calls: list[dict[str, object]] = []
 
     def request(
@@ -126,14 +131,18 @@ class RelationshipQuickbase:
             relationship = self.relationships[0]
             for source_id in body.get("lookupFieldIds", []):
                 field_id = {6: 11, 7: 13}[source_id]
-                field = {
-                    "id": field_id,
-                    "label": f"Lookup {source_id}",
-                    "fieldType": "text" if source_id == 6 else "numeric",
-                    "properties": {"lookupTargetFieldId": source_id},
-                }
-                self.fields[DETAILS_ID].append(field)
-                relationship["lookupFields"].insert(0, {"id": field_id, "label": field["label"]})
+                for candidate in range(self.generated_lookup_candidates):
+                    generated_id = field_id + candidate * 100
+                    field = {
+                        "id": generated_id,
+                        "label": f"Lookup {source_id}",
+                        "fieldType": "text" if source_id == 6 else "numeric",
+                        "properties": {"lookupTargetFieldId": source_id},
+                    }
+                    self.fields[DETAILS_ID].append(field)
+                    relationship["lookupFields"].insert(
+                        0, {"id": generated_id, "label": field["label"]}
+                    )
             for definition in body.get("summaryFields", []):
                 target_id = definition["summaryFid"]
                 field_id = {8: 10, 12: 14}[target_id]
@@ -228,6 +237,24 @@ def client_for(api: RelationshipQuickbase) -> QuickBaseClient:
 
 def mutation_calls(api: RelationshipQuickbase) -> list[dict[str, object]]:
     return [call for call in api.calls if call["method"] == "POST"]
+
+
+def relationship_base_spec() -> AppSpec:
+    full_spec = relationship_spec()
+    relationship = full_spec.relationships[0]
+    return AppSpec(
+        key=full_spec.key,
+        name=full_spec.name,
+        tables=full_spec.tables,
+        relationships=[
+            RelationshipSpec(
+                key=relationship.key,
+                parent_table=relationship.parent_table,
+                child_table=relationship.child_table,
+                foreign_key_label=relationship.foreign_key_label,
+            )
+        ],
+    )
 
 
 def test_apply_creates_relationship_and_binds_reversed_generated_field_responses(tmp_path):
@@ -327,21 +354,7 @@ def test_apply_adds_missing_generated_fields_to_an_existing_relationship(tmp_pat
     client = client_for(api)
     state_path = tmp_path / "state.json"
     full_spec = relationship_spec()
-    relationship = full_spec.relationships[0]
-    base_spec = AppSpec(
-        key=full_spec.key,
-        name=full_spec.name,
-        tables=full_spec.tables,
-        relationships=[
-            RelationshipSpec(
-                key=relationship.key,
-                parent_table=relationship.parent_table,
-                child_table=relationship.child_table,
-                foreign_key_label=relationship.foreign_key_label,
-            )
-        ],
-    )
-    client.apply_app(client.plan_app(base_spec, state_path=state_path))
+    client.apply_app(client.plan_app(relationship_base_spec(), state_path=state_path))
     api.calls.clear()
 
     result = client.apply_app(client.plan_app(full_spec, state_path=state_path))
@@ -378,3 +391,42 @@ def test_apply_adds_missing_generated_fields_to_an_existing_relationship(tmp_pat
     ]
     assert result.state.serial == 2
     assert result.verification.quickbase_change_count == 0
+
+
+@pytest.mark.parametrize(
+    ("candidate_count", "message", "expected_replan_action"),
+    [(0, "found 0", "create"), (2, "found 2", "conflict")],
+)
+def test_generated_lookup_identity_failure_preserves_state_and_releases_lock(
+    tmp_path,
+    candidate_count,
+    message,
+    expected_replan_action,
+):
+    api = RelationshipQuickbase()
+    client = client_for(api)
+    state_path = tmp_path / "state.json"
+    client.apply_app(client.plan_app(relationship_base_spec(), state_path=state_path))
+    previous_state = state_path.read_bytes()
+    api.calls.clear()
+    api.generated_lookup_candidates = candidate_count
+    spec = relationship_spec()
+    plan = client.plan_app(spec, state_path=state_path)
+
+    with pytest.raises(QuickbaseSchemaApplyError, match=message):
+        client.apply_app(plan)
+
+    assert [(call["path"], call["json_body"]) for call in mutation_calls(api)] == [
+        (f"tables/{DETAILS_ID}/relationship/9", {"lookupFieldIds": [7]})
+    ]
+    assert state_path.read_bytes() == previous_state
+    assert not list(tmp_path.glob("*.tmp"))
+    with SchemaStateLock(state_path):
+        pass
+
+    replan = client.plan_app(spec, state_path=state_path)
+    budget_lookup = next(
+        change for change in replan.changes if change.address.endswith(".lookups.budget")
+    )
+    assert budget_lookup.action == expected_replan_action
+    assert budget_lookup.remote_id is None
