@@ -24,9 +24,13 @@ heading.
 - Reject async-named synchronous attachment helpers before side effects when an event loop is
   active, reject invalid CSV `max_concurrency` values, and warn whenever a valid ignored value is
   explicitly passed.
+- Raise branch-aware coverage enforcement from 40% to 80%, publish missing branches in CI, and
+  require risk-driven regression tests with explicit behavioral and mutation evidence ([#35]).
 
 ### Fixed
 
+- Block relationship descendants when schema planning cannot uniquely identify a field instead of
+  presenting generated fields as safe create actions ([#35]).
 - Resolve `QueryHelper` field labels case-insensitively while rejecting ambiguous labels that
   differ only by case ([#33]).
 - Report `partial=False` when every submitted upsert position has a line error instead of
@@ -130,3 +134,4 @@ heading.
 [#20]: https://github.com/ChrisEMetcalf/qbvisor/pull/20
 [#21]: https://github.com/ChrisEMetcalf/qbvisor/pull/21
 [#33]: https://github.com/ChrisEMetcalf/qbvisor/issues/33
+[#35]: https://github.com/ChrisEMetcalf/qbvisor/issues/35

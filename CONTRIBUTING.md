@@ -27,6 +27,23 @@ uv run twine check --strict dist/*
 uv run python scripts/verify_distribution.py dist
 ```
 
+## Test strategy
+
+Coverage is a regression alarm, not the objective of a test. New tests must identify a credible
+failure, exercise the public contract or the narrowest stable boundary, and assert the result,
+error, or side effect that makes the behavior correct. Read
+[Risk-driven testing](docs/testing-strategy.md) before adding or reviewing tests.
+
+Pull requests that add or change behavior should state:
+
+- the production failure each new test protects against;
+- the observable contract and prohibited side effects;
+- why the chosen fake, fixture, or integration boundary is appropriate; and
+- the realistic mutation or defective implementation that makes the test fail.
+
+Tests that only execute uncovered lines, snapshot broad internal structures, or mock the unit under
+test do not satisfy this requirement.
+
 ## Compatibility
 
 Existing public method names and call signatures should remain stable when practical. Clearly broken behavior may be corrected when the change includes regression tests and release notes.

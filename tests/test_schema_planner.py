@@ -11,6 +11,7 @@ from qbvisor import (
     FieldSpec,
     FormulaSpec,
     QuickBaseClient,
+    QuickbaseSchemaConflictError,
     QuickbaseSchemaStateError,
     RelationshipSpec,
     SchemaState,
@@ -316,6 +317,84 @@ def test_first_plan_imports_exact_matches_without_mutating_quickbase_or_state(tm
     assert all(change.state_action == "bind" for change in first.changes)
     assert not state_path.exists()
     assert all(call.kwargs["method"] == "GET" for call in client._request.call_args_list)
+
+
+def test_ambiguous_casefold_table_identity_blocks_descendants_and_apply(tmp_path):
+    remote = remote_schema()
+    remote["tables"].append({"id": "tbl_projects_duplicate", "name": "pROJECTS", "description": ""})
+    client = fake_client(remote)
+    state_path = tmp_path / "state.json"
+
+    first = client.plan_app(application_spec(), state_path=state_path)
+    second = client.plan_app(application_spec(), state_path=state_path)
+
+    assert first.to_dict() == second.to_dict()
+    changes = {change.address: change for change in first.changes}
+    blocked = {
+        "apps.operations.tables.projects",
+        "apps.operations.tables.projects.fields.name",
+        "apps.operations.tables.projects.fields.budget",
+        "apps.operations.relationships.project_details",
+        "apps.operations.relationships.project_details.lookups.name",
+        "apps.operations.relationships.project_details.summaries.total_hours",
+    }
+    assert {address for address in blocked if changes[address].action == "conflict"} == blocked
+    assert all(changes[address].remote_id is None for address in blocked)
+    assert all(changes[address].state_action == "none" for address in blocked)
+    assert "multiple remote tables match" in changes["apps.operations.tables.projects"].reason
+    assert not first.can_apply
+    assert first.quickbase_change_count == 0
+
+    request_count = client._request.call_count
+    with pytest.raises(QuickbaseSchemaConflictError, match="contains conflicts"):
+        client.apply_app(first)
+
+    assert client._request.call_count == request_count
+    assert not state_path.exists()
+
+
+def test_ambiguous_casefold_field_identity_blocks_descendants_and_apply(tmp_path):
+    remote = remote_schema()
+    remote["fields"][PROJECTS_ID].append(
+        {
+            "id": 16,
+            "label": "project name",
+            "fieldType": "text",
+            "properties": {},
+        }
+    )
+    client = fake_client(remote)
+    state_path = tmp_path / "state.json"
+
+    first = client.plan_app(application_spec(), state_path=state_path)
+    second = client.plan_app(application_spec(), state_path=state_path)
+
+    assert first.to_dict() == second.to_dict()
+    changes = {change.address: change for change in first.changes}
+    ambiguous = changes["apps.operations.tables.projects.fields.name"]
+    descendants = {
+        "apps.operations.relationships.project_details",
+        "apps.operations.relationships.project_details.lookups.name",
+        "apps.operations.relationships.project_details.summaries.total_hours",
+    }
+    assert ambiguous.action == "conflict"
+    assert ambiguous.remote_id is None
+    assert ambiguous.state_action == "none"
+    assert "multiple remote fields match" in ambiguous.reason
+    assert {
+        address for address in descendants if changes[address].action == "conflict"
+    } == descendants
+    assert all(changes[address].remote_id is None for address in descendants)
+    assert all(ambiguous.reason in changes[address].reason for address in descendants)
+    assert not first.can_apply
+    assert first.quickbase_change_count == 0
+
+    request_count = client._request.call_count
+    with pytest.raises(QuickbaseSchemaConflictError, match="contains conflicts"):
+        client.apply_app(first)
+
+    assert client._request.call_count == request_count
+    assert not state_path.exists()
 
 
 def test_state_ids_remain_authoritative_across_app_table_and_field_renames(tmp_path):

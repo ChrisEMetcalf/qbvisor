@@ -96,6 +96,10 @@ class FakeMeta:
         self.invalidated_tables.append(app)
 
 
+class ExportInterrupted(BaseException):
+    pass
+
+
 @pytest.fixture
 def client() -> QuickBaseClient:
     instance = QuickBaseClient.__new__(QuickBaseClient)
@@ -1593,6 +1597,40 @@ def test_record_export_removes_partial_file_without_replacing_existing_export(cl
 
     assert existing_export.read_text(encoding="utf-8") == "existing export\n"
     assert list(tmp_path.glob("*.tmp")) == []
+
+
+@pytest.mark.parametrize(
+    "interruption",
+    [
+        pytest.param(KeyboardInterrupt("cancel export"), id="keyboard-interrupt"),
+        pytest.param(ExportInterrupted("stop export"), id="custom-base-exception"),
+    ],
+)
+def test_record_export_preserves_existing_file_when_interrupted_after_first_page(
+    client, tmp_path, monkeypatch, interruption
+):
+    fixed_datetime = Mock(wraps=datetime)
+    fixed_datetime.now.return_value = datetime(2026, 7, 25, 12, 0)
+    monkeypatch.setattr(client_module, "datetime", fixed_datetime)
+    existing_export = tmp_path / "Projects_2026-07-25.csv"
+    existing_export.write_text("existing export\n", encoding="utf-8")
+    client._query_records_by_ids = Mock(
+        side_effect=[
+            _record_query_response(
+                [{"3": {"value": 10}, "6": {"value": "A"}, "7": {"value": "Open"}}],
+                total_records=2,
+            ),
+            interruption,
+        ]
+    )
+
+    with pytest.raises(type(interruption)) as caught:
+        client.download_records_to_csv("Operations", "Projects", str(tmp_path))
+
+    assert caught.value is interruption
+    assert client._query_records_by_ids.call_count == 2
+    assert existing_export.read_text(encoding="utf-8") == "existing export\n"
+    assert list(tmp_path.glob(f".{existing_export.name}.*.tmp")) == []
 
 
 @pytest.mark.parametrize(

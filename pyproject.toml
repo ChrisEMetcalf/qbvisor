@@ -78,7 +78,7 @@ addopts = [
     "--strict-markers",
     "--cov=qbvisor",
     "--cov-report=term-missing",
-    "--cov-fail-under=40",
+    "--cov-fail-under=80",
 ]
 markers = [
     "integration: live contract tests against the configured persistent Quickbase sandbox",
@@ -98,4 +98,5 @@ exclude_also = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
 ]
+precision = 2
 show_missing = true
