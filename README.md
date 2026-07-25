@@ -8,7 +8,7 @@ Quickbase remains responsible for authentication, permissions, data storage, for
 and API limits. qbvisor focuses on the development workflows that are difficult to build safely
 from the raw API alone.
 
-> **Project status:** qbvisor `0.3.0` is the first public PyPI release and remains pre-`1.0.0`.
+> **Project status:** qbvisor `0.3.1` is the current public release and remains pre-`1.0.0`.
 > Review the
 > [release and compatibility policy](docs/release-policy.md) before adopting it in production.
 
@@ -41,13 +41,13 @@ CI verifies Python 3.12, 3.13, and 3.14.
 Install the release from PyPI:
 
 ```bash
-python -m pip install qbvisor==0.3.0
+python -m pip install qbvisor==0.3.1
 ```
 
 With uv:
 
 ```bash
-uv add qbvisor==0.3.0
+uv add qbvisor==0.3.1
 ```
 
 For repository development, use [uv](https://docs.astral.sh/uv/) and the committed lockfile:

@@ -6,6 +6,8 @@ heading.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-25
+
 ### Added
 
 - Add opt-in, bounded generated-record profiles for stabilizing record upserts, queries, DataFrame
@@ -17,7 +19,7 @@ heading.
 - Add a compatibility ledger with signature snapshots, behavior boundaries, side effects, and
   preferred alternatives for retained attachment, metadata, config-diagnostic, and CSV helpers.
 - Add an explicit `outcome` to record upsert results for complete success, partial success, and
-  complete record-processing failure.
+  complete record-processing failure ([#34]).
 
 ### Changed
 
@@ -108,7 +110,8 @@ heading.
 
 - Publish the initial Quickbase client, query helpers, transport, tests, and project documentation.
 
-[Unreleased]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/ChrisEMetcalf/qbvisor/compare/v0.1.0...v0.1.1
@@ -134,4 +137,5 @@ heading.
 [#20]: https://github.com/ChrisEMetcalf/qbvisor/pull/20
 [#21]: https://github.com/ChrisEMetcalf/qbvisor/pull/21
 [#33]: https://github.com/ChrisEMetcalf/qbvisor/issues/33
+[#34]: https://github.com/ChrisEMetcalf/qbvisor/issues/34
 [#35]: https://github.com/ChrisEMetcalf/qbvisor/issues/35

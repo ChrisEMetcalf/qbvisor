@@ -16,8 +16,9 @@ documented Quickbase API.
 - The package uses a `src/` layout and modern `pyproject.toml` metadata.
 - The PyPI package exposes inline typing and `qbvisor.__version__`.
 
-The original `0.3.0` release can be installed with `python -m pip install qbvisor==0.3.0` or
-`uv add qbvisor==0.3.0`. Pin `0.3.1` or later when using the corrections described for that release.
+Install the current patch with `python -m pip install qbvisor==0.3.1` or
+`uv add qbvisor==0.3.1`. The original `0.3.0` release remains available, but it does not include
+the corrections described for `0.3.1`.
 
 ## Transport and exceptions
 
@@ -41,6 +42,11 @@ where the existing caller expects a bounded result. Use `query_records()` for on
 or `download_records_to_csv()` for a stable large extract.
 
 `query_records()` retains its one-request behavior and default `top=1000` contract.
+
+`QueryHelper` now prefers an exact field-label spelling, then falls back to a unique
+case-insensitive match. If a non-exact label matches multiple fields after case folding, qbvisor
+raises instead of choosing arbitrarily. Rename duplicate labels when practical or use the exact
+label spelling when the Quickbase schema intentionally contains them.
 
 ## Record exports
 
@@ -127,6 +133,7 @@ snapshots. Review their documented boundaries before operational use.
 7. Pin the reviewed `0.3.x` release whose behavior your application tested. The explicit upsert
    outcome contract requires `0.3.1` or later.
 
-See the [0.3.0 release notes](releases/0.3.0.md) for the release summary and the
+See the [0.3.1 release notes](releases/0.3.1.md) for the current patch summary, the
+[0.3.0 release notes](releases/0.3.0.md) for the original minor release, and the
 [changelog](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CHANGELOG.md) for the complete change
 list.
