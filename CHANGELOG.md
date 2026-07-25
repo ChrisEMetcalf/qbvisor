@@ -29,6 +29,8 @@ heading.
 
 ### Fixed
 
+- Block relationship descendants when schema planning cannot uniquely identify a field instead of
+  presenting generated fields as safe create actions ([#35]).
 - Resolve `QueryHelper` field labels case-insensitively while rejecting ambiguous labels that
   differ only by case ([#33]).
 - Report `partial=False` when every submitted upsert position has a line error instead of
@@ -132,3 +134,4 @@ heading.
 [#20]: https://github.com/ChrisEMetcalf/qbvisor/pull/20
 [#21]: https://github.com/ChrisEMetcalf/qbvisor/pull/21
 [#33]: https://github.com/ChrisEMetcalf/qbvisor/issues/33
+[#35]: https://github.com/ChrisEMetcalf/qbvisor/issues/35

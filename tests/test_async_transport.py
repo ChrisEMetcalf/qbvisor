@@ -227,26 +227,33 @@ def test_async_cancellation_propagates_without_retry_and_exits_response():
     sleep.assert_not_awaited()
 
 
-def test_owned_async_session_closes_and_resets_exactly_once(monkeypatch):
-    session = FakeSession()
-    monkeypatch.setattr(aiohttp, "ClientSession", Mock(return_value=session))
+def test_owned_async_session_closes_once_and_reopens_after_close(monkeypatch):
+    first_session = FakeSession()
+    second_session = FakeSession()
+    session_factory = Mock(side_effect=[first_session, second_session])
+    monkeypatch.setattr(aiohttp, "ClientSession", session_factory)
     transport = AsyncQuickBaseTransport(sync_transport())
 
     async def exercise() -> None:
         async with transport as entered:
             assert entered is transport
-            assert transport._session is session
         await transport.close()
+        async with transport:
+            pass
 
     asyncio.run(exercise())
 
-    assert session.close_calls == 1
-    assert session.closed is True
-    assert transport._session is None
+    assert session_factory.call_count == 2
+    assert first_session.close_calls == 1
+    assert first_session.closed is True
+    assert second_session.close_calls == 1
+    assert second_session.closed is True
 
 
-def test_injected_async_session_remains_open_across_close_and_context_exit():
+def test_injected_async_session_remains_open_across_close_and_context_exit(monkeypatch):
     session = FakeSession()
+    session_factory = Mock()
+    monkeypatch.setattr(aiohttp, "ClientSession", session_factory)
     transport = async_transport(session)
 
     async def exercise() -> None:
@@ -258,7 +265,7 @@ def test_injected_async_session_remains_open_across_close_and_context_exit():
 
     assert session.close_calls == 0
     assert session.closed is False
-    assert transport._session is session
+    session_factory.assert_not_called()
 
 
 def test_async_rate_limit_exposes_quickbase_diagnostics():
