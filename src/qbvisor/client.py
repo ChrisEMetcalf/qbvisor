@@ -769,7 +769,8 @@ class QuickBaseClient:
             fields_to_return (list[str] | None): Field labels to include in returned data.
 
         Returns:
-            dict: Aggregated write outcome with returned data, record ID groups, and line errors.
+            dict: Aggregated write outcome with ``outcome`` classification, returned data,
+                record ID groups, and any line errors.
         """
         app_id, table_id = self._ids(app_name, table_name)
 

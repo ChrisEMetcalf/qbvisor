@@ -16,6 +16,8 @@ heading.
   diagnostic artifacts.
 - Add a compatibility ledger with signature snapshots, behavior boundaries, side effects, and
   preferred alternatives for retained attachment, metadata, config-diagnostic, and CSV helpers.
+- Add an explicit `outcome` to record upsert results for complete success, partial success, and
+  complete record-processing failure.
 
 ### Changed
 
@@ -27,6 +29,8 @@ heading.
 
 - Resolve `QueryHelper` field labels case-insensitively while rejecting ambiguous labels that
   differ only by case ([#33]).
+- Report `partial=False` when every submitted upsert position has a line error instead of
+  misclassifying complete failure as partial success. HTTP request errors remain exception-based.
 
 ## [0.3.0] - 2026-07-19
 
