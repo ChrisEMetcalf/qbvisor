@@ -22,7 +22,7 @@ from conftest import (
 )
 
 import qbvisor.client as client_module
-from qbvisor import BackupOptions
+from qbvisor import BackupOptions, QueryHelper
 from qbvisor._records.upsert import _json_payload_size
 from qbvisor.client import QuickBaseClient
 from qbvisor.models import RelationshipSummary
@@ -142,6 +142,31 @@ def test_repeated_label_resolution_reuses_live_metadata(
         f"tables/{sandbox_contract.records_table_id}",
         "fields",
     ]
+
+
+def test_query_helper_executes_query_from_differently_cased_ui_label(
+    sandbox_client: QuickBaseClient,
+    sandbox_contract: SandboxContract,
+):
+    ui_label = "Fixture Key"
+    differently_cased_label = ui_label.swapcase()
+    assert differently_cased_label != ui_label
+
+    query = QueryHelper(sandbox_client, APP_NAME, sandbox_contract.records_table_id)
+    where = query.eq(differently_cased_label, "qbvisor-alpha")
+    assert where == (f"{{{sandbox_contract.record_fields[ui_label]}.EX.'qbvisor-alpha'}}")
+
+    response = sandbox_client.query_records(
+        APP_NAME,
+        sandbox_contract.records_table_id,
+        [ui_label],
+        where=where,
+        top=10,
+    )
+    records = response["data"]
+    assert isinstance(records, list)
+    assert len(records) == 1
+    assert records[0][str(sandbox_contract.record_fields[ui_label])]["value"] == "qbvisor-alpha"
 
 
 def test_seed_query_and_dataframe_preserve_developer_facing_labels(
