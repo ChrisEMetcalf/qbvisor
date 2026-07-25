@@ -38,6 +38,10 @@ operators. `expr(field_label, operator, value)` accepts a supported Quickbase op
 named helper is not available. qbvisor builds query syntax; Quickbase remains responsible for
 evaluating field types and formula semantics.
 
+Field-label resolution is case-insensitive, so `"status"` resolves the UI label `"Status"`. Exact
+spelling takes precedence when labels differ only by case. Without an exact spelling, such a
+collision is ambiguous and raises `ValueError` rather than selecting a field arbitrarily.
+
 ## DataFrame queries
 
 An unsorted, ungrouped query starting at zero uses Record ID# continuation. qbvisor selects Record

@@ -6,6 +6,11 @@ heading.
 
 ## [Unreleased]
 
+### Fixed
+
+- Resolve `QueryHelper` field labels case-insensitively while rejecting ambiguous labels that
+  differ only by case ([#33]).
+
 ## [0.3.0] - 2026-07-19
 
 ### Added
@@ -103,3 +108,4 @@ heading.
 [#19]: https://github.com/ChrisEMetcalf/qbvisor/pull/19
 [#20]: https://github.com/ChrisEMetcalf/qbvisor/pull/20
 [#21]: https://github.com/ChrisEMetcalf/qbvisor/pull/21
+[#33]: https://github.com/ChrisEMetcalf/qbvisor/issues/33
