@@ -5,6 +5,7 @@ import pytest
 from qbvisor._records.upsert import (
     _json_payload_size,
     execute_upsert_batches,
+    normalize_upsert_response,
     plan_upsert_batches,
 )
 from qbvisor.exceptions import QuickbaseBatchError, QuickbaseHTTPError
@@ -74,6 +75,18 @@ def test_batch_plan_preserves_an_empty_compatibility_request():
     assert batches[0].start_line == 1
     assert batches[0].end_line == 0
     assert batches[0].json_body(template) == {**template, "data": []}
+
+
+def test_empty_normalized_response_is_not_vacuously_classified_as_failed():
+    result = normalize_upsert_response(
+        {"metadata": {"totalNumberOfRecordsProcessed": 0}},
+        record_count=0,
+    )
+
+    assert result["outcome"] == "success"
+    assert result["success"] is True
+    assert "partial" not in result
+    assert "lineErrors" not in result
 
 
 @pytest.mark.parametrize("maximum", [0, -1, True, 1.5])
