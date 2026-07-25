@@ -1,7 +1,8 @@
 # Upgrading from 0.2 to 0.3
 
-qbvisor `0.3.0` was released on July 19, 2026. This guide covers the compatibility and operational
-changes from `0.2.x`.
+qbvisor `0.3.0`, the first published `0.3.x` release, was released on July 19, 2026. This guide
+covers the compatibility and operational changes from `0.2.x`. Corrections identified as `0.3.1`
+behavior require qbvisor `0.3.1` or later.
 
 qbvisor preserves established `QuickBaseClient` method names and the public signatures of its most
 used query, report, export, attachment, and upsert methods. The release intentionally changes some
@@ -15,8 +16,8 @@ documented Quickbase API.
 - The package uses a `src/` layout and modern `pyproject.toml` metadata.
 - The PyPI package exposes inline typing and `qbvisor.__version__`.
 
-Install the reviewed release with `python -m pip install qbvisor==0.3.0` or
-`uv add qbvisor==0.3.0`.
+The original `0.3.0` release can be installed with `python -m pip install qbvisor==0.3.0` or
+`uv add qbvisor==0.3.0`. Pin `0.3.1` or later when using the corrections described for that release.
 
 ## Transport and exceptions
 
@@ -49,19 +50,34 @@ avoid records shifting between offsets.
 
 ## Upserts
 
-`upsert_records()` preserves the established call signature and existing result keys while adding
-complete outcomes:
+`upsert_records()` in `0.3.0` preserved the established call signature while adding complete batch
+results:
 
 - created, updated, and unchanged record IDs;
 - returned data;
 - total processed counts;
 - partial status and one-based line errors.
 
+Starting in `0.3.1`, prefer `result["outcome"]` in new code:
+
+- `"success"` means no records failed; `success=True`, while `partial` and `lineErrors` remain
+  absent as they were in successful results before this addition.
+- `"partial"` means some records succeeded; `success=False`, `partial=True`, and `lineErrors` is
+  present.
+- `"failed"` means every submitted position has a line error; `success=False`, `partial=False`, and
+  `lineErrors` is present.
+
+Earlier `0.3.0` behavior labeled every response containing line errors as `partial=True`, including
+complete record-processing failure. Code that uses `partial` to decide whether any record succeeded
+should handle the corrected `partial=False` complete-failure result. Code that reads conditional
+details should use `result.get("lineErrors", {})`.
+
 Payloads are measured before the first mutation and split at the Quickbase 40 MB limit. A later
 batch failure raises `QuickbaseBatchError` with completed and failed or uncertain input ranges.
 
-Callers that previously treated any returned dictionary as complete success should check `success`
-and `partial`. Callers retrying writes should use a stable unique merge field.
+Callers that previously treated any returned dictionary as complete success should check `outcome`.
+HTTP `4xx` and `5xx` responses still raise qbvisor exceptions rather than returning an outcome.
+Callers retrying writes should use a stable unique merge field.
 
 ## Attachments
 
@@ -103,10 +119,11 @@ snapshots. Review their documented boundaries before operational use.
 1. Run the existing application test suite on Python 3.12 or later.
 2. Add explicit `top` values where a complete DataFrame or report would be too large.
 3. Update exception handling to use qbvisor exceptions.
-4. Verify upsert callers check partial outcomes and use merge fields where retries are possible.
+4. Verify upsert callers check explicit outcomes and use merge fields where retries are possible.
 5. Verify attachment callers handle `QuickbaseBatchError` and the expanded result status.
 6. Run critical workflows against a dedicated Quickbase sandbox.
-7. Pin the final `0.3.0` release only after those checks pass.
+7. Pin the reviewed `0.3.x` release whose behavior your application tested. The explicit upsert
+   outcome contract requires `0.3.1` or later.
 
 See the [0.3.0 release notes](releases/0.3.0.md) for the release summary and the
 [changelog](https://github.com/ChrisEMetcalf/qbvisor/blob/main/CHANGELOG.md) for the complete change

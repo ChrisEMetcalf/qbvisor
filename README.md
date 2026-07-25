@@ -133,7 +133,10 @@ with QuickBaseClient() as qb:
         fields_to_return=["Invoice Number", "Status"],
     )
 
-print(result["createdRecordIds"], result["updatedRecordIds"])
+if result["outcome"] == "success":
+    print(result["createdRecordIds"], result["updatedRecordIds"])
+else:
+    print(result["outcome"], result.get("lineErrors", {}))
 ```
 
 Create and verify an application backup:

@@ -6,6 +6,16 @@ heading.
 
 ## [Unreleased]
 
+### Added
+
+- Add an explicit `outcome` to record upsert results for complete success, partial success, and
+  complete record-processing failure.
+
+### Fixed
+
+- Report `partial=False` when every submitted upsert position has a line error instead of
+  misclassifying complete failure as partial success. HTTP request errors remain exception-based.
+
 ## [0.3.0] - 2026-07-19
 
 ### Added

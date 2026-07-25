@@ -15,11 +15,17 @@ uv run python scripts/audit_quickbase_oas.py --refresh --write
 - The transport returns any valid JSON value without wrapping it.
 - High-level methods enforce the documented top-level response shape. Apps, individual resources, relationships, record operations, formulas, and report runs return objects. Table, report, field, app-event, app-role, and field-usage collections return arrays.
 - Empty successful responses preserve the existing `{}` compatibility behavior.
-- The transport accepts a `207` upsert response as a JSON object. `upsert_records()` validates its
-  metadata, returns `success=False`, and preserves line errors and every successful record outcome.
+- The transport accepts both documented upsert success statuses: [`200` without line
+  errors and `207` when some or all records fail](https://developer.quickbase.com/operation/upsert).
+  `upsert_records()` validates the metadata and returns `outcome="success"`, `"partial"`, or
+  `"failed"`. HTTP `4xx` and `5xx` responses remain exception-based.
+- The legacy `success` key remains available. Complete success continues to omit `partial` and
+  `lineErrors`; genuine partial success returns `partial=True`; complete record-processing failure
+  now returns `partial=False`. Both `207` outcomes preserve one-based line errors and every
+  successful record result.
 - Upsert inputs are fully serialized and preflighted before mutation. Requests exceeding the 40 MB
-  endpoint limit are split sequentially, and batch-local line errors are restored to original input
-  positions.
+  endpoint limit are split sequentially, batch-local line errors are restored to original input
+  positions, and the final outcome is classified across the entire submission.
 - Quickbase error objects preserve `message` and `description`. Exceptions also preserve the HTTP status, `Retry-After`, and `qb-api-ray` header when present.
 
 ## File responses

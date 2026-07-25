@@ -287,6 +287,7 @@ def test_upsert_results_distinguish_created_updated_and_unchanged_records(
             fields_to_return=["Fixture Key", "Status"],
         )
 
+        assert created["outcome"] == "success"
         assert created["success"] is True
         assert len(created["createdRecordIds"]) == 1
         assert created["updatedRecordIds"] == []
@@ -309,6 +310,7 @@ def test_upsert_results_distinguish_created_updated_and_unchanged_records(
             fields_to_return=["Fixture Key", "Status"],
         )
 
+        assert unchanged["outcome"] == "success"
         assert unchanged["success"] is True
         assert unchanged["createdRecordIds"] == []
         assert unchanged["updatedRecordIds"] == []
@@ -323,6 +325,7 @@ def test_upsert_results_distinguish_created_updated_and_unchanged_records(
             fields_to_return=["Fixture Key", "Status"],
         )
 
+        assert updated["outcome"] == "success"
         assert updated["success"] is True
         assert updated["createdRecordIds"] == []
         assert updated["updatedRecordIds"] == [record_id]
@@ -394,6 +397,7 @@ def test_upsert_results_preserve_partial_line_errors_and_successful_records(
         )
 
         created_ids = result["createdRecordIds"]
+        assert result["outcome"] == "partial"
         assert result["success"] is False
         assert result["partial"] is True
         assert result["totalProcessed"] == 2

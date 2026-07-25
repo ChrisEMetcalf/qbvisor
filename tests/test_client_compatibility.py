@@ -13,7 +13,12 @@ from qbvisor._resources.fields import FieldResource
 from qbvisor._resources.relationships import RelationshipResource
 from qbvisor._resources.tables import TableResource
 from qbvisor.client import QuickBaseClient
-from qbvisor.exceptions import QuickbaseBatchError, QuickbaseResponseError, QuickbaseTimeoutError
+from qbvisor.exceptions import (
+    QuickbaseBatchError,
+    QuickbaseHTTPError,
+    QuickbaseResponseError,
+    QuickbaseTimeoutError,
+)
 from qbvisor.models import RelationshipSummary
 from qbvisor.transport import RetryPolicy
 
@@ -1082,6 +1087,7 @@ def test_upsert_records_translates_labels_and_reports_success(client):
     )
 
     assert result == {
+        "outcome": "success",
         "success": True,
         "createdRecordIds": [101],
         "updatedRecordIds": [],
@@ -1120,6 +1126,7 @@ def test_upsert_records_preserves_partial_failure_details(client):
     )
 
     assert result == {
+        "outcome": "partial",
         "success": False,
         "partial": True,
         "lineErrors": {"2": ["Invalid value"]},
@@ -1129,6 +1136,59 @@ def test_upsert_records_preserves_partial_failure_details(client):
         "totalProcessed": 2,
         "data": [{"3": {"value": 101}}],
     }
+
+
+def test_upsert_records_classifies_all_failed_lines_as_failed(client):
+    client._request.return_value = {
+        "data": [],
+        "metadata": {
+            "lineErrors": {
+                "1": ["Invalid name"],
+                "2": ["Invalid status"],
+            },
+            "createdRecordIds": [],
+            "updatedRecordIds": [],
+            "unchangedRecordIds": [],
+            "totalNumberOfRecordsProcessed": 2,
+        },
+    }
+
+    result = client.upsert_records(
+        "Operations",
+        "Projects",
+        [{"Name": "Invalid"}, {"Name": "Also invalid"}],
+    )
+
+    assert result == {
+        "outcome": "failed",
+        "success": False,
+        "partial": False,
+        "lineErrors": {
+            "1": ["Invalid name"],
+            "2": ["Invalid status"],
+        },
+        "createdRecordIds": [],
+        "updatedRecordIds": [],
+        "unchangedRecordIds": [],
+        "totalProcessed": 2,
+        "data": [],
+    }
+
+
+@pytest.mark.parametrize("status_code", [400, 503])
+def test_upsert_records_preserves_request_level_http_errors(client, status_code):
+    failure = QuickbaseHTTPError(
+        method="POST",
+        path="records",
+        status_code=status_code,
+        message="Request failed",
+    )
+    client._request.side_effect = failure
+
+    with pytest.raises(QuickbaseHTTPError) as caught:
+        client.upsert_records("Operations", "Projects", [{"Name": "Migration"}])
+
+    assert caught.value is failure
 
 
 @pytest.mark.parametrize(
@@ -1230,6 +1290,7 @@ def test_upsert_records_aggregates_batches_and_restores_global_error_positions(c
     )
 
     assert result == {
+        "outcome": "partial",
         "success": False,
         "createdRecordIds": [101],
         "updatedRecordIds": [],
@@ -1251,6 +1312,51 @@ def test_upsert_records_aggregates_batches_and_restores_global_error_positions(c
             json_body={**template, "data": [api_records[1]]},
         ),
     ]
+
+
+def test_upsert_records_classifies_all_failed_batches_globally(client, monkeypatch):
+    api_records = [
+        {"6": {"value": "First"}},
+        {"6": {"value": "Second"}},
+    ]
+    template = {"to": "tbl_projects"}
+    maximum = max(_json_payload_size({**template, "data": [record]}) for record in api_records)
+    monkeypatch.setattr(client_module, "MAX_UPSERT_PAYLOAD_BYTES", maximum)
+    client._request.side_effect = [
+        {
+            "metadata": {
+                "lineErrors": {"1": ["First error"]},
+                "totalNumberOfRecordsProcessed": 1,
+            },
+        },
+        {
+            "metadata": {
+                "lineErrors": {"1": ["Second error"]},
+                "totalNumberOfRecordsProcessed": 1,
+            },
+        },
+    ]
+
+    result = client.upsert_records(
+        "Operations",
+        "Projects",
+        [{"Name": "First"}, {"Name": "Second"}],
+    )
+
+    assert result == {
+        "outcome": "failed",
+        "success": False,
+        "partial": False,
+        "lineErrors": {
+            "1": ["First error"],
+            "2": ["Second error"],
+        },
+        "createdRecordIds": [],
+        "updatedRecordIds": [],
+        "unchangedRecordIds": [],
+        "totalProcessed": 2,
+        "data": [],
+    }
 
 
 def test_upsert_records_reports_completed_batches_after_uncertain_failure(client, monkeypatch):
@@ -1291,6 +1397,7 @@ def test_upsert_records_reports_completed_batches_after_uncertain_failure(client
         "payloadBytes": payload_sizes[0],
         "status": "completed",
         "result": {
+            "outcome": "success",
             "success": True,
             "createdRecordIds": [101],
             "updatedRecordIds": [],

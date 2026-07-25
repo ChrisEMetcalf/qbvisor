@@ -114,6 +114,9 @@ with QuickBaseClient() as qb:
         merge_field_label="Invoice Number",
         fields_to_return=["Invoice Number", "Status", "Amount"],
     )
+
+if result["outcome"] != "success":
+    print(result["outcome"], result.get("lineErrors", {}))
 ```
 
 qbvisor resolves labels to IDs, serializes every record, and plans the complete batch before the
@@ -123,13 +126,30 @@ contiguous sequential requests that fit.
 The aggregated result retains Quickbase's native returned data and includes:
 
 - `createdRecordIds`, `updatedRecordIds`, and `unchangedRecordIds`;
-- `totalProcessed`, `success`, and `partial`;
-- one-based `lineErrors` rebased to the original input positions.
+- `totalProcessed`, `outcome`, and the compatibility key `success`;
+- conditional one-based `lineErrors` rebased to the original input positions.
 
-A normal `207` partial response does not prevent later planned batches from running because
-Quickbase completed that request. If a later request fails, `QuickbaseBatchError.results` identifies
-completed ranges and the failed or uncertain range. Timeouts, connection failures, server errors,
-and invalid success responses are uncertain because the server may have committed the request.
+Quickbase's official
+[`POST /v1/records` response contract](https://developer.quickbase.com/operation/upsert) returns
+`200` when every record succeeds and `207 Multi-Status` when some or all records fail:
+
+| `outcome` | Meaning | Compatibility keys |
+| --- | --- | --- |
+| `"success"` | No submitted record has a line error. | `success=True`; `partial` and `lineErrors` are absent. |
+| `"partial"` | Some submitted records succeeded and some failed. | `success=False`, `partial=True`, and `lineErrors` is present. |
+| `"failed"` | Every submitted record position has a line error. | `success=False`, `partial=False`, and `lineErrors` is present. |
+
+Use `outcome` for new integrations. Existing integrations can retain their `success` checks and
+genuine-partial `partial=True` checks. Because `partial` and `lineErrors` remain absent on complete
+success, access conditional details with `result.get("lineErrors", {})`.
+
+A normal `207` response does not prevent later planned batches from running because Quickbase
+completed that request. qbvisor classifies the aggregate across every original submitted position,
+even when individual batches have different outcomes. An HTTP `4xx` or `5xx` is a request-level
+error and raises a qbvisor exception instead of returning an `outcome`. If a later request fails,
+`QuickbaseBatchError.results` identifies completed ranges and the failed or uncertain range.
+Timeouts, connection failures, server errors, and invalid success responses are uncertain because
+the server may have committed the request.
 
 Append-only writes without a merge field are not idempotent. A caller retry can create duplicates.
 

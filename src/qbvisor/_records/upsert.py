@@ -155,6 +155,7 @@ def aggregate_upsert_results(
     data: list[dict[str, Any]] = []
     line_errors: dict[str, list[str]] = {}
     total_processed = 0
+    submitted_record_count = 0
 
     for batch, result in completed:
         created_ids.extend(result["createdRecordIds"])
@@ -162,12 +163,13 @@ def aggregate_upsert_results(
         unchanged_ids.extend(result["unchangedRecordIds"])
         data.extend(result["data"])
         total_processed += result["totalProcessed"]
+        submitted_record_count += len(batch.records)
         for local_position, messages in result.get("lineErrors", {}).items():
             global_position = batch.start_line + int(local_position) - 1
             line_errors[str(global_position)] = messages
 
     aggregate: dict[str, Any] = {
-        "success": not line_errors,
+        **_outcome_fields(line_errors, record_count=submitted_record_count),
         "createdRecordIds": created_ids,
         "updatedRecordIds": updated_ids,
         "unchangedRecordIds": unchanged_ids,
@@ -175,7 +177,7 @@ def aggregate_upsert_results(
         "data": data,
     }
     if line_errors:
-        aggregate.update({"partial": True, "lineErrors": line_errors})
+        aggregate["lineErrors"] = line_errors
     return aggregate
 
 
@@ -283,6 +285,18 @@ def _line_errors(metadata: dict[str, Any], record_count: int) -> dict[str, list[
     return validated
 
 
+def _outcome_fields(
+    line_errors: dict[str, list[str]],
+    *,
+    record_count: int,
+) -> dict[str, Any]:
+    if not line_errors:
+        return {"outcome": "success", "success": True}
+    if record_count > 0 and len(line_errors) == record_count:
+        return {"outcome": "failed", "success": False, "partial": False}
+    return {"outcome": "partial", "success": False, "partial": True}
+
+
 def normalize_upsert_response(
     response: dict[str, Any],
     *,
@@ -314,7 +328,7 @@ def normalize_upsert_response(
     line_errors = _line_errors(metadata, record_count)
 
     result: dict[str, Any] = {
-        "success": not line_errors,
+        **_outcome_fields(line_errors, record_count=record_count),
         "createdRecordIds": created_ids,
         "updatedRecordIds": updated_ids,
         "unchangedRecordIds": unchanged_ids,
@@ -322,10 +336,5 @@ def normalize_upsert_response(
         "data": data,
     }
     if line_errors:
-        result.update(
-            {
-                "partial": True,
-                "lineErrors": line_errors,
-            }
-        )
+        result["lineErrors"] = line_errors
     return result
