@@ -10,6 +10,7 @@ import requests
 
 from qbvisor.async_transport import AsyncQuickBaseTransport
 from qbvisor.exceptions import (
+    QuickbaseConnectionError,
     QuickbaseRateLimitError,
     QuickbaseResponseError,
     QuickbaseTimeoutError,
@@ -33,15 +34,32 @@ class FakeResponse:
             if content is not None
             else (json.dumps(payload).encode() if payload is not None else b"")
         )
+        self.exit_calls = 0
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, *_: object) -> None:
+        self.exit_calls += 1
         return None
 
     async def read(self) -> bytes:
         return self._content
+
+
+class PausingResponse(FakeResponse):
+    def __init__(self, entered: asyncio.Event, release: asyncio.Event):
+        super().__init__(200, {"ok": True})
+        self.entered = entered
+        self.release = release
+
+    async def __aenter__(self):
+        self.entered.set()
+        return await super().__aenter__()
+
+    async def read(self) -> bytes:
+        await self.release.wait()
+        return await super().read()
 
 
 class FakeSession:
@@ -49,6 +67,7 @@ class FakeSession:
         self.outcomes = list(outcomes)
         self.requests: list[tuple[str, str, dict[str, Any]]] = []
         self.closed = False
+        self.close_calls = 0
 
     def request(self, method: str, url: str, **kwargs: Any) -> FakeResponse:
         self.requests.append((method, url, kwargs))
@@ -58,7 +77,18 @@ class FakeSession:
         return outcome
 
     async def close(self) -> None:
+        self.close_calls += 1
         self.closed = True
+
+
+def sync_transport(*, max_attempts: int = 5) -> QuickBaseTransport:
+    return QuickBaseTransport(
+        realm_hostname="example.quickbase.com",
+        auth_token="secret-token",
+        session=Mock(spec=requests.Session),
+        max_attempts=max_attempts,
+        jitter=lambda _low, _high: 1.25,
+    )
 
 
 def async_transport(
@@ -67,15 +97,8 @@ def async_transport(
     max_attempts: int = 5,
     sleep: AsyncMock | None = None,
 ) -> AsyncQuickBaseTransport:
-    sync_transport = QuickBaseTransport(
-        realm_hostname="example.quickbase.com",
-        auth_token="secret-token",
-        session=Mock(spec=requests.Session),
-        max_attempts=max_attempts,
-        jitter=lambda _low, _high: 1.25,
-    )
     return AsyncQuickBaseTransport(
-        sync_transport,
+        sync_transport(max_attempts=max_attempts),
         session=cast(aiohttp.ClientSession, session),
         sleep=sleep or AsyncMock(),
     )
@@ -123,6 +146,119 @@ def test_safe_async_request_uses_shared_retry_after_policy():
     assert result == {"ok": True}
     assert len(session.requests) == 2
     sleep.assert_awaited_once_with(2.0)
+
+
+def test_safe_async_connection_failure_retries_once_then_succeeds():
+    retry_response = FakeResponse(200, {"ok": True})
+    session = FakeSession(aiohttp.ClientConnectionError("offline"), retry_response)
+    sleep = AsyncMock()
+    transport = async_transport(session, sleep=sleep)
+
+    result = asyncio.run(transport.post_json("records/query", retry_policy=RetryPolicy.SAFE))
+
+    assert result == {"ok": True}
+    assert len(session.requests) == 2
+    assert session.outcomes == []
+    assert retry_response.exit_calls == 1
+    sleep.assert_awaited_once_with(1.25)
+
+
+def test_never_async_connection_failure_is_not_replayed():
+    unused_response = FakeResponse(200, {"unexpected": True})
+    session = FakeSession(aiohttp.ClientConnectionError("offline"), unused_response)
+    sleep = AsyncMock()
+    transport = async_transport(session, sleep=sleep)
+
+    with pytest.raises(QuickbaseConnectionError) as caught:
+        asyncio.run(transport.post_json("records", retry_policy=RetryPolicy.NEVER))
+
+    assert caught.value.attempts == 1
+    assert len(session.requests) == 1
+    assert session.outcomes == [unused_response]
+    assert unused_response.exit_calls == 0
+    sleep.assert_not_awaited()
+
+
+def test_valid_async_retry_after_replays_rate_limit_even_when_policy_is_never():
+    rate_limit_response = FakeResponse(
+        429,
+        {"message": "Too many requests"},
+        headers={"Retry-After": "3", "qb-api-ray": "ray-retry"},
+    )
+    success_response = FakeResponse(200, {"ok": True})
+    session = FakeSession(rate_limit_response, success_response)
+    sleep = AsyncMock()
+    transport = async_transport(session, sleep=sleep)
+
+    result = asyncio.run(transport.post_json("records", retry_policy=RetryPolicy.NEVER))
+
+    assert result == {"ok": True}
+    assert len(session.requests) == 2
+    assert session.outcomes == []
+    assert rate_limit_response.exit_calls == 1
+    assert success_response.exit_calls == 1
+    sleep.assert_awaited_once_with(3.0)
+
+
+def test_async_cancellation_propagates_without_retry_and_exits_response():
+    async def exercise() -> tuple[PausingResponse, FakeSession, AsyncMock]:
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        response = PausingResponse(entered, release)
+        session = FakeSession(response)
+        sleep = AsyncMock()
+        transport = async_transport(session, sleep=sleep)
+
+        task = asyncio.create_task(
+            transport.post_json("records/query", retry_policy=RetryPolicy.SAFE)
+        )
+        await entered.wait()
+        task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return response, session, sleep
+
+    response, session, sleep = asyncio.run(exercise())
+
+    assert len(session.requests) == 1
+    assert session.outcomes == []
+    assert response.exit_calls == 1
+    sleep.assert_not_awaited()
+
+
+def test_owned_async_session_closes_and_resets_exactly_once(monkeypatch):
+    session = FakeSession()
+    monkeypatch.setattr(aiohttp, "ClientSession", Mock(return_value=session))
+    transport = AsyncQuickBaseTransport(sync_transport())
+
+    async def exercise() -> None:
+        async with transport as entered:
+            assert entered is transport
+            assert transport._session is session
+        await transport.close()
+
+    asyncio.run(exercise())
+
+    assert session.close_calls == 1
+    assert session.closed is True
+    assert transport._session is None
+
+
+def test_injected_async_session_remains_open_across_close_and_context_exit():
+    session = FakeSession()
+    transport = async_transport(session)
+
+    async def exercise() -> None:
+        async with transport:
+            pass
+        await transport.close()
+
+    asyncio.run(exercise())
+
+    assert session.close_calls == 0
+    assert session.closed is False
+    assert transport._session is session
 
 
 def test_async_rate_limit_exposes_quickbase_diagnostics():
