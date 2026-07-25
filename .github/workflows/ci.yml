@@ -77,6 +77,24 @@ jobs:
       - name: Run tests
         run: uv run --frozen pytest
 
+      - name: Publish branch coverage summary
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          if [[ ! -f .coverage.nosync ]]; then
+            echo "Coverage data was not produced." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "### Branch-aware coverage (Python ${{ matrix.python-version }})"
+            echo
+            uv run --frozen coverage report \
+              --skip-covered \
+              --show-missing \
+              --sort=cover \
+              --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build:
     name: Build distribution
     runs-on: ubuntu-latest

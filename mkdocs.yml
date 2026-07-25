@@ -33,6 +33,7 @@ nav:
   - Quickbase API coverage: api/README.md
   - Sandbox stabilization workloads: development-workloads.md
   - Continuous operational testing: operational-testing.md
+  - Risk-driven testing: testing-strategy.md
   - Upgrading to 0.3: upgrading-to-0.3.md
   - Release notes:
       - 0.3.0: releases/0.3.0.md

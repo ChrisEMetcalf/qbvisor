@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Sequence
 from copy import deepcopy
@@ -101,6 +102,61 @@ def create_backup(client: FakeBackupClient, output: Path, **options: Any) -> App
     )
 
 
+def write_manifest(root: Path, payload: dict[str, Any]) -> ApplicationBackup:
+    (root / "manifest.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return ApplicationBackup.open(root)
+
+
+def replace_artifact(
+    backup: ApplicationBackup,
+    relative_path: str,
+    content: bytes,
+    *,
+    item_count: int,
+) -> dict[str, Any]:
+    (backup.path / relative_path).write_bytes(content)
+    payload = deepcopy(backup.manifest.to_dict())
+    artifact = next(item for item in payload["artifacts"] if item["path"] == relative_path)
+    artifact.update(
+        sha256=hashlib.sha256(content).hexdigest(),
+        bytes=len(content),
+        item_count=item_count,
+    )
+    return payload
+
+
+def backup_with_one_attachment(tmp_path: Path) -> tuple[ApplicationBackup, dict[str, Any]]:
+    backup = create_backup(FakeBackupClient(), tmp_path)
+    attachment_path = "tables/tbl_projects/attachments/1/8/1/evidence.txt"
+    attachment = b"verified attachment"
+    (backup.path / attachment_path).parent.mkdir(parents=True)
+    (backup.path / attachment_path).write_bytes(attachment)
+
+    index_path = "tables/tbl_projects/attachments.jsonl"
+    entry = {
+        "path": attachment_path,
+        "sha256": hashlib.sha256(attachment).hexdigest(),
+        "bytes": len(attachment),
+    }
+    index_content = (json.dumps(entry, sort_keys=True) + "\n").encode()
+    payload = replace_artifact(backup, index_path, index_content, item_count=1)
+    payload["artifacts"].append(
+        {
+            "path": attachment_path,
+            "kind": "attachment",
+            "sha256": entry["sha256"],
+            "bytes": entry["bytes"],
+        }
+    )
+    table = payload["tables"][0]
+    table["attachment_count"] = 1
+    table["artifacts"].append(attachment_path)
+    return write_manifest(backup.path, payload), entry
+
+
 def test_application_backup_is_atomic_verifiable_and_dataframe_ready(tmp_path):
     backup = create_backup(FakeBackupClient(), tmp_path)
 
@@ -171,3 +227,114 @@ def test_open_backup_rejects_unsupported_manifest_changes(tmp_path):
 
     with pytest.raises(ValueError, match="Unsupported backup format version"):
         ApplicationBackup.open(backup.path)
+
+
+@pytest.mark.parametrize(
+    ("content", "item_count", "expected_issue"),
+    [
+        (b'{"3":{"value":1}}\nnot-json\n', 1, "contains invalid JSON at line 2"),
+        (b'{"3":{"value":1}}\n[]\n', 2, "contains a non-object at line 2"),
+    ],
+)
+def test_semantically_corrupt_records_fail_with_matching_manifest_integrity(
+    tmp_path,
+    content,
+    item_count,
+    expected_issue,
+):
+    backup = create_backup(FakeBackupClient(), tmp_path)
+    records_path = "tables/tbl_projects/records.jsonl"
+    payload = replace_artifact(backup, records_path, content, item_count=item_count)
+    payload["tables"][0]["record_count"] = item_count
+    reopened = write_manifest(backup.path, payload)
+
+    with pytest.raises(BackupIntegrityError) as caught:
+        reopened.verify()
+
+    assert any(expected_issue in issue for issue in caught.value.issues)
+    assert not any("hash does not match" in issue for issue in caught.value.issues)
+    assert not any("byte count does not match" in issue for issue in caught.value.issues)
+    assert not any("item count does not match" in issue for issue in caught.value.issues)
+
+
+@pytest.mark.parametrize(
+    ("entries", "attachment_count", "expected_issue"),
+    [
+        (
+            [
+                {
+                    "path": "tables/another_table/attachments/1/8/1/evidence.txt",
+                    "sha256": "unused",
+                    "bytes": 19,
+                }
+            ],
+            1,
+            "references another table",
+        ),
+        (
+            [
+                {
+                    "path": "tables/tbl_projects/attachments/1/8/1/missing.txt",
+                    "sha256": "unused",
+                    "bytes": 19,
+                }
+            ],
+            1,
+            "references a missing attachment",
+        ),
+        ("duplicate", 2, "attachment is indexed more than once"),
+        ("incorrect-integrity", 1, "has incorrect attachment integrity"),
+        ([], 0, "attachment artifacts are not indexed"),
+    ],
+)
+def test_attachment_index_semantics_reject_validly_hashed_corruption(
+    tmp_path,
+    entries,
+    attachment_count,
+    expected_issue,
+):
+    backup, valid_entry = backup_with_one_attachment(tmp_path)
+    if entries == "duplicate":
+        entries = [valid_entry, valid_entry]
+    elif entries == "incorrect-integrity":
+        entries = [{**valid_entry, "sha256": "0" * 64, "bytes": 0}]
+
+    index_path = "tables/tbl_projects/attachments.jsonl"
+    content = "".join(json.dumps(entry, sort_keys=True) + "\n" for entry in entries).encode()
+    payload = replace_artifact(
+        backup,
+        index_path,
+        content,
+        item_count=len(entries),
+    )
+    payload["tables"][0]["attachment_count"] = attachment_count
+    reopened = write_manifest(backup.path, payload)
+
+    with pytest.raises(BackupIntegrityError) as caught:
+        reopened.verify()
+
+    assert any(expected_issue in issue for issue in caught.value.issues)
+    assert not any("hash does not match" in issue for issue in caught.value.issues)
+    assert not any("byte count does not match" in issue for issue in caught.value.issues)
+    assert not any("item count does not match" in issue for issue in caught.value.issues)
+
+
+def test_partial_copy_reports_missing_and_untracked_artifacts_together(tmp_path):
+    backup = create_backup(FakeBackupClient(), tmp_path)
+    missing = next(
+        artifact for artifact in backup.manifest.artifacts if artifact.kind == "application"
+    )
+    (backup.path / missing.path).unlink()
+    (backup.path / "untracked.txt").write_text("not declared by the manifest")
+
+    with pytest.raises(BackupIntegrityError) as caught:
+        backup.verify()
+
+    assert any(
+        "backup files are missing" in issue and missing.path in issue
+        for issue in caught.value.issues
+    )
+    assert any(
+        "backup contains untracked files" in issue and "untracked.txt" in issue
+        for issue in caught.value.issues
+    )

@@ -24,6 +24,8 @@ heading.
 - Reject async-named synchronous attachment helpers before side effects when an event loop is
   active, reject invalid CSV `max_concurrency` values, and warn whenever a valid ignored value is
   explicitly passed.
+- Raise branch-aware coverage enforcement from 40% to 80%, publish missing branches in CI, and
+  require risk-driven regression tests with explicit behavioral and mutation evidence ([#35]).
 
 ### Fixed
 
