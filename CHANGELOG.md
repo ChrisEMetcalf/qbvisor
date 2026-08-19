@@ -6,6 +6,11 @@ heading.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep schema-state locking type-safe on both Windows and POSIX, and require a Twine release that
+  accepts the Core Metadata 2.5 emitted by current build backends.
+
 ### Added
 
 - Add credential-free, deterministic performance benchmarks for pagination, DataFrame conversion,
