@@ -1,0 +1,4454 @@
+{
+  "configuration": {
+    "max_operations_per_sample": 10000,
+    "memory_measurement": "paired_fresh_iteration",
+    "min_sample_seconds": 0.1,
+    "profiles": [
+      "small",
+      "medium",
+      "large"
+    ],
+    "repeats": 5,
+    "scenarios": [
+      "attachment-concurrent-transfer",
+      "backup-read-verify-dataframe",
+      "csv-sequential-export",
+      "dataframe-materialization-cold-metadata",
+      "dataframe-materialization-warm-metadata",
+      "record-keyset-pagination",
+      "schema-readonly-planning",
+      "upsert-batch-planning"
+    ],
+    "warmups": 1
+  },
+  "environment": {
+    "clock": {
+      "adjustable": false,
+      "implementation": "QueryPerformanceCounter()",
+      "monotonic": true,
+      "resolution_seconds": 1e-07
+    },
+    "dependencies": {
+      "aiofiles": "25.1.0",
+      "aiohttp": "3.14.1",
+      "pandas": "3.0.3",
+      "python-dotenv": "1.2.2",
+      "requests": "2.34.2"
+    },
+    "platform": {
+      "cpu_logical_count": 24,
+      "machine": "AMD64",
+      "processor": "Intel64 Family 6 Model 151 Stepping 2, GenuineIntel",
+      "release": "11",
+      "system": "Windows"
+    },
+    "python": {
+      "implementation": "CPython",
+      "version": "3.13.13"
+    },
+    "qbvisor_version": "0.3.1",
+    "source": {
+      "dirty": true,
+      "revision": "e5f5296eb43b4557686ab6877babe671aed7b96c"
+    }
+  },
+  "generated_at_utc": "2026-08-19T16:04:17.169480+00:00",
+  "results": [
+    {
+      "description": "Transfer attachments through the private atomic-download boundary with a deterministic in-process transport, real files, and a four-transfer semaphore bound.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "small",
+      "profile_shape": {
+        "attachment_bytes": 4096,
+        "attachment_count": 8,
+        "field_count": 6,
+        "name": "small",
+        "page_size": 25,
+        "record_count": 100,
+        "schema_fields_per_table": 8,
+        "schema_table_count": 2,
+        "upsert_record_count": 100,
+        "upsert_value_bytes": 128
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.021391260000382318,
+          "operation_count": 5,
+          "peak_traced_memory_bytes": 106360,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 373.9845151644653,
+          "total_measured_seconds": 0.10695630000191159,
+          "workload_observation_rates_per_second": {
+            "attachments": 373.9845151644653,
+            "bytes": 1531840.5741136498
+          },
+          "workload_observation_totals": {
+            "attachments": 40,
+            "bytes": 163840
+          }
+        },
+        {
+          "elapsed_seconds": 0.020355716666927037,
+          "operation_count": 6,
+          "peak_traced_memory_bytes": 108266,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 393.0099898176518,
+          "total_measured_seconds": 0.12213430000156222,
+          "workload_observation_rates_per_second": {
+            "attachments": 393.0099898176518,
+            "bytes": 1609768.9182931017
+          },
+          "workload_observation_totals": {
+            "attachments": 48,
+            "bytes": 196608
+          }
+        },
+        {
+          "elapsed_seconds": 0.025645050000548508,
+          "operation_count": 4,
+          "peak_traced_memory_bytes": 106644,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 311.95103927771214,
+          "total_measured_seconds": 0.10258020000219403,
+          "workload_observation_rates_per_second": {
+            "attachments": 311.95103927771214,
+            "bytes": 1277751.456881509
+          },
+          "workload_observation_totals": {
+            "attachments": 32,
+            "bytes": 131072
+          }
+        },
+        {
+          "elapsed_seconds": 0.019564266666141823,
+          "operation_count": 6,
+          "peak_traced_memory_bytes": 106768,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 408.9087588365837,
+          "total_measured_seconds": 0.11738559999685094,
+          "workload_observation_rates_per_second": {
+            "attachments": 408.9087588365837,
+            "bytes": 1674890.2761946467
+          },
+          "workload_observation_totals": {
+            "attachments": 48,
+            "bytes": 196608
+          }
+        },
+        {
+          "elapsed_seconds": 0.02249943999995594,
+          "operation_count": 5,
+          "peak_traced_memory_bytes": 107367,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 355.5644051592247,
+          "total_measured_seconds": 0.1124971999997797,
+          "workload_observation_rates_per_second": {
+            "attachments": 355.5644051592247,
+            "bytes": 1456391.8035321843
+          },
+          "workload_observation_totals": {
+            "attachments": 40,
+            "bytes": 163840
+          }
+        }
+      ],
+      "scenario": "attachment-concurrent-transfer",
+      "shape": {
+        "atomic_file_publication": true,
+        "attachment_count": 8,
+        "bytes_per_attachment": 4096,
+        "max_concurrency": 4
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.10830151935659248,
+          "max": 0.025645050000548508,
+          "median": 0.021391260000382318,
+          "min": 0.019564266666141823,
+          "stdev": 0.002370844444471484
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.16089615894886067,
+          "max": 6,
+          "median": 5,
+          "min": 4,
+          "stdev": 0.8366600265340756
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.007073429130657763,
+          "max": 108266,
+          "median": 106768,
+          "min": 106360,
+          "stdev": 757.4298647399639
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.1017460333257313,
+          "max": 408.9087588365837,
+          "median": 373.9845151644653,
+          "min": 311.95103927771214,
+          "stdev": 37.51210826469093
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.06977543076430608,
+          "max": 0.12213430000156222,
+          "median": 0.1124971999997797,
+          "min": 0.10258020000219403,
+          "stdev": 0.007836528867481441
+        },
+        "workload_observation_rates_per_second": {
+          "attachments": {
+            "coefficient_of_variation": 0.1017460333257313,
+            "max": 408.9087588365837,
+            "median": 373.9845151644653,
+            "min": 311.95103927771214,
+            "stdev": 37.51210826469093
+          },
+          "bytes": {
+            "coefficient_of_variation": 0.1017460333257313,
+            "max": 1674890.2761946467,
+            "median": 1531840.5741136498,
+            "min": 1277751.456881509,
+            "stdev": 153649.59545217405
+          }
+        }
+      },
+      "unit_count": 8,
+      "unit_label": "attachments",
+      "workload_observations_per_operation": {
+        "attachments": 8,
+        "bytes": 32768
+      }
+    },
+    {
+      "description": "Transfer attachments through the private atomic-download boundary with a deterministic in-process transport, real files, and a four-transfer semaphore bound.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "medium",
+      "profile_shape": {
+        "attachment_bytes": 16384,
+        "attachment_count": 32,
+        "field_count": 12,
+        "name": "medium",
+        "page_size": 100,
+        "record_count": 1000,
+        "schema_fields_per_table": 20,
+        "schema_table_count": 6,
+        "upsert_record_count": 1000,
+        "upsert_value_bytes": 1024
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.06942220000019006,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 203851,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 460.9476507502268,
+          "total_measured_seconds": 0.13884440000038012,
+          "workload_observation_rates_per_second": {
+            "attachments": 460.9476507502268,
+            "bytes": 7552166.309891716
+          },
+          "workload_observation_totals": {
+            "attachments": 64,
+            "bytes": 1048576
+          }
+        },
+        {
+          "elapsed_seconds": 0.05272184999921592,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 202815,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 606.95897432423,
+          "total_measured_seconds": 0.10544369999843184,
+          "workload_observation_rates_per_second": {
+            "attachments": 606.95897432423,
+            "bytes": 9944415.835328184
+          },
+          "workload_observation_totals": {
+            "attachments": 64,
+            "bytes": 1048576
+          }
+        },
+        {
+          "elapsed_seconds": 0.07541354999921168,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 203361,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 424.32692799018884,
+          "total_measured_seconds": 0.15082709999842336,
+          "workload_observation_rates_per_second": {
+            "attachments": 424.32692799018884,
+            "bytes": 6952172.388191254
+          },
+          "workload_observation_totals": {
+            "attachments": 64,
+            "bytes": 1048576
+          }
+        },
+        {
+          "elapsed_seconds": 0.06945280000036291,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 203929,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 460.74456321174654,
+          "total_measured_seconds": 0.13890560000072583,
+          "workload_observation_rates_per_second": {
+            "attachments": 460.74456321174654,
+            "bytes": 7548838.923661255
+          },
+          "workload_observation_totals": {
+            "attachments": 64,
+            "bytes": 1048576
+          }
+        },
+        {
+          "elapsed_seconds": 0.05215409999982512,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 202768,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 613.5663351511636,
+          "total_measured_seconds": 0.10430819999965024,
+          "workload_observation_rates_per_second": {
+            "attachments": 613.5663351511636,
+            "bytes": 10052670.835116664
+          },
+          "workload_observation_totals": {
+            "attachments": 64,
+            "bytes": 1048576
+          }
+        }
+      ],
+      "scenario": "attachment-concurrent-transfer",
+      "shape": {
+        "atomic_file_publication": true,
+        "attachment_count": 32,
+        "bytes_per_attachment": 16384,
+        "max_concurrency": 4
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.1674099451034919,
+          "max": 0.07541354999921168,
+          "median": 0.06942220000019006,
+          "min": 0.05215409999982512,
+          "stdev": 0.0106862622847567
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.0,
+          "max": 2,
+          "median": 2,
+          "min": 2,
+          "stdev": 0.0
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.002706080458157902,
+          "max": 203929,
+          "median": 203361,
+          "min": 202768,
+          "stdev": 550.2673895480269
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.17491147719203903,
+          "max": 613.5663351511636,
+          "median": 460.9476507502268,
+          "min": 424.32692799018884,
+          "stdev": 89.78361625564506
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.1674099451034919,
+          "max": 0.15082709999842336,
+          "median": 0.13884440000038012,
+          "min": 0.10430819999965024,
+          "stdev": 0.0213725245695134
+        },
+        "workload_observation_rates_per_second": {
+          "attachments": {
+            "coefficient_of_variation": 0.17491147719203903,
+            "max": 613.5663351511636,
+            "median": 460.9476507502268,
+            "min": 424.32692799018884,
+            "stdev": 89.78361625564506
+          },
+          "bytes": {
+            "coefficient_of_variation": 0.17491147719203903,
+            "max": 10052670.835116664,
+            "median": 7552166.309891716,
+            "min": 6952172.388191254,
+            "stdev": 1471014.7687324886
+          }
+        }
+      },
+      "unit_count": 32,
+      "unit_label": "attachments",
+      "workload_observations_per_operation": {
+        "attachments": 32,
+        "bytes": 524288
+      }
+    },
+    {
+      "description": "Transfer attachments through the private atomic-download boundary with a deterministic in-process transport, real files, and a four-transfer semaphore bound.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "large",
+      "profile_shape": {
+        "attachment_bytes": 65536,
+        "attachment_count": 128,
+        "field_count": 24,
+        "name": "large",
+        "page_size": 250,
+        "record_count": 10000,
+        "schema_fields_per_table": 40,
+        "schema_table_count": 12,
+        "upsert_record_count": 48,
+        "upsert_value_bytes": 1048576
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.20244649999949615,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 590945,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 632.2658084991273,
+          "total_measured_seconds": 0.20244649999949615,
+          "workload_observation_rates_per_second": {
+            "attachments": 632.2658084991273,
+            "bytes": 41436172.025798805
+          },
+          "workload_observation_totals": {
+            "attachments": 128,
+            "bytes": 8388608
+          }
+        },
+        {
+          "elapsed_seconds": 0.18244099999901664,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 587958,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 701.5966805744866,
+          "total_measured_seconds": 0.18244099999901664,
+          "workload_observation_rates_per_second": {
+            "attachments": 701.5966805744866,
+            "bytes": 45979840.05812956
+          },
+          "workload_observation_totals": {
+            "attachments": 128,
+            "bytes": 8388608
+          }
+        },
+        {
+          "elapsed_seconds": 0.18109910000021046,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 587837,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 706.7953402300246,
+          "total_measured_seconds": 0.18109910000021046,
+          "workload_observation_rates_per_second": {
+            "attachments": 706.7953402300246,
+            "bytes": 46320539.417314894
+          },
+          "workload_observation_totals": {
+            "attachments": 128,
+            "bytes": 8388608
+          }
+        },
+        {
+          "elapsed_seconds": 0.2527131000006193,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 582279,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 506.5032244061994,
+          "total_measured_seconds": 0.2527131000006193,
+          "workload_observation_rates_per_second": {
+            "attachments": 506.5032244061994,
+            "bytes": 33194195.314684685
+          },
+          "workload_observation_totals": {
+            "attachments": 128,
+            "bytes": 8388608
+          }
+        },
+        {
+          "elapsed_seconds": 0.25776199999927485,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 588061,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 496.5821183896777,
+          "total_measured_seconds": 0.25776199999927485,
+          "workload_observation_rates_per_second": {
+            "attachments": 496.5821183896777,
+            "bytes": 32544005.710785918
+          },
+          "workload_observation_totals": {
+            "attachments": 128,
+            "bytes": 8388608
+          }
+        }
+      ],
+      "scenario": "attachment-concurrent-transfer",
+      "shape": {
+        "atomic_file_publication": true,
+        "attachment_count": 128,
+        "bytes_per_attachment": 65536,
+        "max_concurrency": 4
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.17406388804691536,
+          "max": 0.25776199999927485,
+          "median": 0.20244649999949615,
+          "min": 0.18109910000021046,
+          "stdev": 0.0374746217670703
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.0,
+          "max": 1,
+          "median": 1,
+          "min": 1,
+          "stdev": 0.0
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.005365146035025373,
+          "max": 590945,
+          "median": 587958,
+          "min": 582279,
+          "stdev": 3151.572623310464
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.16797189009633562,
+          "max": 706.7953402300246,
+          "median": 632.2658084991273,
+          "min": 496.5821183896777,
+          "stdev": 102.25265871707434
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.17406388804691536,
+          "max": 0.25776199999927485,
+          "median": 0.20244649999949615,
+          "min": 0.18109910000021046,
+          "stdev": 0.0374746217670703
+        },
+        "workload_observation_rates_per_second": {
+          "attachments": {
+            "coefficient_of_variation": 0.16797189009633562,
+            "max": 706.7953402300246,
+            "median": 632.2658084991273,
+            "min": 496.5821183896777,
+            "stdev": 102.25265871707434
+          },
+          "bytes": {
+            "coefficient_of_variation": 0.16797189009633562,
+            "max": 46320539.417314894,
+            "median": 41436172.025798805,
+            "min": 32544005.710785918,
+            "stdev": 6701230.241682184
+          }
+        }
+      },
+      "unit_count": 128,
+      "unit_label": "attachments",
+      "workload_observations_per_operation": {
+        "attachments": 128,
+        "bytes": 8388608
+      }
+    },
+    {
+      "description": "Open, cryptographically verify, and materialize one table from a valid deterministic local backup through the public ApplicationBackup reader.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "small",
+      "profile_shape": {
+        "attachment_bytes": 4096,
+        "attachment_count": 8,
+        "field_count": 6,
+        "name": "small",
+        "page_size": 25,
+        "record_count": 100,
+        "schema_fields_per_table": 8,
+        "schema_table_count": 2,
+        "upsert_record_count": 100,
+        "upsert_value_bytes": 128
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.006738746667057664,
+          "operation_count": 15,
+          "peak_traced_memory_bytes": 1091477,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 14839.554733352657,
+          "total_measured_seconds": 0.10108120000586496,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 3976110.295254511,
+            "artifacts": 445.18664200057975,
+            "records": 14839.554733352657
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 401910,
+            "artifacts": 45,
+            "records": 1500
+          }
+        },
+        {
+          "elapsed_seconds": 0.008347046153945624,
+          "operation_count": 13,
+          "peak_traced_memory_bytes": 1091368,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 11980.285978499147,
+          "total_measured_seconds": 0.10851160000129312,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 3209997.8250790616,
+            "artifacts": 359.4085793549744,
+            "records": 11980.285978499147
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 348322,
+            "artifacts": 39,
+            "records": 1300
+          }
+        },
+        {
+          "elapsed_seconds": 0.010860089999550838,
+          "operation_count": 10,
+          "peak_traced_memory_bytes": 1091477,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 9208.02682152136,
+          "total_measured_seconds": 0.10860089999550837,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 2467198.7065584334,
+            "artifacts": 276.2408046456408,
+            "records": 9208.02682152136
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 267940,
+            "artifacts": 30,
+            "records": 1000
+          }
+        },
+        {
+          "elapsed_seconds": 0.009485218182155884,
+          "operation_count": 11,
+          "peak_traced_memory_bytes": 1091477,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 10542.720059737321,
+          "total_measured_seconds": 0.10433740000371472,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 2824816.412806018,
+            "artifacts": 316.2816017921196,
+            "records": 10542.720059737321
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 294734,
+            "artifacts": 33,
+            "records": 1100
+          }
+        },
+        {
+          "elapsed_seconds": 0.011877155555541523,
+          "operation_count": 9,
+          "peak_traced_memory_bytes": 1091377,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 8419.52431559617,
+          "total_measured_seconds": 0.10689439999987371,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 2255927.345120838,
+            "artifacts": 252.5857294678851,
+            "records": 8419.52431559617
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 241146,
+            "artifacts": 27,
+            "records": 900
+          }
+        }
+      ],
+      "scenario": "backup-read-verify-dataframe",
+      "shape": {
+        "artifact_count": 3,
+        "column_count": 7,
+        "complete_materialization": true,
+        "integrity_verification": true,
+        "record_count": 100
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.21431457602590315,
+          "max": 0.011877155555541523,
+          "median": 0.009485218182155884,
+          "min": 0.006738746667057664,
+          "stdev": 0.002027769789361266
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.20761369963434995,
+          "max": 15,
+          "median": 11,
+          "min": 9,
+          "stdev": 2.4083189157584592
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 5.252294139517339e-05,
+          "max": 1091477,
+          "median": 1091477,
+          "min": 1091368,
+          "stdev": 57.32538704622935
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.23084251954919086,
+          "max": 14839.554733352657,
+          "median": 10542.720059737321,
+          "min": 8419.52431559617,
+          "stdev": 2538.811196659562
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.03014963181400741,
+          "max": 0.10860089999550837,
+          "median": 0.10689439999987371,
+          "min": 0.10108120000586496,
+          "stdev": 0.0031923967796270727
+        },
+        "workload_observation_rates_per_second": {
+          "artifact_bytes": {
+            "coefficient_of_variation": 0.23084251954919086,
+            "max": 3976110.295254511,
+            "median": 2824816.412806018,
+            "min": 2255927.345120838,
+            "stdev": 680249.072032963
+          },
+          "artifacts": {
+            "coefficient_of_variation": 0.2308425195491909,
+            "max": 445.18664200057975,
+            "median": 316.2816017921196,
+            "min": 252.5857294678851,
+            "stdev": 76.16433589978688
+          },
+          "records": {
+            "coefficient_of_variation": 0.23084251954919086,
+            "max": 14839.554733352657,
+            "median": 10542.720059737321,
+            "min": 8419.52431559617,
+            "stdev": 2538.811196659562
+          }
+        }
+      },
+      "unit_count": 100,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "artifact_bytes": 26794,
+        "artifacts": 3,
+        "records": 100
+      }
+    },
+    {
+      "description": "Open, cryptographically verify, and materialize one table from a valid deterministic local backup through the public ApplicationBackup reader.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "medium",
+      "profile_shape": {
+        "attachment_bytes": 16384,
+        "attachment_count": 32,
+        "field_count": 12,
+        "name": "medium",
+        "page_size": 100,
+        "record_count": 1000,
+        "schema_fields_per_table": 20,
+        "schema_table_count": 6,
+        "upsert_record_count": 1000,
+        "upsert_value_bytes": 1024
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.021300419999897714,
+          "operation_count": 5,
+          "peak_traced_memory_bytes": 1581081,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 46947.43108374399,
+          "total_measured_seconds": 0.10650209999948856,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 24263559.122424904,
+            "artifacts": 140.84229325123195,
+            "records": 46947.43108374399
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 2584120,
+            "artifacts": 15,
+            "records": 5000
+          }
+        },
+        {
+          "elapsed_seconds": 0.018564183333182882,
+          "operation_count": 6,
+          "peak_traced_memory_bytes": 1581190,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 53867.16894852746,
+          "total_measured_seconds": 0.11138509999909729,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 27839845.724653758,
+            "artifacts": 161.60150684558238,
+            "records": 53867.16894852746
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 3100944,
+            "artifacts": 18,
+            "records": 6000
+          }
+        },
+        {
+          "elapsed_seconds": 0.02712560000054509,
+          "operation_count": 4,
+          "peak_traced_memory_bytes": 1581081,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 36865.54398722627,
+          "total_measured_seconds": 0.10850240000218037,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 19052997.90565423,
+            "artifacts": 110.59663196167881,
+            "records": 36865.54398722627
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 2067296,
+            "artifacts": 12,
+            "records": 4000
+          }
+        },
+        {
+          "elapsed_seconds": 0.018601383332982852,
+          "operation_count": 6,
+          "peak_traced_memory_bytes": 1581190,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 53759.442623111805,
+          "total_measured_seconds": 0.11160829999789712,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 27784170.17424714,
+            "artifacts": 161.2783278693354,
+            "records": 53759.442623111805
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 3100944,
+            "artifacts": 18,
+            "records": 6000
+          }
+        },
+        {
+          "elapsed_seconds": 0.03573903333320535,
+          "operation_count": 3,
+          "peak_traced_memory_bytes": 1581140,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 27980.611301842182,
+          "total_measured_seconds": 0.10721709999961604,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 14461051.455463285,
+            "artifacts": 83.94183390552655,
+            "records": 27980.611301842182
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 1550472,
+            "artifacts": 9,
+            "records": 3000
+          }
+        }
+      ],
+      "scenario": "backup-read-verify-dataframe",
+      "shape": {
+        "artifact_count": 3,
+        "column_count": 13,
+        "complete_materialization": true,
+        "integrity_verification": true,
+        "record_count": 1000
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.3008598798324225,
+          "max": 0.03573903333320535,
+          "median": 0.021300419999897714,
+          "min": 0.018564183333182882,
+          "stdev": 0.007300703150627465
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.2716334335501104,
+          "max": 6,
+          "median": 5,
+          "min": 3,
+          "stdev": 1.3038404810405297
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 3.449237099733513e-05,
+          "max": 1581190,
+          "median": 1581140,
+          "min": 1581081,
+          "stdev": 54.53714330619087
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.25698942256635204,
+          "max": 53867.16894852746,
+          "median": 46947.43108374399,
+          "min": 27980.611301842182,
+          "stdev": 11277.733993827864
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.0215796626733711,
+          "max": 0.11160829999789712,
+          "median": 0.10850240000218037,
+          "min": 0.10650209999948856,
+          "stdev": 0.0023531111568849787
+        },
+        "workload_observation_rates_per_second": {
+          "artifact_bytes": {
+            "coefficient_of_variation": 0.2569894225663521,
+            "max": 27839845.724653758,
+            "median": 24263559.122424904,
+            "min": 14461051.455463285,
+            "stdev": 5828603.593626092
+          },
+          "artifacts": {
+            "coefficient_of_variation": 0.25698942256635204,
+            "max": 161.60150684558238,
+            "median": 140.84229325123195,
+            "min": 83.94183390552655,
+            "stdev": 33.83320198148358
+          },
+          "records": {
+            "coefficient_of_variation": 0.25698942256635204,
+            "max": 53867.16894852746,
+            "median": 46947.43108374399,
+            "min": 27980.611301842182,
+            "stdev": 11277.733993827864
+          }
+        }
+      },
+      "unit_count": 1000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "artifact_bytes": 516824,
+        "artifacts": 3,
+        "records": 1000
+      }
+    },
+    {
+      "description": "Open, cryptographically verify, and materialize one table from a valid deterministic local backup through the public ApplicationBackup reader.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "large",
+      "profile_shape": {
+        "attachment_bytes": 65536,
+        "attachment_count": 128,
+        "field_count": 24,
+        "name": "large",
+        "page_size": 250,
+        "record_count": 10000,
+        "schema_fields_per_table": 40,
+        "schema_table_count": 12,
+        "upsert_record_count": 48,
+        "upsert_value_bytes": 1048576
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.25383119999969495,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 26768341,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 39396.26019185986,
+          "total_measured_seconds": 0.25383119999969495,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 40226296.05821613,
+            "artifacts": 11.818878057557958,
+            "records": 39396.26019185986
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 10210689,
+            "artifacts": 3,
+            "records": 10000
+          }
+        },
+        {
+          "elapsed_seconds": 0.2736633999993501,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 26768341,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 36541.24007822657,
+          "total_measured_seconds": 0.2736633999993501,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 37311123.811310716,
+            "artifacts": 10.962372023467971,
+            "records": 36541.24007822657
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 10210689,
+            "artifacts": 3,
+            "records": 10000
+          }
+        },
+        {
+          "elapsed_seconds": 0.2853513000009116,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 26768173,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 35044.52231326107,
+          "total_measured_seconds": 0.2853513000009116,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 35782871.84942694,
+            "artifacts": 10.513356693978322,
+            "records": 35044.52231326107
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 10210689,
+            "artifacts": 3,
+            "records": 10000
+          }
+        },
+        {
+          "elapsed_seconds": 0.3124712000008003,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 26768173,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 32002.949391733982,
+          "total_measured_seconds": 0.3124712000008003,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 32677216.332173485,
+            "artifacts": 9.600884817520194,
+            "records": 32002.949391733982
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 10210689,
+            "artifacts": 3,
+            "records": 10000
+          }
+        },
+        {
+          "elapsed_seconds": 0.3383436000003712,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 26768291,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 29555.75338203243,
+          "total_measured_seconds": 0.3383436000003712,
+          "workload_observation_rates_per_second": {
+            "artifact_bytes": 30178460.594463136,
+            "artifacts": 8.86672601460973,
+            "records": 29555.75338203243
+          },
+          "workload_observation_totals": {
+            "artifact_bytes": 10210689,
+            "artifacts": 3,
+            "records": 10000
+          }
+        }
+      ],
+      "scenario": "backup-read-verify-dataframe",
+      "shape": {
+        "artifact_count": 3,
+        "column_count": 25,
+        "complete_materialization": true,
+        "integrity_verification": true,
+        "record_count": 10000
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.11331714797543394,
+          "max": 0.3383436000003712,
+          "median": 0.2853513000009116,
+          "min": 0.25383119999969495,
+          "stdev": 0.03317157122557101
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.0,
+          "max": 1,
+          "median": 1,
+          "min": 1,
+          "stdev": 0.0
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 3.189041280088454e-06,
+          "max": 26768341,
+          "median": 26768291,
+          "min": 26768173,
+          "stdev": 85.36509825449743
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.11140500641454305,
+          "max": 39396.26019185986,
+          "median": 35044.52231326107,
+          "min": 29555.75338203243,
+          "stdev": 3844.380123035837
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.11331714797543394,
+          "max": 0.3383436000003712,
+          "median": 0.2853513000009116,
+          "min": 0.25383119999969495,
+          "stdev": 0.03317157122557101
+        },
+        "workload_observation_rates_per_second": {
+          "artifact_bytes": {
+            "coefficient_of_variation": 0.11140500641454301,
+            "max": 40226296.05821613,
+            "median": 35782871.84942694,
+            "min": 30178460.594463136,
+            "stdev": 3925376.983410066
+          },
+          "artifacts": {
+            "coefficient_of_variation": 0.11140500641454305,
+            "max": 11.818878057557958,
+            "median": 10.513356693978322,
+            "min": 8.86672601460973,
+            "stdev": 1.1533140369107513
+          },
+          "records": {
+            "coefficient_of_variation": 0.11140500641454305,
+            "max": 39396.26019185986,
+            "median": 35044.52231326107,
+            "min": 29555.75338203243,
+            "stdev": 3844.380123035837
+          }
+        }
+      },
+      "unit_count": 10000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "artifact_bytes": 10210689,
+        "artifacts": 3,
+        "records": 10000
+      }
+    },
+    {
+      "description": "Write a public CSV export through stable sequential Record ID# pages and atomic publication; max_concurrency is intentionally not a scaling control.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "small",
+      "profile_shape": {
+        "attachment_bytes": 4096,
+        "attachment_count": 8,
+        "field_count": 6,
+        "name": "small",
+        "page_size": 25,
+        "record_count": 100,
+        "schema_fields_per_table": 8,
+        "schema_table_count": 2,
+        "upsert_record_count": 100,
+        "upsert_value_bytes": 128
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.00937959999993671,
+          "operation_count": 11,
+          "peak_traced_memory_bytes": 206874,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 10661.43545574169,
+          "total_measured_seconds": 0.10317559999930381,
+          "workload_observation_rates_per_second": {
+            "pages": 426.4574182296676,
+            "published_bytes": 1604759.2647982393,
+            "records": 10661.43545574169
+          },
+          "workload_observation_totals": {
+            "pages": 44,
+            "published_bytes": 165572,
+            "records": 1100
+          }
+        },
+        {
+          "elapsed_seconds": 0.008437074999468072,
+          "operation_count": 12,
+          "peak_traced_memory_bytes": 206937,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 11852.448864838188,
+          "total_measured_seconds": 0.10124489999361685,
+          "workload_observation_rates_per_second": {
+            "pages": 474.09795459352756,
+            "published_bytes": 1784030.6031354442,
+            "records": 11852.448864838188
+          },
+          "workload_observation_totals": {
+            "pages": 48,
+            "published_bytes": 180624,
+            "records": 1200
+          }
+        },
+        {
+          "elapsed_seconds": 0.007947792307627074,
+          "operation_count": 13,
+          "peak_traced_memory_bytes": 206888,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 12582.110368439713,
+          "total_measured_seconds": 0.10332129999915196,
+          "workload_observation_rates_per_second": {
+            "pages": 503.2844147375885,
+            "published_bytes": 1893859.2526575455,
+            "records": 12582.110368439713
+          },
+          "workload_observation_totals": {
+            "pages": 52,
+            "published_bytes": 195676,
+            "records": 1300
+          }
+        },
+        {
+          "elapsed_seconds": 0.008993485714329705,
+          "operation_count": 14,
+          "peak_traced_memory_bytes": 207545,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 11119.15926442911,
+          "total_measured_seconds": 0.12590880000061588,
+          "workload_observation_rates_per_second": {
+            "pages": 444.76637057716437,
+            "published_bytes": 1673655.8524818695,
+            "records": 11119.15926442911
+          },
+          "workload_observation_totals": {
+            "pages": 56,
+            "published_bytes": 210728,
+            "records": 1400
+          }
+        },
+        {
+          "elapsed_seconds": 0.007363842857038045,
+          "operation_count": 14,
+          "peak_traced_memory_bytes": 206878,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 13579.866102713517,
+          "total_measured_seconds": 0.10309379999853263,
+          "workload_observation_rates_per_second": {
+            "pages": 543.1946441085406,
+            "published_bytes": 2044041.4457804384,
+            "records": 13579.866102713517
+          },
+          "workload_observation_totals": {
+            "pages": 56,
+            "published_bytes": 210728,
+            "records": 1400
+          }
+        }
+      ],
+      "scenario": "csv-sequential-export",
+      "shape": {
+        "atomic_publication": true,
+        "chunk_size": 25,
+        "column_count": 7,
+        "record_count": 100,
+        "sequential_page_reads": true
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.09548731597003378,
+          "max": 0.00937959999993671,
+          "median": 0.008437074999468072,
+          "min": 0.007363842857038045,
+          "stdev": 0.0008044194464532019
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.10186253758129138,
+          "max": 14,
+          "median": 13,
+          "min": 11,
+          "stdev": 1.3038404810405297
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0014110100323272941,
+          "max": 207545,
+          "median": 206888,
+          "min": 206874,
+          "stdev": 292.11350533653865
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.09729882980100639,
+          "max": 13579.866102713517,
+          "median": 11852.448864838188,
+          "min": 10661.43545574169,
+          "stdev": 1163.5970958784583
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.09697355108912474,
+          "max": 0.12590880000061588,
+          "median": 0.10317559999930381,
+          "min": 0.10124489999361685,
+          "stdev": 0.010410002098870058
+        },
+        "workload_observation_rates_per_second": {
+          "pages": {
+            "coefficient_of_variation": 0.09729882980100638,
+            "max": 543.1946441085406,
+            "median": 474.09795459352756,
+            "min": 426.4574182296676,
+            "stdev": 46.543883835138324
+          },
+          "published_bytes": {
+            "coefficient_of_variation": 0.09729882980100636,
+            "max": 2044041.4457804384,
+            "median": 1784030.6031354442,
+            "min": 1604759.2647982393,
+            "stdev": 175144.63487162546
+          },
+          "records": {
+            "coefficient_of_variation": 0.09729882980100639,
+            "max": 13579.866102713517,
+            "median": 11852.448864838188,
+            "min": 10661.43545574169,
+            "stdev": 1163.5970958784583
+          }
+        }
+      },
+      "unit_count": 100,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "pages": 4,
+        "published_bytes": 15052,
+        "records": 100
+      }
+    },
+    {
+      "description": "Write a public CSV export through stable sequential Record ID# pages and atomic publication; max_concurrency is intentionally not a scaling control.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "medium",
+      "profile_shape": {
+        "attachment_bytes": 16384,
+        "attachment_count": 32,
+        "field_count": 12,
+        "name": "medium",
+        "page_size": 100,
+        "record_count": 1000,
+        "schema_fields_per_table": 20,
+        "schema_table_count": 6,
+        "upsert_record_count": 1000,
+        "upsert_value_bytes": 1024
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.03429094999910376,
+          "operation_count": 4,
+          "peak_traced_memory_bytes": 323047,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 29162.21335443131,
+          "total_measured_seconds": 0.13716379999641504,
+          "workload_observation_rates_per_second": {
+            "pages": 291.6221335443131,
+            "published_bytes": 8777942.868537242,
+            "records": 29162.21335443131
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 1204016,
+            "records": 4000
+          }
+        },
+        {
+          "elapsed_seconds": 0.028847374999713793,
+          "operation_count": 4,
+          "peak_traced_memory_bytes": 322877,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 34665.19917357893,
+          "total_measured_seconds": 0.11538949999885517,
+          "workload_observation_rates_per_second": {
+            "pages": 346.6519917357893,
+            "published_bytes": 10434363.61204395,
+            "records": 34665.19917357893
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 1204016,
+            "records": 4000
+          }
+        },
+        {
+          "elapsed_seconds": 0.032225649999872985,
+          "operation_count": 4,
+          "peak_traced_memory_bytes": 321999,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 31031.181683036382,
+          "total_measured_seconds": 0.12890259999949194,
+          "workload_observation_rates_per_second": {
+            "pages": 310.31181683036385,
+            "published_bytes": 9340509.811320683,
+            "records": 31031.181683036382
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 1204016,
+            "records": 4000
+          }
+        },
+        {
+          "elapsed_seconds": 0.04431823333288776,
+          "operation_count": 3,
+          "peak_traced_memory_bytes": 323083,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 22564.076336001373,
+          "total_measured_seconds": 0.13295469999866327,
+          "workload_observation_rates_per_second": {
+            "pages": 225.64076336001375,
+            "published_bytes": 6791877.233441758,
+            "records": 22564.076336001373
+          },
+          "workload_observation_totals": {
+            "pages": 30,
+            "published_bytes": 903012,
+            "records": 3000
+          }
+        },
+        {
+          "elapsed_seconds": 0.02901342499990278,
+          "operation_count": 4,
+          "peak_traced_memory_bytes": 323076,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 34466.80286809816,
+          "total_measured_seconds": 0.11605369999961113,
+          "workload_observation_rates_per_second": {
+            "pages": 344.6680286809816,
+            "published_bytes": 10374645.530509017,
+            "records": 34466.80286809816
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 1204016,
+            "records": 4000
+          }
+        }
+      ],
+      "scenario": "csv-sequential-export",
+      "shape": {
+        "atomic_publication": true,
+        "chunk_size": 100,
+        "column_count": 13,
+        "record_count": 1000,
+        "sequential_page_reads": true
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.18790754710705276,
+          "max": 0.04431823333288776,
+          "median": 0.032225649999872985,
+          "min": 0.028847374999713793,
+          "stdev": 0.006339836533397876
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.11768778828946262,
+          "max": 4,
+          "median": 4,
+          "min": 3,
+          "stdev": 0.4472135954999579
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0014392469736233626,
+          "max": 323083,
+          "median": 323047,
+          "min": 321999,
+          "stdev": 464.6125267359889
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.16298946849836837,
+          "max": 34665.19917357893,
+          "median": 31031.181683036382,
+          "min": 22564.076336001373,
+          "stdev": 4951.276908486345
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.0785988185509218,
+          "max": 0.13716379999641504,
+          "median": 0.12890259999949194,
+          "min": 0.11538949999885517,
+          "stdev": 0.00991074982359732
+        },
+        "workload_observation_rates_per_second": {
+          "pages": {
+            "coefficient_of_variation": 0.16298946849836837,
+            "max": 346.6519917357893,
+            "median": 310.31181683036385,
+            "min": 225.64076336001375,
+            "stdev": 49.51276908486344
+          },
+          "published_bytes": {
+            "coefficient_of_variation": 0.16298946849836835,
+            "max": 10434363.61204395,
+            "median": 9340509.811320683,
+            "min": 6791877.233441758,
+            "stdev": 1490354.1545620232
+          },
+          "records": {
+            "coefficient_of_variation": 0.16298946849836837,
+            "max": 34665.19917357893,
+            "median": 31031.181683036382,
+            "min": 22564.076336001373,
+            "stdev": 4951.276908486345
+          }
+        }
+      },
+      "unit_count": 1000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "pages": 10,
+        "published_bytes": 301004,
+        "records": 1000
+      }
+    },
+    {
+      "description": "Write a public CSV export through stable sequential Record ID# pages and atomic publication; max_concurrency is intentionally not a scaling control.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "large",
+      "profile_shape": {
+        "attachment_bytes": 65536,
+        "attachment_count": 128,
+        "field_count": 24,
+        "name": "large",
+        "page_size": 250,
+        "record_count": 10000,
+        "schema_fields_per_table": 40,
+        "schema_table_count": 12,
+        "upsert_record_count": 48,
+        "upsert_value_bytes": 1048576
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.3310239999991609,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 678425,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 30209.28996092534,
+          "total_measured_seconds": 0.3310239999991609,
+          "workload_observation_rates_per_second": {
+            "pages": 120.83715984370136,
+            "published_bytes": 18183312.99245752,
+            "records": 30209.28996092534
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 6019113,
+            "records": 10000
+          }
+        },
+        {
+          "elapsed_seconds": 0.31158090000099037,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 681215,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 32094.393462398417,
+          "total_measured_seconds": 0.31158090000099037,
+          "workload_observation_rates_per_second": {
+            "pages": 128.37757384959366,
+            "published_bytes": 19317978.091663733,
+            "records": 32094.393462398417
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 6019113,
+            "records": 10000
+          }
+        },
+        {
+          "elapsed_seconds": 0.22574840000015683,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 680990,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 44297.102437904556,
+          "total_measured_seconds": 0.22574840000015683,
+          "workload_observation_rates_per_second": {
+            "pages": 177.18840975161822,
+            "published_bytes": 26662926.5146323,
+            "records": 44297.102437904556
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 6019113,
+            "records": 10000
+          }
+        },
+        {
+          "elapsed_seconds": 0.28659869999864895,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 681052,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 34891.99357864199,
+          "total_measured_seconds": 0.28659869999864895,
+          "workload_observation_rates_per_second": {
+            "pages": 139.56797431456795,
+            "published_bytes": 21001885.21451205,
+            "records": 34891.99357864199
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 6019113,
+            "records": 10000
+          }
+        },
+        {
+          "elapsed_seconds": 0.28976909999983036,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 681285,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 34510.23590854185,
+          "total_measured_seconds": 0.28976909999983036,
+          "workload_observation_rates_per_second": {
+            "pages": 138.0409436341674,
+            "published_bytes": 20772100.959017105,
+            "records": 34510.23590854185
+          },
+          "workload_observation_totals": {
+            "pages": 40,
+            "published_bytes": 6019113,
+            "records": 10000
+          }
+        }
+      ],
+      "scenario": "csv-sequential-export",
+      "shape": {
+        "atomic_publication": true,
+        "chunk_size": 250,
+        "column_count": 25,
+        "record_count": 10000,
+        "sequential_page_reads": true
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.13716403078561906,
+          "max": 0.3310239999991609,
+          "median": 0.28976909999983036,
+          "min": 0.22574840000015683,
+          "stdev": 0.039632753887373424
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.0,
+          "max": 1,
+          "median": 1,
+          "min": 1,
+          "stdev": 0.0
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.001789639678999229,
+          "max": 681285,
+          "median": 681052,
+          "min": 678425,
+          "stdev": 1218.016953904994
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.1542196684299694,
+          "max": 44297.102437904556,
+          "median": 34510.23590854185,
+          "min": 30209.28996092534,
+          "stdev": 5428.625333941387
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.13716403078561906,
+          "max": 0.3310239999991609,
+          "median": 0.28976909999983036,
+          "min": 0.22574840000015683,
+          "stdev": 0.039632753887373424
+        },
+        "workload_observation_rates_per_second": {
+          "pages": {
+            "coefficient_of_variation": 0.1542196684299694,
+            "max": 177.18840975161822,
+            "median": 138.0409436341674,
+            "min": 120.83715984370136,
+            "stdev": 21.71450133576555
+          },
+          "published_bytes": {
+            "coefficient_of_variation": 0.15421966842996937,
+            "max": 26662926.5146323,
+            "median": 20772100.959017105,
+            "min": 18183312.99245752,
+            "stdev": 3267550.931965594
+          },
+          "records": {
+            "coefficient_of_variation": 0.1542196684299694,
+            "max": 44297.102437904556,
+            "median": 34510.23590854185,
+            "min": 30209.28996092534,
+            "stdev": 5428.625333941387
+          }
+        }
+      },
+      "unit_count": 10000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "pages": 40,
+        "published_bytes": 6019113,
+        "records": 10000
+      }
+    },
+    {
+      "description": "Materialize a complete unsorted query through public query_dataframe(); complete in-memory materialization is an intentional analysis-oriented contract.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "small",
+      "profile_shape": {
+        "attachment_bytes": 4096,
+        "attachment_count": 8,
+        "field_count": 6,
+        "name": "small",
+        "page_size": 25,
+        "record_count": 100,
+        "schema_fields_per_table": 8,
+        "schema_table_count": 2,
+        "upsert_record_count": 100,
+        "upsert_value_bytes": 128
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.00034449896904328056,
+          "operation_count": 291,
+          "peak_traced_memory_bytes": 50171,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 290276.63066079206,
+          "total_measured_seconds": 0.10024919999159465,
+          "workload_observation_rates_per_second": {
+            "cells": 1741659.7839647525,
+            "metadata_requests": 8708.298919823763,
+            "pages": 11611.065226431683,
+            "records": 290276.63066079206
+          },
+          "workload_observation_totals": {
+            "cells": 174600,
+            "metadata_requests": 873,
+            "pages": 1164,
+            "records": 29100
+          }
+        },
+        {
+          "elapsed_seconds": 0.000354020141342327,
+          "operation_count": 283,
+          "peak_traced_memory_bytes": 50171,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 282469.8041779012,
+          "total_measured_seconds": 0.10018769999987853,
+          "workload_observation_rates_per_second": {
+            "cells": 1694818.8250674072,
+            "metadata_requests": 8474.094125337037,
+            "pages": 11298.792167116047,
+            "records": 282469.8041779012
+          },
+          "workload_observation_totals": {
+            "cells": 169800,
+            "metadata_requests": 849,
+            "pages": 1132,
+            "records": 28300
+          }
+        },
+        {
+          "elapsed_seconds": 0.0003557567375305262,
+          "operation_count": 282,
+          "peak_traced_memory_bytes": 50171,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 281090.9519076061,
+          "total_measured_seconds": 0.1003233999836084,
+          "workload_observation_rates_per_second": {
+            "cells": 1686545.7114456366,
+            "metadata_requests": 8432.728557228183,
+            "pages": 11243.638076304245,
+            "records": 281090.9519076061
+          },
+          "workload_observation_totals": {
+            "cells": 169200,
+            "metadata_requests": 846,
+            "pages": 1128,
+            "records": 28200
+          }
+        },
+        {
+          "elapsed_seconds": 0.00038495653849307787,
+          "operation_count": 260,
+          "peak_traced_memory_bytes": 50171,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 259769.58435737327,
+          "total_measured_seconds": 0.10008870000820025,
+          "workload_observation_rates_per_second": {
+            "cells": 1558617.5061442396,
+            "metadata_requests": 7793.087530721198,
+            "pages": 10390.78337429493,
+            "records": 259769.58435737327
+          },
+          "workload_observation_totals": {
+            "cells": 156000,
+            "metadata_requests": 780,
+            "pages": 1040,
+            "records": 26000
+          }
+        },
+        {
+          "elapsed_seconds": 0.00042721063822527674,
+          "operation_count": 235,
+          "peak_traced_memory_bytes": 50171,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 234076.56797925523,
+          "total_measured_seconds": 0.10039449998294003,
+          "workload_observation_rates_per_second": {
+            "cells": 1404459.4078755314,
+            "metadata_requests": 7022.297039377657,
+            "pages": 9363.06271917021,
+            "records": 234076.56797925523
+          },
+          "workload_observation_totals": {
+            "cells": 141000,
+            "metadata_requests": 705,
+            "pages": 940,
+            "records": 23500
+          }
+        }
+      ],
+      "scenario": "dataframe-materialization-cold-metadata",
+      "shape": {
+        "column_count": 6,
+        "complete_materialization": true,
+        "metadata_cache": "cold",
+        "page_size": 25,
+        "record_count": 100,
+        "record_id_cursor_injected": true,
+        "timed_metadata_requests": 3
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.09036259355912864,
+          "max": 0.00042721063822527674,
+          "median": 0.0003557567375305262,
+          "min": 0.00034449896904328056,
+          "stdev": 3.37313264872634e-05
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.08437057593569038,
+          "max": 291,
+          "median": 282,
+          "min": 235,
+          "stdev": 22.796929617823537
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 50171,
+          "median": 50171,
+          "min": 50171,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.08467839442764749,
+          "max": 290276.63066079206,
+          "median": 281090.9519076061,
+          "min": 234076.56797925523,
+          "stdev": 22823.935657222406
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.0011819546719640407,
+          "max": 0.10039449998294003,
+          "median": 0.10024919999159465,
+          "min": 0.10008870000820025,
+          "stdev": 0.00011848941931533667
+        },
+        "workload_observation_rates_per_second": {
+          "cells": {
+            "coefficient_of_variation": 0.0846783944276475,
+            "max": 1741659.7839647525,
+            "median": 1686545.7114456366,
+            "min": 1404459.4078755314,
+            "stdev": 136943.6139433345
+          },
+          "metadata_requests": {
+            "coefficient_of_variation": 0.08467839442764752,
+            "max": 8708.298919823763,
+            "median": 8432.728557228183,
+            "min": 7022.297039377657,
+            "stdev": 684.7180697166726
+          },
+          "pages": {
+            "coefficient_of_variation": 0.08467839442764752,
+            "max": 11611.065226431683,
+            "median": 11243.638076304245,
+            "min": 9363.06271917021,
+            "stdev": 912.9574262888966
+          },
+          "records": {
+            "coefficient_of_variation": 0.08467839442764749,
+            "max": 290276.63066079206,
+            "median": 281090.9519076061,
+            "min": 234076.56797925523,
+            "stdev": 22823.935657222406
+          }
+        }
+      },
+      "unit_count": 100,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "cells": 600,
+        "metadata_requests": 3,
+        "pages": 4,
+        "records": 100
+      }
+    },
+    {
+      "description": "Materialize a complete unsorted query through public query_dataframe(); complete in-memory materialization is an intentional analysis-oriented contract.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "medium",
+      "profile_shape": {
+        "attachment_bytes": 16384,
+        "attachment_count": 32,
+        "field_count": 12,
+        "name": "medium",
+        "page_size": 100,
+        "record_count": 1000,
+        "schema_fields_per_table": 20,
+        "schema_table_count": 6,
+        "upsert_record_count": 1000,
+        "upsert_value_bytes": 1024
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.003923911538409952,
+          "operation_count": 26,
+          "peak_traced_memory_bytes": 629835,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 254847.7431795571,
+          "total_measured_seconds": 0.10202169999865873,
+          "workload_observation_rates_per_second": {
+            "cells": 3058172.918154685,
+            "metadata_requests": 764.5432295386712,
+            "pages": 2548.4774317955707,
+            "records": 254847.7431795571
+          },
+          "workload_observation_totals": {
+            "cells": 312000,
+            "metadata_requests": 78,
+            "pages": 260,
+            "records": 26000
+          }
+        },
+        {
+          "elapsed_seconds": 0.006258424999714407,
+          "operation_count": 16,
+          "peak_traced_memory_bytes": 629835,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 159784.6103525461,
+          "total_measured_seconds": 0.10013479999543051,
+          "workload_observation_rates_per_second": {
+            "cells": 1917415.3242305533,
+            "metadata_requests": 479.35383105763833,
+            "pages": 1597.846103525461,
+            "records": 159784.6103525461
+          },
+          "workload_observation_totals": {
+            "cells": 192000,
+            "metadata_requests": 48,
+            "pages": 160,
+            "records": 16000
+          }
+        },
+        {
+          "elapsed_seconds": 0.004360813043366879,
+          "operation_count": 23,
+          "peak_traced_memory_bytes": 629835,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 229315.03599336234,
+          "total_measured_seconds": 0.10029869999743823,
+          "workload_observation_rates_per_second": {
+            "cells": 2751780.431920348,
+            "metadata_requests": 687.9451079800871,
+            "pages": 2293.1503599336233,
+            "records": 229315.03599336234
+          },
+          "workload_observation_totals": {
+            "cells": 276000,
+            "metadata_requests": 69,
+            "pages": 230,
+            "records": 23000
+          }
+        },
+        {
+          "elapsed_seconds": 0.003271987096717743,
+          "operation_count": 31,
+          "peak_traced_memory_bytes": 629835,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 305624.67712758976,
+          "total_measured_seconds": 0.10143159999825002,
+          "workload_observation_rates_per_second": {
+            "cells": 3667496.1255310774,
+            "metadata_requests": 916.8740313827693,
+            "pages": 3056.246771275898,
+            "records": 305624.67712758976
+          },
+          "workload_observation_totals": {
+            "cells": 372000,
+            "metadata_requests": 93,
+            "pages": 310,
+            "records": 31000
+          }
+        },
+        {
+          "elapsed_seconds": 0.0029847382353075185,
+          "operation_count": 34,
+          "peak_traced_memory_bytes": 629835,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 335037.7557973588,
+          "total_measured_seconds": 0.10148110000045563,
+          "workload_observation_rates_per_second": {
+            "cells": 4020453.0695683057,
+            "metadata_requests": 1005.1132673920764,
+            "pages": 3350.377557973588,
+            "records": 335037.7557973588
+          },
+          "workload_observation_totals": {
+            "cells": 408000,
+            "metadata_requests": 102,
+            "pages": 340,
+            "records": 34000
+          }
+        }
+      ],
+      "scenario": "dataframe-materialization-cold-metadata",
+      "shape": {
+        "column_count": 12,
+        "complete_materialization": true,
+        "metadata_cache": "cold",
+        "page_size": 100,
+        "record_count": 1000,
+        "record_id_cursor_injected": true,
+        "timed_metadata_requests": 3
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.31039738424821084,
+          "max": 0.006258424999714407,
+          "median": 0.003923911538409952,
+          "min": 0.0029847382353075185,
+          "stdev": 0.0012912453531691002
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.27060090922058244,
+          "max": 34,
+          "median": 26,
+          "min": 16,
+          "stdev": 7.035623639735144
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 629835,
+          "median": 629835,
+          "min": 629835,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.26595756526315495,
+          "max": 335037.7557973588,
+          "median": 254847.7431795571,
+          "min": 159784.6103525461,
+          "stdev": 68330.34013840918
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.008090744954729714,
+          "max": 0.10202169999865873,
+          "median": 0.10143159999825002,
+          "min": 0.10013479999543051,
+          "stdev": 0.0008177605574256659
+        },
+        "workload_observation_rates_per_second": {
+          "cells": {
+            "coefficient_of_variation": 0.26595756526315495,
+            "max": 4020453.0695683057,
+            "median": 3058172.918154685,
+            "min": 1917415.3242305533,
+            "stdev": 819964.0816609102
+          },
+          "metadata_requests": {
+            "coefficient_of_variation": 0.26595756526315495,
+            "max": 1005.1132673920764,
+            "median": 764.5432295386712,
+            "min": 479.35383105763833,
+            "stdev": 204.99102041522752
+          },
+          "pages": {
+            "coefficient_of_variation": 0.26595756526315495,
+            "max": 3350.377557973588,
+            "median": 2548.4774317955707,
+            "min": 1597.846103525461,
+            "stdev": 683.3034013840918
+          },
+          "records": {
+            "coefficient_of_variation": 0.26595756526315495,
+            "max": 335037.7557973588,
+            "median": 254847.7431795571,
+            "min": 159784.6103525461,
+            "stdev": 68330.34013840918
+          }
+        }
+      },
+      "unit_count": 1000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "cells": 12000,
+        "metadata_requests": 3,
+        "pages": 10,
+        "records": 1000
+      }
+    },
+    {
+      "description": "Materialize a complete unsorted query through public query_dataframe(); complete in-memory materialization is an intentional analysis-oriented contract.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "large",
+      "profile_shape": {
+        "attachment_bytes": 65536,
+        "attachment_count": 128,
+        "field_count": 24,
+        "name": "large",
+        "page_size": 250,
+        "record_count": 10000,
+        "schema_fields_per_table": 40,
+        "schema_table_count": 12,
+        "upsert_record_count": 48,
+        "upsert_value_bytes": 1048576
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.059397199998784345,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10787021,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 168358.1044258764,
+          "total_measured_seconds": 0.11879439999756869,
+          "workload_observation_rates_per_second": {
+            "cells": 4040594.5062210336,
+            "metadata_requests": 50.507431327762916,
+            "pages": 673.4324177035056,
+            "records": 168358.1044258764
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 6,
+            "pages": 80,
+            "records": 20000
+          }
+        },
+        {
+          "elapsed_seconds": 0.0856180000000677,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10787021,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 116797.86960676602,
+          "total_measured_seconds": 0.1712360000001354,
+          "workload_observation_rates_per_second": {
+            "cells": 2803148.8705623844,
+            "metadata_requests": 35.039360882029804,
+            "pages": 467.1914784270641,
+            "records": 116797.86960676602
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 6,
+            "pages": 80,
+            "records": 20000
+          }
+        },
+        {
+          "elapsed_seconds": 0.06603635000101349,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10787021,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 151431.7493296726,
+          "total_measured_seconds": 0.13207270000202698,
+          "workload_observation_rates_per_second": {
+            "cells": 3634361.9839121425,
+            "metadata_requests": 45.42952479890178,
+            "pages": 605.7269973186905,
+            "records": 151431.7493296726
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 6,
+            "pages": 80,
+            "records": 20000
+          }
+        },
+        {
+          "elapsed_seconds": 0.07945205000032729,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10782061,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 125862.07656012409,
+          "total_measured_seconds": 0.15890410000065458,
+          "workload_observation_rates_per_second": {
+            "cells": 3020689.837442978,
+            "metadata_requests": 37.75862296803722,
+            "pages": 503.4483062404963,
+            "records": 125862.07656012409
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 6,
+            "pages": 80,
+            "records": 20000
+          }
+        },
+        {
+          "elapsed_seconds": 0.05599199999960547,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10782061,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 178596.9424216042,
+          "total_measured_seconds": 0.11198399999921094,
+          "workload_observation_rates_per_second": {
+            "cells": 4286326.6181185,
+            "metadata_requests": 53.57908272648126,
+            "pages": 714.3877696864167,
+            "records": 178596.9424216042
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 6,
+            "pages": 80,
+            "records": 20000
+          }
+        }
+      ],
+      "scenario": "dataframe-materialization-cold-metadata",
+      "shape": {
+        "column_count": 24,
+        "complete_materialization": true,
+        "metadata_cache": "cold",
+        "page_size": 250,
+        "record_count": 10000,
+        "record_id_cursor_injected": true,
+        "timed_metadata_requests": 3
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.1846784797138765,
+          "max": 0.0856180000000677,
+          "median": 0.06603635000101349,
+          "min": 0.05599199999960547,
+          "stdev": 0.012798056127102043
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.0,
+          "max": 2,
+          "median": 2,
+          "min": 2,
+          "stdev": 0.0
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0002518956481304259,
+          "max": 10787021,
+          "median": 10787021,
+          "min": 10782061,
+          "stdev": 2716.7038852256237
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.17933641016799912,
+          "max": 178596.9424216042,
+          "median": 151431.7493296726,
+          "min": 116797.86960676602,
+          "stdev": 26579.332507734183
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.1846784797138765,
+          "max": 0.1712360000001354,
+          "median": 0.13207270000202698,
+          "min": 0.11198399999921094,
+          "stdev": 0.025596112254204086
+        },
+        "workload_observation_rates_per_second": {
+          "cells": {
+            "coefficient_of_variation": 0.1793364101679991,
+            "max": 4286326.6181185,
+            "median": 3634361.9839121425,
+            "min": 2803148.8705623844,
+            "stdev": 637903.9801856203
+          },
+          "metadata_requests": {
+            "coefficient_of_variation": 0.17933641016799914,
+            "max": 53.57908272648126,
+            "median": 45.42952479890178,
+            "min": 35.039360882029804,
+            "stdev": 7.973799752320255
+          },
+          "pages": {
+            "coefficient_of_variation": 0.1793364101679991,
+            "max": 714.3877696864167,
+            "median": 605.7269973186905,
+            "min": 467.1914784270641,
+            "stdev": 106.3173300309367
+          },
+          "records": {
+            "coefficient_of_variation": 0.17933641016799912,
+            "max": 178596.9424216042,
+            "median": 151431.7493296726,
+            "min": 116797.86960676602,
+            "stdev": 26579.332507734183
+          }
+        }
+      },
+      "unit_count": 10000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "cells": 240000,
+        "metadata_requests": 3,
+        "pages": 40,
+        "records": 10000
+      }
+    },
+    {
+      "description": "Materialize a complete unsorted query through public query_dataframe(); complete in-memory materialization is an intentional analysis-oriented contract.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "small",
+      "profile_shape": {
+        "attachment_bytes": 4096,
+        "attachment_count": 8,
+        "field_count": 6,
+        "name": "small",
+        "page_size": 25,
+        "record_count": 100,
+        "schema_fields_per_table": 8,
+        "schema_table_count": 2,
+        "upsert_record_count": 100,
+        "upsert_value_bytes": 128
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.00035311936624207767,
+          "operation_count": 284,
+          "peak_traced_memory_bytes": 46486,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 283190.35872828885,
+          "total_measured_seconds": 0.10028590001275006,
+          "workload_observation_rates_per_second": {
+            "cells": 1699142.1523697332,
+            "metadata_requests": 0.0,
+            "pages": 11327.614349131554,
+            "records": 283190.35872828885
+          },
+          "workload_observation_totals": {
+            "cells": 170400,
+            "metadata_requests": 0,
+            "pages": 1136,
+            "records": 28400
+          }
+        },
+        {
+          "elapsed_seconds": 0.00032846950818536436,
+          "operation_count": 305,
+          "peak_traced_memory_bytes": 46486,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 304442.2617869518,
+          "total_measured_seconds": 0.10018319999653613,
+          "workload_observation_rates_per_second": {
+            "cells": 1826653.5707217108,
+            "metadata_requests": 0.0,
+            "pages": 12177.690471478072,
+            "records": 304442.2617869518
+          },
+          "workload_observation_totals": {
+            "cells": 183000,
+            "metadata_requests": 0,
+            "pages": 1220,
+            "records": 30500
+          }
+        },
+        {
+          "elapsed_seconds": 0.00036828095241180694,
+          "operation_count": 273,
+          "peak_traced_memory_bytes": 46486,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 271531.8273864495,
+          "total_measured_seconds": 0.1005407000084233,
+          "workload_observation_rates_per_second": {
+            "cells": 1629190.964318697,
+            "metadata_requests": 0.0,
+            "pages": 10861.27309545798,
+            "records": 271531.8273864495
+          },
+          "workload_observation_totals": {
+            "cells": 163800,
+            "metadata_requests": 0,
+            "pages": 1092,
+            "records": 27300
+          }
+        },
+        {
+          "elapsed_seconds": 0.00037551198501672035,
+          "operation_count": 267,
+          "peak_traced_memory_bytes": 46486,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 266303.0848284305,
+          "total_measured_seconds": 0.10026169999946433,
+          "workload_observation_rates_per_second": {
+            "cells": 1597818.508970583,
+            "metadata_requests": 0.0,
+            "pages": 10652.12339313722,
+            "records": 266303.0848284305
+          },
+          "workload_observation_totals": {
+            "cells": 160200,
+            "metadata_requests": 0,
+            "pages": 1068,
+            "records": 26700
+          }
+        },
+        {
+          "elapsed_seconds": 0.0003736410447806941,
+          "operation_count": 268,
+          "peak_traced_memory_bytes": 46486,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 267636.54956241295,
+          "total_measured_seconds": 0.10013580000122602,
+          "workload_observation_rates_per_second": {
+            "cells": 1605819.2973744778,
+            "metadata_requests": 0.0,
+            "pages": 10705.46198249652,
+            "records": 267636.54956241295
+          },
+          "workload_observation_totals": {
+            "cells": 160800,
+            "metadata_requests": 0,
+            "pages": 1072,
+            "records": 26800
+          }
+        }
+      ],
+      "scenario": "dataframe-materialization-warm-metadata",
+      "shape": {
+        "column_count": 6,
+        "complete_materialization": true,
+        "metadata_cache": "warm",
+        "page_size": 25,
+        "record_count": 100,
+        "record_id_cursor_injected": true,
+        "timed_metadata_requests": 0
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.054473272105607415,
+          "max": 0.00037551198501672035,
+          "median": 0.00036828095241180694,
+          "min": 0.00032846950818536436,
+          "stdev": 1.9599732318755224e-05
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.05662445343406893,
+          "max": 305,
+          "median": 273,
+          "min": 267,
+          "stdev": 15.820872289478858
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 46486,
+          "median": 46486,
+          "min": 46486,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.05703920786697639,
+          "max": 304442.2617869518,
+          "median": 271531.8273864495,
+          "min": 266303.0848284305,
+          "stdev": 15892.310666043439
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.001564731153761953,
+          "max": 0.1005407000084233,
+          "median": 0.10026169999946433,
+          "min": 0.10013580000122602,
+          "stdev": 0.00015691352461249129
+        },
+        "workload_observation_rates_per_second": {
+          "cells": {
+            "coefficient_of_variation": 0.057039207866976346,
+            "max": 1826653.5707217108,
+            "median": 1629190.964318697,
+            "min": 1597818.508970583,
+            "stdev": 95353.86399626058
+          },
+          "metadata_requests": {
+            "coefficient_of_variation": 0.0,
+            "max": 0.0,
+            "median": 0.0,
+            "min": 0.0,
+            "stdev": 0.0
+          },
+          "pages": {
+            "coefficient_of_variation": 0.057039207866976346,
+            "max": 12177.690471478072,
+            "median": 10861.27309545798,
+            "min": 10652.12339313722,
+            "stdev": 635.6924266417373
+          },
+          "records": {
+            "coefficient_of_variation": 0.05703920786697639,
+            "max": 304442.2617869518,
+            "median": 271531.8273864495,
+            "min": 266303.0848284305,
+            "stdev": 15892.310666043439
+          }
+        }
+      },
+      "unit_count": 100,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "cells": 600,
+        "metadata_requests": 0,
+        "pages": 4,
+        "records": 100
+      }
+    },
+    {
+      "description": "Materialize a complete unsorted query through public query_dataframe(); complete in-memory materialization is an intentional analysis-oriented contract.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "medium",
+      "profile_shape": {
+        "attachment_bytes": 16384,
+        "attachment_count": 32,
+        "field_count": 12,
+        "name": "medium",
+        "page_size": 100,
+        "record_count": 1000,
+        "schema_fields_per_table": 20,
+        "schema_table_count": 6,
+        "upsert_record_count": 1000,
+        "upsert_value_bytes": 1024
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.003236332258072047,
+          "operation_count": 31,
+          "peak_traced_memory_bytes": 624339,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 308991.7598867681,
+          "total_measured_seconds": 0.10032630000023346,
+          "workload_observation_rates_per_second": {
+            "cells": 3707901.1186412172,
+            "metadata_requests": 0.0,
+            "pages": 3089.917598867681,
+            "records": 308991.7598867681
+          },
+          "workload_observation_totals": {
+            "cells": 372000,
+            "metadata_requests": 0,
+            "pages": 310,
+            "records": 31000
+          }
+        },
+        {
+          "elapsed_seconds": 0.0038893884616649863,
+          "operation_count": 26,
+          "peak_traced_memory_bytes": 624339,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 257109.82841038093,
+          "total_measured_seconds": 0.10112410000328964,
+          "workload_observation_rates_per_second": {
+            "cells": 3085317.940924571,
+            "metadata_requests": 0.0,
+            "pages": 2571.098284103809,
+            "records": 257109.82841038093
+          },
+          "workload_observation_totals": {
+            "cells": 312000,
+            "metadata_requests": 0,
+            "pages": 260,
+            "records": 26000
+          }
+        },
+        {
+          "elapsed_seconds": 0.003164509374755653,
+          "operation_count": 32,
+          "peak_traced_memory_bytes": 624339,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 316004.75194585725,
+          "total_measured_seconds": 0.1012642999921809,
+          "workload_observation_rates_per_second": {
+            "cells": 3792057.023350287,
+            "metadata_requests": 0.0,
+            "pages": 3160.047519458573,
+            "records": 316004.75194585725
+          },
+          "workload_observation_totals": {
+            "cells": 384000,
+            "metadata_requests": 0,
+            "pages": 320,
+            "records": 32000
+          }
+        },
+        {
+          "elapsed_seconds": 0.004865476190389018,
+          "operation_count": 21,
+          "peak_traced_memory_bytes": 624339,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 205529.728410827,
+          "total_measured_seconds": 0.10217499999816937,
+          "workload_observation_rates_per_second": {
+            "cells": 2466356.740929924,
+            "metadata_requests": 0.0,
+            "pages": 2055.29728410827,
+            "records": 205529.728410827
+          },
+          "workload_observation_totals": {
+            "cells": 252000,
+            "metadata_requests": 0,
+            "pages": 210,
+            "records": 21000
+          }
+        },
+        {
+          "elapsed_seconds": 0.003301141935451362,
+          "operation_count": 31,
+          "peak_traced_memory_bytes": 624339,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 302925.4783809443,
+          "total_measured_seconds": 0.10233539999899222,
+          "workload_observation_rates_per_second": {
+            "cells": 3635105.740571331,
+            "metadata_requests": 0.0,
+            "pages": 3029.2547838094424,
+            "records": 302925.4783809443
+          },
+          "workload_observation_totals": {
+            "cells": 372000,
+            "metadata_requests": 0,
+            "pages": 310,
+            "records": 31000
+          }
+        }
+      ],
+      "scenario": "dataframe-materialization-warm-metadata",
+      "shape": {
+        "column_count": 12,
+        "complete_materialization": true,
+        "metadata_cache": "warm",
+        "page_size": 100,
+        "record_count": 1000,
+        "record_id_cursor_injected": true,
+        "timed_metadata_requests": 0
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.19415654495689944,
+          "max": 0.004865476190389018,
+          "median": 0.003301141935451362,
+          "min": 0.003164509374755653,
+          "stdev": 0.0007167035762507532
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.16518886097662575,
+          "max": 32,
+          "median": 31,
+          "min": 21,
+          "stdev": 4.658325879540846
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 624339,
+          "median": 624339,
+          "min": 624339,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.1678296523586351,
+          "max": 316004.75194585725,
+          "median": 302925.4783809443,
+          "min": 205529.728410827,
+          "stdev": 46675.49220442651
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.008118030030153461,
+          "max": 0.10233539999899222,
+          "median": 0.1012642999921809,
+          "min": 0.10032630000023346,
+          "stdev": 0.0008235337187579349
+        },
+        "workload_observation_rates_per_second": {
+          "cells": {
+            "coefficient_of_variation": 0.16782965235863515,
+            "max": 3792057.023350287,
+            "median": 3635105.740571331,
+            "min": 2466356.740929924,
+            "stdev": 560105.9064531182
+          },
+          "metadata_requests": {
+            "coefficient_of_variation": 0.0,
+            "max": 0.0,
+            "median": 0.0,
+            "min": 0.0,
+            "stdev": 0.0
+          },
+          "pages": {
+            "coefficient_of_variation": 0.16782965235863515,
+            "max": 3160.047519458573,
+            "median": 3029.2547838094424,
+            "min": 2055.29728410827,
+            "stdev": 466.75492204426513
+          },
+          "records": {
+            "coefficient_of_variation": 0.1678296523586351,
+            "max": 316004.75194585725,
+            "median": 302925.4783809443,
+            "min": 205529.728410827,
+            "stdev": 46675.49220442651
+          }
+        }
+      },
+      "unit_count": 1000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "cells": 12000,
+        "metadata_requests": 0,
+        "pages": 10,
+        "records": 1000
+      }
+    },
+    {
+      "description": "Materialize a complete unsorted query through public query_dataframe(); complete in-memory materialization is an intentional analysis-oriented contract.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "large",
+      "profile_shape": {
+        "attachment_bytes": 65536,
+        "attachment_count": 128,
+        "field_count": 24,
+        "name": "large",
+        "page_size": 250,
+        "record_count": 10000,
+        "schema_fields_per_table": 40,
+        "schema_table_count": 12,
+        "upsert_record_count": 48,
+        "upsert_value_bytes": 1048576
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.07054800000059913,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10777713,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 141747.4627192135,
+          "total_measured_seconds": 0.14109600000119826,
+          "workload_observation_rates_per_second": {
+            "cells": 3401939.105261124,
+            "metadata_requests": 0.0,
+            "pages": 566.989850876854,
+            "records": 141747.4627192135
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 0,
+            "pages": 80,
+            "records": 20000
+          }
+        },
+        {
+          "elapsed_seconds": 0.0719460500004061,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10777713,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 138993.03714301973,
+          "total_measured_seconds": 0.1438921000008122,
+          "workload_observation_rates_per_second": {
+            "cells": 3335832.8914324734,
+            "metadata_requests": 0.0,
+            "pages": 555.9721485720789,
+            "records": 138993.03714301973
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 0,
+            "pages": 80,
+            "records": 20000
+          }
+        },
+        {
+          "elapsed_seconds": 0.058466499999667576,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10777713,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 171038.11584508832,
+          "total_measured_seconds": 0.11693299999933515,
+          "workload_observation_rates_per_second": {
+            "cells": 4104914.78028212,
+            "metadata_requests": 0.0,
+            "pages": 684.1524633803533,
+            "records": 171038.11584508832
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 0,
+            "pages": 80,
+            "records": 20000
+          }
+        },
+        {
+          "elapsed_seconds": 0.06423809999978403,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 10778073,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 155670.8557699188,
+          "total_measured_seconds": 0.12847619999956805,
+          "workload_observation_rates_per_second": {
+            "cells": 3736100.5384780513,
+            "metadata_requests": 0.0,
+            "pages": 622.6834230796752,
+            "records": 155670.8557699188
+          },
+          "workload_observation_totals": {
+            "cells": 480000,
+            "metadata_requests": 0,
+            "pages": 80,
+            "records": 20000
+          }
+        },
+        {
+          "elapsed_seconds": 0.11256479999974545,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 10776433,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 88837.71836331264,
+          "total_measured_seconds": 0.11256479999974545,
+          "workload_observation_rates_per_second": {
+            "cells": 2132105.2407195033,
+            "metadata_requests": 0.0,
+            "pages": 355.35087345325053,
+            "records": 88837.71836331264
+          },
+          "workload_observation_totals": {
+            "cells": 240000,
+            "metadata_requests": 0,
+            "pages": 40,
+            "records": 10000
+          }
+        }
+      ],
+      "scenario": "dataframe-materialization-warm-metadata",
+      "shape": {
+        "column_count": 24,
+        "complete_materialization": true,
+        "metadata_cache": "warm",
+        "page_size": 250,
+        "record_count": 10000,
+        "record_id_cursor_injected": true,
+        "timed_metadata_requests": 0
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.2829419523438196,
+          "max": 0.11256479999974545,
+          "median": 0.07054800000059913,
+          "min": 0.058466499999667576,
+          "stdev": 0.02137702561343882
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.24845199749997662,
+          "max": 2,
+          "median": 2,
+          "min": 1,
+          "stdev": 0.4472135954999579
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 5.8659317845878315e-05,
+          "max": 10778073,
+          "median": 10777713,
+          "min": 10776433,
+          "stdev": 632.2024992041711
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.22214059250081175,
+          "max": 171038.11584508832,
+          "median": 141747.4627192135,
+          "min": 88837.71836331264,
+          "stdev": 30934.72978038113
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.10881971468323733,
+          "max": 0.1438921000008122,
+          "median": 0.12847619999956805,
+          "min": 0.11256479999974545,
+          "stdev": 0.013993390454841366
+        },
+        "workload_observation_rates_per_second": {
+          "cells": {
+            "coefficient_of_variation": 0.2221405925008118,
+            "max": 4104914.78028212,
+            "median": 3401939.105261124,
+            "min": 2132105.2407195033,
+            "stdev": 742433.5147291473
+          },
+          "metadata_requests": {
+            "coefficient_of_variation": 0.0,
+            "max": 0.0,
+            "median": 0.0,
+            "min": 0.0,
+            "stdev": 0.0
+          },
+          "pages": {
+            "coefficient_of_variation": 0.22214059250081183,
+            "max": 684.1524633803533,
+            "median": 566.989850876854,
+            "min": 355.35087345325053,
+            "stdev": 123.73891912152455
+          },
+          "records": {
+            "coefficient_of_variation": 0.22214059250081175,
+            "max": 171038.11584508832,
+            "median": 141747.4627192135,
+            "min": 88837.71836331264,
+            "stdev": 30934.72978038113
+          }
+        }
+      },
+      "unit_count": 10000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "cells": 240000,
+        "metadata_requests": 0,
+        "pages": 40,
+        "records": 10000
+      }
+    },
+    {
+      "description": "Consume stable Record ID# pages through the private pagination boundary; the private import is intentional repository benchmark infrastructure.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "small",
+      "profile_shape": {
+        "attachment_bytes": 4096,
+        "attachment_count": 8,
+        "field_count": 6,
+        "name": "small",
+        "page_size": 25,
+        "record_count": 100,
+        "schema_fields_per_table": 8,
+        "schema_table_count": 2,
+        "upsert_record_count": 100,
+        "upsert_value_bytes": 128
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 5.851930956325199e-05,
+          "operation_count": 1709,
+          "peak_traced_memory_bytes": 3838,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 1708837.6596773176,
+          "total_measured_seconds": 0.10000950004359765,
+          "workload_observation_rates_per_second": {
+            "pages": 68353.5063870927,
+            "records": 1708837.6596773176
+          },
+          "workload_observation_totals": {
+            "pages": 6836,
+            "records": 170900
+          }
+        },
+        {
+          "elapsed_seconds": 5.399757022173941e-05,
+          "operation_count": 1852,
+          "peak_traced_memory_bytes": 3838,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 1851935.1813304373,
+          "total_measured_seconds": 0.10000350005066139,
+          "workload_observation_rates_per_second": {
+            "pages": 74077.40725321749,
+            "records": 1851935.1813304373
+          },
+          "workload_observation_totals": {
+            "pages": 7408,
+            "records": 185200
+          }
+        },
+        {
+          "elapsed_seconds": 5.1110321900917194e-05,
+          "operation_count": 1957,
+          "peak_traced_memory_bytes": 3838,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 1956551.950384125,
+          "total_measured_seconds": 0.10002289996009495,
+          "workload_observation_rates_per_second": {
+            "pages": 78262.07801536501,
+            "records": 1956551.950384125
+          },
+          "workload_observation_totals": {
+            "pages": 7828,
+            "records": 195700
+          }
+        },
+        {
+          "elapsed_seconds": 6.0927294846924905e-05,
+          "operation_count": 1645,
+          "peak_traced_memory_bytes": 3838,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 1641300.5082737093,
+          "total_measured_seconds": 0.10022540002319147,
+          "workload_observation_rates_per_second": {
+            "pages": 65652.02033094838,
+            "records": 1641300.5082737093
+          },
+          "workload_observation_totals": {
+            "pages": 6580,
+            "records": 164500
+          }
+        },
+        {
+          "elapsed_seconds": 0.00012746284987041212,
+          "operation_count": 786,
+          "peak_traced_memory_bytes": 3838,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 784542.3203832896,
+          "total_measured_seconds": 0.10018579999814392,
+          "workload_observation_rates_per_second": {
+            "pages": 31381.692815331582,
+            "records": 784542.3203832896
+          },
+          "workload_observation_totals": {
+            "pages": 3144,
+            "records": 78600
+          }
+        }
+      ],
+      "scenario": "record-keyset-pagination",
+      "shape": {
+        "page_size": 25,
+        "record_count": 100,
+        "selected_field_count": 7,
+        "stable_record_id_order": true
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.4563052021899873,
+          "max": 0.00012746284987041212,
+          "median": 5.851930956325199e-05,
+          "min": 5.1110321900917194e-05,
+          "stdev": 3.212546928498316e-05
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.29283348088296673,
+          "max": 1957,
+          "median": 1709,
+          "min": 786,
+          "stdev": 465.54666790774047
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 3838,
+          "median": 3838,
+          "min": 3838,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.29330907629498304,
+          "max": 1956551.950384125,
+          "median": 1708837.6596773176,
+          "min": 784542.3203832896,
+          "stdev": 465960.6314985511
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.0010711199019794522,
+          "max": 0.10022540002319147,
+          "median": 0.10002289996009495,
+          "min": 0.10000350005066139,
+          "stdev": 0.00010720776975579471
+        },
+        "workload_observation_rates_per_second": {
+          "pages": {
+            "coefficient_of_variation": 0.29330907629498304,
+            "max": 78262.07801536501,
+            "median": 68353.5063870927,
+            "min": 31381.692815331582,
+            "stdev": 18638.425259942043
+          },
+          "records": {
+            "coefficient_of_variation": 0.29330907629498304,
+            "max": 1956551.950384125,
+            "median": 1708837.6596773176,
+            "min": 784542.3203832896,
+            "stdev": 465960.6314985511
+          }
+        }
+      },
+      "unit_count": 100,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "pages": 4,
+        "records": 100
+      }
+    },
+    {
+      "description": "Consume stable Record ID# pages through the private pagination boundary; the private import is intentional repository benchmark infrastructure.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "medium",
+      "profile_shape": {
+        "attachment_bytes": 16384,
+        "attachment_count": 32,
+        "field_count": 12,
+        "name": "medium",
+        "page_size": 100,
+        "record_count": 1000,
+        "schema_fields_per_table": 20,
+        "schema_table_count": 6,
+        "upsert_record_count": 1000,
+        "upsert_value_bytes": 1024
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.0006019976048765691,
+          "operation_count": 167,
+          "peak_traced_memory_bytes": 7259,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 1661136.1771198998,
+          "total_measured_seconds": 0.10053360001438705,
+          "workload_observation_rates_per_second": {
+            "pages": 16611.361771198997,
+            "records": 1661136.1771198998
+          },
+          "workload_observation_totals": {
+            "pages": 1670,
+            "records": 167000
+          }
+        },
+        {
+          "elapsed_seconds": 0.0004786626794670695,
+          "operation_count": 209,
+          "peak_traced_memory_bytes": 7259,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 2089153.8924935067,
+          "total_measured_seconds": 0.10004050000861753,
+          "workload_observation_rates_per_second": {
+            "pages": 20891.538924935066,
+            "records": 2089153.8924935067
+          },
+          "workload_observation_totals": {
+            "pages": 2090,
+            "records": 209000
+          }
+        },
+        {
+          "elapsed_seconds": 0.0004957975247499676,
+          "operation_count": 202,
+          "peak_traced_memory_bytes": 7259,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 2016952.3849565475,
+          "total_measured_seconds": 0.10015109999949345,
+          "workload_observation_rates_per_second": {
+            "pages": 20169.523849565474,
+            "records": 2016952.3849565475
+          },
+          "workload_observation_totals": {
+            "pages": 2020,
+            "records": 202000
+          }
+        },
+        {
+          "elapsed_seconds": 0.0004878572815303997,
+          "operation_count": 206,
+          "peak_traced_memory_bytes": 7259,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 2049779.798024163,
+          "total_measured_seconds": 0.10049859999526234,
+          "workload_observation_rates_per_second": {
+            "pages": 20497.79798024163,
+            "records": 2049779.798024163
+          },
+          "workload_observation_totals": {
+            "pages": 2060,
+            "records": 206000
+          }
+        },
+        {
+          "elapsed_seconds": 0.0004895024389974779,
+          "operation_count": 205,
+          "peak_traced_memory_bytes": 7259,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 2042890.7403363367,
+          "total_measured_seconds": 0.10034799999448296,
+          "workload_observation_rates_per_second": {
+            "pages": 20428.907403363366,
+            "records": 2042890.7403363367
+          },
+          "workload_observation_totals": {
+            "pages": 2050,
+            "records": 205000
+          }
+        }
+      ],
+      "scenario": "record-keyset-pagination",
+      "shape": {
+        "page_size": 100,
+        "record_count": 1000,
+        "selected_field_count": 13,
+        "stable_record_id_order": true
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.10057170637968751,
+          "max": 0.0006019976048765691,
+          "median": 0.0004895024389974779,
+          "min": 0.0004786626794670695,
+          "stdev": 5.136835734727815e-05
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.08795892708108936,
+          "max": 209,
+          "median": 205,
+          "min": 167,
+          "stdev": 17.398275776639476
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 7259,
+          "median": 7259,
+          "min": 7259,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.08908923787025015,
+          "max": 2089153.8924935067,
+          "median": 2042890.7403363367,
+          "min": 1661136.1771198998,
+          "stdev": 175682.42680143024
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.0021426557242733672,
+          "max": 0.10053360001438705,
+          "median": 0.10034799999448296,
+          "min": 0.10004050000861753,
+          "stdev": 0.00021493913768606595
+        },
+        "workload_observation_rates_per_second": {
+          "pages": {
+            "coefficient_of_variation": 0.08908923787025015,
+            "max": 20891.538924935066,
+            "median": 20428.907403363366,
+            "min": 16611.361771198997,
+            "stdev": 1756.8242680143023
+          },
+          "records": {
+            "coefficient_of_variation": 0.08908923787025015,
+            "max": 2089153.8924935067,
+            "median": 2042890.7403363367,
+            "min": 1661136.1771198998,
+            "stdev": 175682.42680143024
+          }
+        }
+      },
+      "unit_count": 1000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "pages": 10,
+        "records": 1000
+      }
+    },
+    {
+      "description": "Consume stable Record ID# pages through the private pagination boundary; the private import is intentional repository benchmark infrastructure.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "large",
+      "profile_shape": {
+        "attachment_bytes": 65536,
+        "attachment_count": 128,
+        "field_count": 24,
+        "name": "large",
+        "page_size": 250,
+        "record_count": 10000,
+        "schema_fields_per_table": 40,
+        "schema_table_count": 12,
+        "upsert_record_count": 48,
+        "upsert_value_bytes": 1048576
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.008371780000015861,
+          "operation_count": 15,
+          "peak_traced_memory_bytes": 23521,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 1194489.1050626098,
+          "total_measured_seconds": 0.1255767000002379,
+          "workload_observation_rates_per_second": {
+            "pages": 4777.956420250439,
+            "records": 1194489.1050626098
+          },
+          "workload_observation_totals": {
+            "pages": 600,
+            "records": 150000
+          }
+        },
+        {
+          "elapsed_seconds": 0.006476100000099905,
+          "operation_count": 16,
+          "peak_traced_memory_bytes": 27537,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 1544139.2195682174,
+          "total_measured_seconds": 0.10361760000159848,
+          "workload_observation_rates_per_second": {
+            "pages": 6176.55687827287,
+            "records": 1544139.2195682174
+          },
+          "workload_observation_totals": {
+            "pages": 640,
+            "records": 160000
+          }
+        },
+        {
+          "elapsed_seconds": 0.011343744444376271,
+          "operation_count": 9,
+          "peak_traced_memory_bytes": 23521,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 881543.1314619891,
+          "total_measured_seconds": 0.10209369999938644,
+          "workload_observation_rates_per_second": {
+            "pages": 3526.1725258479564,
+            "records": 881543.1314619891
+          },
+          "workload_observation_totals": {
+            "pages": 360,
+            "records": 90000
+          }
+        },
+        {
+          "elapsed_seconds": 0.01009096999969188,
+          "operation_count": 10,
+          "peak_traced_memory_bytes": 23521,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 990985.0094000223,
+          "total_measured_seconds": 0.10090969999691879,
+          "workload_observation_rates_per_second": {
+            "pages": 3963.9400376000895,
+            "records": 990985.0094000223
+          },
+          "workload_observation_totals": {
+            "pages": 400,
+            "records": 100000
+          }
+        },
+        {
+          "elapsed_seconds": 0.006064423529417528,
+          "operation_count": 17,
+          "peak_traced_memory_bytes": 24617,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 1648961.3483444278,
+          "total_measured_seconds": 0.10309520000009798,
+          "workload_observation_rates_per_second": {
+            "pages": 6595.845393377711,
+            "records": 1648961.3483444278
+          },
+          "workload_observation_totals": {
+            "pages": 680,
+            "records": 170000
+          }
+        }
+      ],
+      "scenario": "record-keyset-pagination",
+      "shape": {
+        "page_size": 250,
+        "record_count": 10000,
+        "selected_field_count": 25,
+        "stable_record_id_order": true
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.26832531286542055,
+          "max": 0.011343744444376271,
+          "median": 0.008371780000015861,
+          "min": 0.006064423529417528,
+          "stdev": 0.002272555369336839
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.27215794819120104,
+          "max": 17,
+          "median": 15,
+          "min": 9,
+          "stdev": 3.646916505762094
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.07087305202548302,
+          "max": 27537,
+          "median": 23521,
+          "min": 23521,
+          "stdev": 1739.46566508224
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.26836979135176287,
+          "max": 1648961.3483444278,
+          "median": 1194489.1050626098,
+          "min": 881543.1314619891,
+          "stdev": 336005.30230739224
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.09717543408099931,
+          "max": 0.1255767000002379,
+          "median": 0.10309520000009798,
+          "min": 0.10090969999691879,
+          "stdev": 0.010403463983561177
+        },
+        "workload_observation_rates_per_second": {
+          "pages": {
+            "coefficient_of_variation": 0.26836979135176287,
+            "max": 6595.845393377711,
+            "median": 4777.956420250439,
+            "min": 3526.1725258479564,
+            "stdev": 1344.021209229569
+          },
+          "records": {
+            "coefficient_of_variation": 0.26836979135176287,
+            "max": 1648961.3483444278,
+            "median": 1194489.1050626098,
+            "min": 881543.1314619891,
+            "stdev": 336005.30230739224
+          }
+        }
+      },
+      "unit_count": 10000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "pages": 40,
+        "records": 10000
+      }
+    },
+    {
+      "description": "Build a public declarative schema plan from deterministic matching metadata; planning is intentionally read-only and never reads table records.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "small",
+      "profile_shape": {
+        "attachment_bytes": 4096,
+        "attachment_count": 8,
+        "field_count": 6,
+        "name": "small",
+        "page_size": 25,
+        "record_count": 100,
+        "schema_fields_per_table": 8,
+        "schema_table_count": 2,
+        "upsert_record_count": 100,
+        "upsert_value_bytes": 128
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.001497101492464365,
+          "operation_count": 67,
+          "peak_traced_memory_bytes": 20659,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 12691.190340558856,
+          "total_measured_seconds": 0.10030579999511247,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 2671.829545380812,
+            "resources": 12691.190340558856
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 268,
+            "resources": 1273
+          }
+        },
+        {
+          "elapsed_seconds": 0.0012238804876421744,
+          "operation_count": 82,
+          "peak_traced_memory_bytes": 20659,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 15524.391631248089,
+          "total_measured_seconds": 0.10035819998665829,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 3268.2929749995974,
+            "resources": 15524.391631248089
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 328,
+            "resources": 1558
+          }
+        },
+        {
+          "elapsed_seconds": 0.0010824763441867676,
+          "operation_count": 93,
+          "peak_traced_memory_bytes": 20659,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 17552.346618968506,
+          "total_measured_seconds": 0.10067030000936938,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 3695.2308671512646,
+            "resources": 17552.346618968506
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 372,
+            "resources": 1767
+          }
+        },
+        {
+          "elapsed_seconds": 0.0011996619048529414,
+          "operation_count": 84,
+          "peak_traced_memory_bytes": 20659,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 15837.79556818476,
+          "total_measured_seconds": 0.10077160000764707,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 3334.2727511967914,
+            "resources": 15837.79556818476
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 336,
+            "resources": 1596
+          }
+        },
+        {
+          "elapsed_seconds": 0.0012089421687335974,
+          "operation_count": 83,
+          "peak_traced_memory_bytes": 20659,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 15716.219097480123,
+          "total_measured_seconds": 0.10034220000488858,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 3308.6777047326573,
+            "resources": 15716.219097480123
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 332,
+            "resources": 1577
+          }
+        }
+      ],
+      "scenario": "schema-readonly-planning",
+      "shape": {
+        "fields_per_table": 8,
+        "metadata_request_count": 4,
+        "read_only": true,
+        "record_read_count": 0,
+        "resource_count": 19,
+        "table_count": 2
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.12321414806266828,
+          "max": 0.001497101492464365,
+          "median": 0.0012089421687335974,
+          "min": 0.0010824763441867676,
+          "stdev": 0.0001530827952133803
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.114484447613136,
+          "max": 93,
+          "median": 83,
+          "min": 67,
+          "stdev": 9.364827814754525
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 20659,
+          "median": 20659,
+          "min": 20659,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.11319392597902476,
+          "max": 17552.346618968506,
+          "median": 15716.219097480123,
+          "min": 12691.190340558856,
+          "stdev": 1750.4748643047722
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.002139823322340329,
+          "max": 0.10077160000764707,
+          "median": 0.10035819998665829,
+          "min": 0.10030579999511247,
+          "stdev": 0.00021503003253069025
+        },
+        "workload_observation_rates_per_second": {
+          "metadata_requests": {
+            "coefficient_of_variation": 0.1131939259790248,
+            "max": 3695.2308671512646,
+            "median": 3308.6777047326573,
+            "min": 2671.829545380812,
+            "stdev": 368.52102406416265
+          },
+          "resources": {
+            "coefficient_of_variation": 0.11319392597902476,
+            "max": 17552.346618968506,
+            "median": 15716.219097480123,
+            "min": 12691.190340558856,
+            "stdev": 1750.4748643047722
+          }
+        }
+      },
+      "unit_count": 19,
+      "unit_label": "schema resources",
+      "workload_observations_per_operation": {
+        "metadata_requests": 4,
+        "resources": 19
+      }
+    },
+    {
+      "description": "Build a public declarative schema plan from deterministic matching metadata; planning is intentionally read-only and never reads table records.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "medium",
+      "profile_shape": {
+        "attachment_bytes": 16384,
+        "attachment_count": 32,
+        "field_count": 12,
+        "name": "medium",
+        "page_size": 100,
+        "record_count": 1000,
+        "schema_fields_per_table": 20,
+        "schema_table_count": 6,
+        "upsert_record_count": 1000,
+        "upsert_value_bytes": 1024
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.0026404512821803414,
+          "operation_count": 39,
+          "peak_traced_memory_bytes": 142585,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 48097.838750931354,
+          "total_measured_seconds": 0.10297760000503331,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 3029.7851181689043,
+            "resources": 48097.838750931354
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 312,
+            "resources": 4953
+          }
+        },
+        {
+          "elapsed_seconds": 0.0027989361110485333,
+          "operation_count": 36,
+          "peak_traced_memory_bytes": 142585,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 45374.38332324901,
+          "total_measured_seconds": 0.1007616999977472,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 2858.2288707558428,
+            "resources": 45374.38332324901
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 288,
+            "resources": 4572
+          }
+        },
+        {
+          "elapsed_seconds": 0.00307340909079578,
+          "operation_count": 33,
+          "peak_traced_memory_bytes": 142585,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 41322.191822864894,
+          "total_measured_seconds": 0.10142249999626074,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 2602.9727132513317,
+            "resources": 41322.191822864894
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 264,
+            "resources": 4191
+          }
+        },
+        {
+          "elapsed_seconds": 0.0027554972975603713,
+          "operation_count": 37,
+          "peak_traced_memory_bytes": 142585,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 46089.68410618356,
+          "total_measured_seconds": 0.10195340000973374,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 2903.28718779109,
+            "resources": 46089.68410618356
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 296,
+            "resources": 4699
+          }
+        },
+        {
+          "elapsed_seconds": 0.00299168529401119,
+          "operation_count": 34,
+          "peak_traced_memory_bytes": 142585,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 42450.989164612634,
+          "total_measured_seconds": 0.10171729999638046,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 2674.0780576133943,
+            "resources": 42450.989164612634
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 272,
+            "resources": 4318
+          }
+        }
+      ],
+      "scenario": "schema-readonly-planning",
+      "shape": {
+        "fields_per_table": 20,
+        "metadata_request_count": 8,
+        "read_only": true,
+        "record_read_count": 0,
+        "resource_count": 127,
+        "table_count": 6
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.06208640454523383,
+          "max": 0.00307340909079578,
+          "median": 0.0027989361110485333,
+          "min": 0.0026404512821803414,
+          "stdev": 0.00017707016593880725
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.06668903009113589,
+          "max": 39,
+          "median": 36,
+          "min": 33,
+          "stdev": 2.3874672772626644
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 142585,
+          "median": 142585,
+          "min": 142585,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.061712559840094355,
+          "max": 48097.838750931354,
+          "median": 45374.38332324901,
+          "min": 41322.191822864894,
+          "stdev": 2756.5159862476207
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.0079710265699269,
+          "max": 0.10297760000503331,
+          "median": 0.10171729999638046,
+          "min": 0.1007616999977472,
+          "stdev": 0.0008111834754366847
+        },
+        "workload_observation_rates_per_second": {
+          "metadata_requests": {
+            "coefficient_of_variation": 0.061712559840094376,
+            "max": 3029.7851181689043,
+            "median": 2858.2288707558428,
+            "min": 2602.9727132513317,
+            "stdev": 173.63880228331476
+          },
+          "resources": {
+            "coefficient_of_variation": 0.061712559840094355,
+            "max": 48097.838750931354,
+            "median": 45374.38332324901,
+            "min": 41322.191822864894,
+            "stdev": 2756.5159862476207
+          }
+        }
+      },
+      "unit_count": 127,
+      "unit_label": "schema resources",
+      "workload_observations_per_operation": {
+        "metadata_requests": 8,
+        "resources": 127
+      }
+    },
+    {
+      "description": "Build a public declarative schema plan from deterministic matching metadata; planning is intentionally read-only and never reads table records.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "large",
+      "profile_shape": {
+        "attachment_bytes": 65536,
+        "attachment_count": 128,
+        "field_count": 24,
+        "name": "large",
+        "page_size": 250,
+        "record_count": 10000,
+        "schema_fields_per_table": 40,
+        "schema_table_count": 12,
+        "upsert_record_count": 48,
+        "upsert_value_bytes": 1048576
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.009137727272569795,
+          "operation_count": 11,
+          "peak_traced_memory_bytes": 552201,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 53952.14644673391,
+          "total_measured_seconds": 0.10051499999826774,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 1532.1096354042083,
+            "resources": 53952.14644673391
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 154,
+            "resources": 5423
+          }
+        },
+        {
+          "elapsed_seconds": 0.009313209091157081,
+          "operation_count": 11,
+          "peak_traced_memory_bytes": 552201,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 52935.566588761,
+          "total_measured_seconds": 0.10244530000272789,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 1503.2412418715091,
+            "resources": 52935.566588761
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 154,
+            "resources": 5423
+          }
+        },
+        {
+          "elapsed_seconds": 0.00990857272699941,
+          "operation_count": 11,
+          "peak_traced_memory_bytes": 552201,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 49754.89544085872,
+          "total_measured_seconds": 0.1089942999969935,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 1412.9179232698218,
+            "resources": 49754.89544085872
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 154,
+            "resources": 5423
+          }
+        },
+        {
+          "elapsed_seconds": 0.008779016666873455,
+          "operation_count": 12,
+          "peak_traced_memory_bytes": 552201,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 56156.631056445665,
+          "total_measured_seconds": 0.10534820000248146,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 1594.7116324345625,
+            "resources": 56156.631056445665
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 168,
+            "resources": 5916
+          }
+        },
+        {
+          "elapsed_seconds": 0.008097207692257004,
+          "operation_count": 13,
+          "peak_traced_memory_bytes": 552201,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 60885.18644167097,
+          "total_measured_seconds": 0.10526369999934104,
+          "workload_observation_rates_per_second": {
+            "metadata_requests": 1728.9910957066807,
+            "resources": 60885.18644167097
+          },
+          "workload_observation_totals": {
+            "metadata_requests": 182,
+            "resources": 6409
+          }
+        }
+      ],
+      "scenario": "schema-readonly-planning",
+      "shape": {
+        "fields_per_table": 40,
+        "metadata_request_count": 14,
+        "read_only": true,
+        "record_read_count": 0,
+        "resource_count": 493,
+        "table_count": 12
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.07405086116822464,
+          "max": 0.00990857272699941,
+          "median": 0.009137727272569795,
+          "min": 0.008097207692257004,
+          "stdev": 0.0006699490035076313
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.07710579232757896,
+          "max": 13,
+          "median": 11,
+          "min": 11,
+          "stdev": 0.8944271909999159
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 552201,
+          "median": 552201,
+          "min": 552201,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.0756012712227979,
+          "max": 60885.18644167097,
+          "median": 53952.14644673391,
+          "min": 49754.89544085872,
+          "stdev": 4138.178103510337
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.03085733379818173,
+          "max": 0.1089942999969935,
+          "median": 0.10526369999934104,
+          "min": 0.10051499999826774,
+          "stdev": 0.003225001784448344
+        },
+        "workload_observation_rates_per_second": {
+          "metadata_requests": {
+            "coefficient_of_variation": 0.07560127122279788,
+            "max": 1728.9910957066807,
+            "median": 1532.1096354042083,
+            "min": 1412.9179232698218,
+            "stdev": 117.51418549522249
+          },
+          "resources": {
+            "coefficient_of_variation": 0.0756012712227979,
+            "max": 60885.18644167097,
+            "median": 53952.14644673391,
+            "min": 49754.89544085872,
+            "stdev": 4138.178103510337
+          }
+        }
+      },
+      "unit_count": 493,
+      "unit_label": "schema resources",
+      "workload_observations_per_operation": {
+        "metadata_requests": 14,
+        "resources": 493
+      }
+    },
+    {
+      "description": "Plan the fewest contiguous upsert requests through the private payload planner at Quickbase's real 40,000,000-byte ceiling; no mutation is sent.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "small",
+      "profile_shape": {
+        "attachment_bytes": 4096,
+        "attachment_count": 8,
+        "field_count": 6,
+        "name": "small",
+        "page_size": 25,
+        "record_count": 100,
+        "schema_fields_per_table": 8,
+        "schema_table_count": 2,
+        "upsert_record_count": 100,
+        "upsert_value_bytes": 128
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.004195520833491173,
+          "operation_count": 24,
+          "peak_traced_memory_bytes": 38826,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 23834.943018692647,
+          "total_measured_seconds": 0.10069250000378815,
+          "workload_observation_rates_per_second": {
+            "batches": 238.3494301869265,
+            "records": 23834.943018692647,
+            "serialized_bytes": 4067909.7250002744
+          },
+          "workload_observation_totals": {
+            "batches": 24,
+            "records": 2400,
+            "serialized_bytes": 409608
+          }
+        },
+        {
+          "elapsed_seconds": 0.007194213333301984,
+          "operation_count": 15,
+          "peak_traced_memory_bytes": 38826,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 13900.060418989859,
+          "total_measured_seconds": 0.10791319999952975,
+          "workload_observation_rates_per_second": {
+            "batches": 139.00060418989858,
+            "records": 13900.060418989859,
+            "serialized_bytes": 2372323.3117089993
+          },
+          "workload_observation_totals": {
+            "batches": 15,
+            "records": 1500,
+            "serialized_bytes": 256005
+          }
+        },
+        {
+          "elapsed_seconds": 0.00785421428567393,
+          "operation_count": 14,
+          "peak_traced_memory_bytes": 38826,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 12732.01829779457,
+          "total_measured_seconds": 0.10995899999943504,
+          "workload_observation_rates_per_second": {
+            "batches": 127.3201829779457,
+            "records": 12732.01829779457,
+            "serialized_bytes": 2172973.5628845994
+          },
+          "workload_observation_totals": {
+            "batches": 14,
+            "records": 1400,
+            "serialized_bytes": 238938
+          }
+        },
+        {
+          "elapsed_seconds": 0.008828916666971054,
+          "operation_count": 12,
+          "peak_traced_memory_bytes": 38826,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 11326.417925553613,
+          "total_measured_seconds": 0.10594700000365265,
+          "workload_observation_rates_per_second": {
+            "batches": 113.26417925553612,
+            "records": 11326.417925553613,
+            "serialized_bytes": 1933079.747354235
+          },
+          "workload_observation_totals": {
+            "batches": 12,
+            "records": 1200,
+            "serialized_bytes": 204804
+          }
+        },
+        {
+          "elapsed_seconds": 0.008712000000286935,
+          "operation_count": 12,
+          "peak_traced_memory_bytes": 38826,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 11478.420568951611,
+          "total_measured_seconds": 0.10454400000344322,
+          "workload_observation_rates_per_second": {
+            "batches": 114.78420568951611,
+            "records": 11478.420568951611,
+            "serialized_bytes": 1959022.0385029716
+          },
+          "workload_observation_totals": {
+            "batches": 12,
+            "records": 1200,
+            "serialized_bytes": 204804
+          }
+        }
+      ],
+      "scenario": "upsert-batch-planning",
+      "shape": {
+        "payload_limit_bytes": 40000000,
+        "planning_only": true,
+        "record_count": 100,
+        "unbatched_payload_bytes": 17067,
+        "value_bytes_per_record": 128
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.2567447848623013,
+          "max": 0.008828916666971054,
+          "median": 0.00785421428567393,
+          "min": 0.004195520833491173,
+          "stdev": 0.0018888644562705173
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.3233740155321748,
+          "max": 24,
+          "median": 14,
+          "min": 12,
+          "stdev": 4.979959839195493
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 38826,
+          "median": 38826,
+          "min": 38826,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.35737521816004814,
+          "max": 23834.943018692647,
+          "median": 12732.01829779457,
+          "min": 11326.417925553613,
+          "stdev": 5237.109406936495
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.03322866325146982,
+          "max": 0.10995899999943504,
+          "median": 0.10594700000365265,
+          "min": 0.10069250000378815,
+          "stdev": 0.003515962739379581
+        },
+        "workload_observation_rates_per_second": {
+          "batches": {
+            "coefficient_of_variation": 0.3573752181600481,
+            "max": 238.3494301869265,
+            "median": 127.3201829779457,
+            "min": 113.26417925553612,
+            "stdev": 52.37109406936496
+          },
+          "records": {
+            "coefficient_of_variation": 0.35737521816004814,
+            "max": 23834.943018692647,
+            "median": 12732.01829779457,
+            "min": 11326.417925553613,
+            "stdev": 5237.109406936495
+          },
+          "serialized_bytes": {
+            "coefficient_of_variation": 0.3573752181600481,
+            "max": 4067909.7250002744,
+            "median": 2172973.5628845994,
+            "min": 1933079.747354235,
+            "stdev": 893817.4624818517
+          }
+        }
+      },
+      "unit_count": 100,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "batches": 1,
+        "records": 100,
+        "serialized_bytes": 17067
+      }
+    },
+    {
+      "description": "Plan the fewest contiguous upsert requests through the private payload planner at Quickbase's real 40,000,000-byte ceiling; no mutation is sent.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "medium",
+      "profile_shape": {
+        "attachment_bytes": 16384,
+        "attachment_count": 32,
+        "field_count": 12,
+        "name": "medium",
+        "page_size": 100,
+        "record_count": 1000,
+        "schema_fields_per_table": 20,
+        "schema_table_count": 6,
+        "upsert_record_count": 1000,
+        "upsert_value_bytes": 1024
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.1006548000004841,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 2161076,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 9934.945973716012,
+          "total_measured_seconds": 0.1006548000004841,
+          "workload_observation_rates_per_second": {
+            "batches": 9.934945973716012,
+            "records": 9934.945973716012,
+            "serialized_bytes": 10600269.435683826
+          },
+          "workload_observation_totals": {
+            "batches": 1,
+            "records": 1000,
+            "serialized_bytes": 1066968
+          }
+        },
+        {
+          "elapsed_seconds": 0.05217174999961571,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 2161052,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 19167.461317808313,
+          "total_measured_seconds": 0.10434349999923143,
+          "workload_observation_rates_per_second": {
+            "batches": 19.16746131780831,
+            "records": 19167.461317808313,
+            "serialized_bytes": 20451067.867339298
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 2000,
+            "serialized_bytes": 2133936
+          }
+        },
+        {
+          "elapsed_seconds": 0.058966200000213576,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 2161052,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 16958.867961584398,
+          "total_measured_seconds": 0.11793240000042715,
+          "workload_observation_rates_per_second": {
+            "batches": 16.9588679615844,
+            "records": 16958.867961584398,
+            "serialized_bytes": 18094569.431235783
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 2000,
+            "serialized_bytes": 2133936
+          }
+        },
+        {
+          "elapsed_seconds": 0.05014294999909907,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 2161052,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 19942.98301192824,
+          "total_measured_seconds": 0.10028589999819815,
+          "workload_observation_rates_per_second": {
+            "batches": 19.94298301192824,
+            "records": 19942.98301192824,
+            "serialized_bytes": 21278524.69827105
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 2000,
+            "serialized_bytes": 2133936
+          }
+        },
+        {
+          "elapsed_seconds": 0.07885864999934711,
+          "operation_count": 2,
+          "peak_traced_memory_bytes": 2161052,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 12680.917058664829,
+          "total_measured_seconds": 0.15771729999869422,
+          "workload_observation_rates_per_second": {
+            "batches": 12.68091705866483,
+            "records": 12680.917058664829,
+            "serialized_bytes": 13530132.712249495
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 2000,
+            "serialized_bytes": 2133936
+          }
+        }
+      ],
+      "scenario": "upsert-batch-planning",
+      "shape": {
+        "payload_limit_bytes": 40000000,
+        "planning_only": true,
+        "record_count": 1000,
+        "unbatched_payload_bytes": 1066968,
+        "value_bytes_per_record": 1024
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.3142547901109101,
+          "max": 0.1006548000004841,
+          "median": 0.058966200000213576,
+          "min": 0.05014294999909907,
+          "stdev": 0.021419251385968847
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.24845199749997662,
+          "max": 2,
+          "median": 2,
+          "min": 1,
+          "stdev": 0.4472135954999579
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 4.966609990074759e-06,
+          "max": 2161076,
+          "median": 2161052,
+          "min": 2161052,
+          "stdev": 10.73312629199899
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.2732311783678885,
+          "max": 19942.98301192824,
+          "median": 16958.867961584398,
+          "min": 9934.945973716012,
+          "stdev": 4299.848634755789
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.20915551391515247,
+          "max": 0.15771729999869422,
+          "median": 0.10434349999923143,
+          "min": 0.10028589999819815,
+          "stdev": 0.02430110568092273
+        },
+        "workload_observation_rates_per_second": {
+          "batches": {
+            "coefficient_of_variation": 0.2732311783678885,
+            "max": 19.94298301192824,
+            "median": 16.9588679615844,
+            "min": 9.934945973716012,
+            "stdev": 4.299848634755789
+          },
+          "records": {
+            "coefficient_of_variation": 0.2732311783678885,
+            "max": 19942.98301192824,
+            "median": 16958.867961584398,
+            "min": 9934.945973716012,
+            "stdev": 4299.848634755789
+          },
+          "serialized_bytes": {
+            "coefficient_of_variation": 0.2732311783678885,
+            "max": 21278524.69827105,
+            "median": 18094569.431235783,
+            "min": 10600269.435683826,
+            "stdev": 4587800.898128115
+          }
+        }
+      },
+      "unit_count": 1000,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "batches": 1,
+        "records": 1000,
+        "serialized_bytes": 1066968
+      }
+    },
+    {
+      "description": "Plan the fewest contiguous upsert requests through the private payload planner at Quickbase's real 40,000,000-byte ceiling; no mutation is sent.",
+      "memory_measurement": "paired_fresh_iteration",
+      "profile": "large",
+      "profile_shape": {
+        "attachment_bytes": 65536,
+        "attachment_count": 128,
+        "field_count": 24,
+        "name": "large",
+        "page_size": 250,
+        "record_count": 10000,
+        "schema_fields_per_table": 40,
+        "schema_table_count": 12,
+        "upsert_record_count": 48,
+        "upsert_value_bytes": 1048576
+      },
+      "samples": [
+        {
+          "elapsed_seconds": 0.30405980000068666,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 79698492,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 157.8636833935022,
+          "total_measured_seconds": 0.30405980000068666,
+          "workload_observation_rates_per_second": {
+            "batches": 6.577653474729258,
+            "records": 157.8636833935022,
+            "serialized_bytes": 165539163.67729747
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 48,
+            "serialized_bytes": 50333805
+          }
+        },
+        {
+          "elapsed_seconds": 0.3042583000005834,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 79698492,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 157.76069214844085,
+          "total_measured_seconds": 0.3042583000005834,
+          "workload_observation_rates_per_second": {
+            "batches": 6.573362172851702,
+            "records": 157.76069214844085,
+            "serialized_bytes": 165431164.90134695
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 48,
+            "serialized_bytes": 50333805
+          }
+        },
+        {
+          "elapsed_seconds": 0.43847029999960796,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 79698492,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 109.47149670124274,
+          "total_measured_seconds": 0.43847029999960796,
+          "workload_observation_rates_per_second": {
+            "batches": 4.5613123625517815,
+            "records": 109.47149670124274,
+            "serialized_bytes": 114794103.50038533
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 48,
+            "serialized_bytes": 50333805
+          }
+        },
+        {
+          "elapsed_seconds": 0.25916140000117593,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 79698492,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 185.21276702387857,
+          "total_measured_seconds": 0.25916140000117593,
+          "workload_observation_rates_per_second": {
+            "batches": 7.71719862599494,
+            "records": 185.21276702387857,
+            "serialized_bytes": 194217985.39354864
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 48,
+            "serialized_bytes": 50333805
+          }
+        },
+        {
+          "elapsed_seconds": 0.25200410000070406,
+          "operation_count": 1,
+          "peak_traced_memory_bytes": 79698492,
+          "sampling_cap_reached": false,
+          "throughput_units_per_second": 190.4730915086933,
+          "total_measured_seconds": 0.25200410000070406,
+          "workload_observation_rates_per_second": {
+            "batches": 7.936378812862221,
+            "records": 190.4730915086933,
+            "serialized_bytes": 199734071.78636926
+          },
+          "workload_observation_totals": {
+            "batches": 2,
+            "records": 48,
+            "serialized_bytes": 50333805
+          }
+        }
+      ],
+      "scenario": "upsert-batch-planning",
+      "shape": {
+        "payload_limit_bytes": 40000000,
+        "planning_only": true,
+        "record_count": 48,
+        "unbatched_payload_bytes": 50333730,
+        "value_bytes_per_record": 1048576
+      },
+      "summary": {
+        "latency_seconds": {
+          "coefficient_of_variation": 0.24074474150552252,
+          "max": 0.43847029999960796,
+          "median": 0.30405980000068666,
+          "min": 0.25200410000070406,
+          "stdev": 0.07501384178673694
+        },
+        "operation_count": {
+          "coefficient_of_variation": 0.0,
+          "max": 1,
+          "median": 1,
+          "min": 1,
+          "stdev": 0.0
+        },
+        "peak_traced_memory_bytes": {
+          "coefficient_of_variation": 0.0,
+          "max": 79698492,
+          "median": 79698492,
+          "min": 79698492,
+          "stdev": 0.0
+        },
+        "sampling_cap_reached_count": 0,
+        "throughput_units_per_second": {
+          "coefficient_of_variation": 0.2005564825667616,
+          "max": 190.4730915086933,
+          "median": 157.8636833935022,
+          "min": 109.47149670124274,
+          "stdev": 32.120393445621886
+        },
+        "total_measured_seconds": {
+          "coefficient_of_variation": 0.24074474150552252,
+          "max": 0.43847029999960796,
+          "median": 0.30405980000068666,
+          "min": 0.25200410000070406,
+          "stdev": 0.07501384178673694
+        },
+        "workload_observation_rates_per_second": {
+          "batches": {
+            "coefficient_of_variation": 0.20055648256676153,
+            "max": 7.936378812862221,
+            "median": 6.577653474729258,
+            "min": 4.5613123625517815,
+            "stdev": 1.3383497269009115
+          },
+          "records": {
+            "coefficient_of_variation": 0.2005564825667616,
+            "max": 190.4730915086933,
+            "median": 157.8636833935022,
+            "min": 109.47149670124274,
+            "stdev": 32.120393445621886
+          },
+          "serialized_bytes": {
+            "coefficient_of_variation": 0.20055648256676156,
+            "max": 199734071.78636926,
+            "median": 165539163.67729747,
+            "min": 114794103.50038533,
+            "stdev": 33682117.08781687
+          }
+        }
+      },
+      "unit_count": 48,
+      "unit_label": "records",
+      "workload_observations_per_operation": {
+        "batches": 2,
+        "records": 48,
+        "serialized_bytes": 50333805
+      }
+    }
+  ],
+  "schema_version": "1.1"
+}

@@ -31,6 +31,7 @@ nav:
       - Logging: reference/logging.md
       - Exceptions: reference/exceptions.md
   - Quickbase API coverage: api/README.md
+  - Local performance benchmarks: performance-benchmarks.md
   - Sandbox stabilization workloads: development-workloads.md
   - Continuous operational testing: operational-testing.md
   - Risk-driven testing: testing-strategy.md

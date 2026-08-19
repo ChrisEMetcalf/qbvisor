@@ -23,6 +23,7 @@ site/
 *.csv
 *.json
 !docs/api/*.json
+!benchmarks/baselines/*.json
 
 # Temp files
 tmp/

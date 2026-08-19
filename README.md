@@ -209,6 +209,8 @@ messages.
 - [Upgrading from 0.2 to 0.3](docs/upgrading-to-0.3.md)
 - [Declarative schemas](docs/declarative-schemas.md)
 - [Quickbase API coverage and response contract](docs/api/README.md)
+- [Reproducible local performance benchmarks](docs/performance-benchmarks.md) — duration-backed
+  samples, workload observations, artifact schema, and comparison rules
 - [Changelog](CHANGELOG.md)
 - [Release and compatibility policy](docs/release-policy.md)
 - [Security policy](SECURITY.md)

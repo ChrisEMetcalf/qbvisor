@@ -6,6 +6,13 @@ heading.
 
 ## [Unreleased]
 
+### Added
+
+- Add credential-free, deterministic performance benchmarks for pagination, DataFrame conversion,
+  CSV export, upsert batching, attachment transfer, backup reads, and schema planning, with
+  duration-backed logical samples, secondary workload-rate observations, repeat-variance
+  reporting, matched-protocol comparisons, and a machine-context `0.3.1` baseline ([#24]).
+
 ## [0.3.1] - 2026-07-25
 
 ### Added
@@ -136,6 +143,7 @@ heading.
 [#19]: https://github.com/ChrisEMetcalf/qbvisor/pull/19
 [#20]: https://github.com/ChrisEMetcalf/qbvisor/pull/20
 [#21]: https://github.com/ChrisEMetcalf/qbvisor/pull/21
+[#24]: https://github.com/ChrisEMetcalf/qbvisor/issues/24
 [#33]: https://github.com/ChrisEMetcalf/qbvisor/issues/33
 [#34]: https://github.com/ChrisEMetcalf/qbvisor/issues/34
 [#35]: https://github.com/ChrisEMetcalf/qbvisor/issues/35
