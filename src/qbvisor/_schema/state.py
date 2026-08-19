@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, cast
@@ -13,15 +14,16 @@ from ..schema import SchemaState
 
 DEFAULT_SCHEMA_STATE_PATH = Path(".qbvisor/state.json")
 
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - Windows only
-    fcntl = None  # type: ignore[assignment]
-
-try:
+if sys.platform == "win32":
     import msvcrt
-except ImportError:  # pragma: no cover - POSIX only
-    msvcrt = None  # type: ignore[assignment]
+
+    fcntl = None
+else:  # pragma: no cover - exercised by POSIX CI
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover - unsupported Python platform
+        fcntl = None  # type: ignore[assignment]
+    msvcrt = None
 
 
 def load_schema_state(path: str | Path) -> SchemaState | None:

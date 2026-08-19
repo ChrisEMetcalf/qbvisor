@@ -43,7 +43,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
     "ruff>=0.9",
-    "twine>=6.2",
+    "twine>=7.0",
     "types-aiofiles>=24.1",
     "types-requests>=2.31",
 ]
@@ -73,6 +73,7 @@ pretty = true
 show_error_codes = true
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 addopts = [
     "--strict-config",
     "--strict-markers",
